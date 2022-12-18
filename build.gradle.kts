@@ -10,37 +10,19 @@ plugins {
     id("org.jetbrains.dokka") version "1.6.0"
 }
 
-group = "net.yakclient.plugins"
-version = "1.0-SNAPSHOT"
-
-repositories {
-    mavenCentral()
-    maven {
-        isAllowInsecureProtocol = true
-        url = uri("http://maven.yakclient.net/snapshots")
-    }
-    maven {
-        name = "Durgan McBroom GitHub Packages"
-        url = uri("https://maven.pkg.github.com/durganmcbroom/artifact-resolver")
-        credentials {
-            username = project.findProperty("dm.gpr.user") as? String
-                ?: throw IllegalArgumentException("Need a Github package registry username!")
-            password = project.findProperty("dm.gpr.key") as? String
-                ?: throw IllegalArgumentException("Need a Github package registry key!")
-        }
-    }
-}
 
 configurations.all {
     resolutionStrategy.cacheChangingModulesFor(0, "seconds")
 }
 
 dependencies {
+    implementation("net.yakclient:archive-mapper:1.0-SNAPSHOT")
     implementation("com.durganmcbroom:event-api:1.0-SNAPSHOT")
     implementation("io.arrow-kt:arrow-core:1.1.2")
 
-    testImplementation(kotlin("test"))
-    implementation("net.yakclient:archives-mixin:1.0-SNAPSHOT")
+    api("net.yakclient:archives-mixin:1.0-SNAPSHOT") {
+        isChanging = true
+    }
     implementation("net.yakclient:boot:1.0-SNAPSHOT") {
         exclude(group = "com.durganmcbroom", module = "artifact-resolver")
         exclude(group = "com.durganmcbroom", module = "artifact-resolver-simple-maven")
@@ -58,11 +40,22 @@ dependencies {
     implementation("net.yakclient:common-util:1.0-SNAPSHOT") {
         isChanging = true
     }
-    implementation("net.yakclient.plugins:mixin-plugin:1.0-SNAPSHOT") {
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.4")
+    implementation("net.yakclient.components:minecraft-bootstrapper:1.0-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.4")
 
+    testImplementation(kotlin("test"))
+
+}
+
+tasks.test {
+    jvmArgs = listOf(
+//        "--add-reads",
+//        "yakclient.minecraft.provider._default=yakclient.archive.mapper",
+        "--add-reads",
+        "kotlin.stdlib=kotlinx.coroutines.core.jvm"
+    )
 }
 
 task<Jar>("sourcesJar") {
@@ -77,19 +70,19 @@ task<Jar>("javadocJar") {
 
 publishing {
     publications {
-        create<MavenPublication>("yakclient-plugin-maven") {
+        create<MavenPublication>("yakclient-maven") {
             from(components["java"])
             artifact(tasks["sourcesJar"])
             artifact(tasks["javadocJar"])
-            artifact("${sourceSets.main.get().resources.srcDirs.first().absoluteFile}${File.separator}prm.json").classifier = "prm"
+            artifact("${sourceSets.main.get().resources.srcDirs.first().absoluteFile}${File.separator}component-model.json").classifier =
+                "component-model"
 
-            artifactId = "yakclient-plugin"
-            groupId = "net.yakclient.plugins"
+            artifactId = "yakclient"
 
             pom {
-                name.set("YakClient Plugin")
-                description.set("The YakClient plugin for the boot module.")
-                url.set("https://github.com/yakclient/yakclient-plugin")
+                name.set("YakClient")
+                description.set("The YakClient component for the boot module.")
+                url.set("https://github.com/yakclient/yakclient")
 
                 packaging = "jar"
 
@@ -108,9 +101,9 @@ publishing {
                 }
 
                 scm {
-                    connection.set("scm:git:git://github.com/yakclient/yakclient-plugin")
-                    developerConnection.set("scm:git:ssh://github.com:yakclient/yakclient-plugin.git")
-                    url.set("https://github.com/yakclient/yakclient-plugin")
+                    connection.set("scm:git:git://github.com/yakclient/yakclient")
+                    developerConnection.set("scm:git:ssh://github.com:yakclient/yakclient.git")
+                    url.set("https://github.com/yakclient/yakclient")
                 }
             }
         }
@@ -121,8 +114,27 @@ allprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "maven-publish")
 
-    group = "net.yakclient"
+    group = "net.yakclient.components"
     version = "1.0-SNAPSHOT"
+
+    repositories {
+        mavenCentral()
+        mavenLocal()
+        maven {
+            isAllowInsecureProtocol = true
+            url = uri("http://maven.yakclient.net/snapshots")
+        }
+        maven {
+            name = "Durgan McBroom GitHub Packages"
+            url = uri("https://maven.pkg.github.com/durganmcbroom/artifact-resolver")
+            credentials {
+                username = project.findProperty("dm.gpr.user") as? String
+                    ?: throw IllegalArgumentException("Need a Github package registry username!")
+                password = project.findProperty("dm.gpr.key") as? String
+                    ?: throw IllegalArgumentException("Need a Github package registry key!")
+            }
+        }
+    }
 
     publishing {
         repositories {
@@ -156,6 +168,12 @@ allprojects {
         testImplementation(kotlin("test"))
     }
 
+    tasks.compileJava {
+        destinationDirectory.set(destinationDirectory.asFile.get().resolve("main"))
+        targetCompatibility = "17"
+        sourceCompatibility = "17"
+    }
+
     tasks.compileKotlin {
         destinationDirectory.set(tasks.compileJava.get().destinationDirectory.asFile.get())
 
@@ -164,7 +182,13 @@ allprojects {
         }
     }
 
+    tasks.compileTestJava {
+        destinationDirectory.set(destinationDirectory.asFile.get().resolve("test"))
+    }
+
     tasks.compileTestKotlin {
+        destinationDirectory.set(tasks.compileTestJava.get().destinationDirectory.asFile.get())
+
         kotlinOptions {
             jvmTarget = "17"
         }
@@ -174,10 +198,6 @@ allprojects {
         useJUnitPlatform()
     }
 
-    tasks.compileJava {
-        targetCompatibility = "17"
-        sourceCompatibility = "17"
-    }
     java {
         toolchain {
             languageVersion.set(JavaLanguageVersion.of(17))

@@ -1,0 +1,53 @@
+{
+  "name": "yakclient",
+  "packaging": "jar",
+  "entrypoint": "net.yakclient.components.yak.YakSoftwareComponent",
+  "children": [
+    {
+      "request": {
+        "descriptor": "net.yakclient.components:minecraft-bootstrapper:1.0-SNAPSHOT"
+      },
+      "repository": {
+        "type": "default",
+        "settings": {
+          "location" : "http://maven.yakclient.net/snapshots"
+        }
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "request": {
+        "descriptor": "net.yakclient:archives-mixin:1.0-SNAPSHOT"
+      },
+      "repository": {
+        "type": "simple-maven",
+        "settings": {
+          "location": "http://maven.yakclient.net/snapshots"
+        }
+      }
+    },
+    {
+      "request": {
+        "descriptor": "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.7.21"
+      },
+      "repository": {
+        "type": "simple-maven",
+        "settings": {
+          "location": "https://repo.maven.apache.org/maven2"
+        }
+      }
+    },
+    {
+      "request": {
+        "descriptor": "net.yakclient:archive-mapper:1.0-SNAPSHOT"
+      },
+      "repository": {
+        "type": "simple-maven",
+        "settings": {
+          "location": "http://maven.yakclient.net/snapshots"
+        }
+      }
+    }
+  ]
+}

@@ -1,15 +1,20 @@
-module yakclient.yakclient.plugin {
+module yakclient {
     requires kotlin.stdlib;
     requires yakclient.boot;
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.kotlin;
-    requires kotlin.stdlib.jdk7;
     requires durganmcbroom.artifact.resolver;
     requires durganmcbroom.artifact.resolver.simple.maven;
     requires yakclient.common.util;
-    requires yakclient.archives;
+    requires transitive yakclient.archives;
     requires arrow.core.jvm;
+    requires yakclient.minecraft.bootstrapper;
+    requires transitive yakclient.archives.mixin;
+    requires java.logging;
+    requires yakclient.archive.mapper;
 
-    exports net.yakclient.plugins.yakclient.extension to com.fasterxml.jackson.databind;
-    opens net.yakclient.plugins.yakclient.extension to com.fasterxml.jackson.databind, kotlin.reflect;
+    exports net.yakclient.components.yak.extension;
+    exports net.yakclient.components.yak;
+    exports net.yakclient.components.yak.mixin;
+    opens net.yakclient.components.yak.extension to com.fasterxml.jackson.databind, kotlin.reflect;
 }

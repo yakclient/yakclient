@@ -1,3 +1,2 @@
 
-rootProject.name = "yakclient-plugin"
-
+rootProject.name = "yakclient"
