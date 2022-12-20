@@ -4,16 +4,14 @@ import arrow.core.continuations.either
 import arrow.core.handleErrorWith
 import com.durganmcbroom.artifact.resolver.simple.maven.HashType
 import net.yakclient.archive.mapper.MappedArchive
+import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.Archives
-import net.yakclient.archives.extension.parameters
 import net.yakclient.archives.mixin.*
-import net.yakclient.archives.transform.MethodSignature
-import net.yakclient.archives.transform.Sources
+import net.yakclient.archives.transform.ProvidedInstructionReader
 import net.yakclient.boot.component.ComponentContext
 import net.yakclient.boot.component.SoftwareComponent
 import net.yakclient.boot.security.PrivilegeAccess
 import net.yakclient.boot.security.PrivilegeManager
-import net.yakclient.common.util.runCatching
 import net.yakclient.components.yak.extension.ExtensionContext
 import net.yakclient.components.yak.extension.ExtensionGraph
 import net.yakclient.components.yak.extension.ExtensionNode
@@ -28,6 +26,9 @@ import java.nio.file.Path
 import java.util.logging.Level
 import java.util.logging.Logger
 import net.yakclient.components.yak.mapping.*;
+import net.yakclient.components.yak.mixin.InjectionPoints
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.tree.ClassNode
 
 public class YakSoftwareComponent : SoftwareComponent {
     private lateinit var graph: ExtensionGraph
@@ -35,7 +36,7 @@ public class YakSoftwareComponent : SoftwareComponent {
 
 
     override fun onEnable(context: ComponentContext) {
-       val cache by context.configuration
+        val cache by context.configuration
         val configExtensions = context.configuration["extensions"] ?: ""
 
         // net.yakclient:example:example->maven.yakclient.net@default;another
@@ -72,7 +73,6 @@ public class YakSoftwareComponent : SoftwareComponent {
         graph = ExtensionGraph(
             Path.of(cache),
             Archives.Finders.JPM_FINDER,
-            Archives.Resolvers.JPM_RESOLVER,
             PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
             this::class.java.classLoader,
             context.bootContext.dependencyProviders,
@@ -100,14 +100,14 @@ public class YakSoftwareComponent : SoftwareComponent {
         val minecraftHandler = MinecraftBootstrapper.instance.minecraftHandler
 
         val flatMap = this.extensions.flatMap { node ->
-            if (node.runtimeModel.mixins.isNotEmpty()) checkNotNull(node.archive) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
+            if (node.runtimeModel.mixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
             node.runtimeModel.mixins.flatMap { mixin ->
                 mixin.injections.map {
                     val provider = yakContext.injectionProviders[it.type]
                         ?: throw IllegalArgumentException("Unknown mixin type: '${it.type}' in mixin class: '${mixin.classname}'")
 
                     MixinMetadata(
-                        provider.parseData(it.options, node.archive!!.classloader),
+                        provider.parseData(it.options, node.archiveReference!!),
                         provider.get() as MixinInjection<MixinInjection.InjectionData>
                     ) to mappings.mapClassName(mixin.destination.withSlashes()).withDots()
                 }
@@ -121,7 +121,11 @@ public class YakSoftwareComponent : SoftwareComponent {
         minecraftHandler.loadMinecraft()
 
         nodes.forEach {
-            val extension = it.extension?.process?.extension
+
+            val ref = it.extension?.process?.ref
+            ref?.supplyMinecraft(minecraftHandler.archive)
+            val extension = ref?.extension
+
             extension?.init(it.archive!!)
 
             extension?.init(ExtensionContext(context, yakContext))
@@ -132,7 +136,7 @@ public class YakSoftwareComponent : SoftwareComponent {
 
     override fun onDisable() {
         extensions.forEach {
-            it.extension?.process?.extension?.cleanup()
+            it.extension?.process?.ref?.extension?.cleanup()
         }
     }
 
@@ -150,47 +154,38 @@ public class YakSoftwareComponent : SoftwareComponent {
 
                     override fun parseData(
                         data: Map<String, String>,
-                        classloader: ClassLoader
+                        ref: ArchiveReference
                     ): SourceInjectionData {
-                        val classSelf = data.dataNotNull("self")
+                        val self = data.dataNotNull("self")
                         val point = data.dataNotNull("point")
 
-                        val clsFrom = classloader.loadClass(classSelf)
+                        val clsSelf = ref.reader["${self.withSlashes()}.class"] ?: throw IllegalArgumentException("Failed to find class: '$self' in extension when loading source injection.")
+                        val node = ClassNode().also { ClassReader(clsSelf.resource.open()).accept(it, 0) }
 
                         val toWithSlashes = data.dataNotNull("to").withSlashes()
                         val methodTo = data.dataNotNull("methodTo")
                         val data = SourceInjectionData(
                             mappings.mapClassName(toWithSlashes).withDots(),
-                            classSelf,
+                            self,
                             run {
                                 val methodFrom = data.dataNotNull("methodFrom")
-                                val sig = MethodSignature.of(methodFrom)
-                                val parameters = parameters(sig.desc).toSet()
 
-                                Sources.of(
-                                    clsFrom.methods.find { method ->
-                                        method.name == sig.name && method.parameters.all { parameters.contains(it.name) }
-                                    } ?: throw IllegalArgumentException("Failed to find method: '$methodFrom'.")
+
+                                ProvidedInstructionReader(
+                                    node.methods.firstOrNull {
+                                        (it.name + it.desc) == methodFrom
+                                    }?.instructions
+                                        ?: throw IllegalArgumentException("Failed to find method: '$methodFrom'.")
                                 )
                             },
                             run {
                                 mappings.mapMethodSignature(
                                     toWithSlashes,
-//                                    toWithSlashes,
                                     methodTo,
-//                                    mappings.mapDesc(methodTo)
                                 )
                             },
                             pointCache[point] ?: run {
-                                val pointClass = classloader.loadClass(point)
-
-                                val constructor =
-                                    runCatching(NoSuchMethodException::class) { pointClass.getConstructor() }
-                                        ?: throw IllegalStateException("Class '$point' does not have a no-arg empty constructor! Cannot instantiate it")
-
-                                if (!constructor.trySetAccessible()) throw IllegalStateException("Cannot access no-arg constructor in mixin class: '${pointClass.name}'")
-
-                                constructor.newInstance() as SourceInjectionPoint
+                                loadInjectionPoint(point, ref).also { pointCache[point] = it }
                             }
                         )
 
@@ -204,23 +199,23 @@ public class YakSoftwareComponent : SoftwareComponent {
 
                     override fun parseData(
                         data: Map<String, String>,
-                        classloader: ClassLoader
+                        ref: ArchiveReference
                     ): MethodInjectionData {
                         val self = data.dataNotNull("self")
-                        val classSelf = classloader.loadClass(self)
+                        val classSelf = ref.reader["${self.withSlashes()}.class"] ?: throw IllegalArgumentException("Failed to find class: '$self' when loading method injections.")
+                        val node = ClassNode().also { ClassReader(classSelf.resource.open()).accept(it, 0) }
 
                         return MethodInjectionData(
                             mappings.mapClassName(data.dataNotNull("to").withSlashes()).withDots(),
                             self,
                             run {
                                 val methodFrom = data.dataNotNull("methodFrom")
-                                val sig = MethodSignature.of(methodFrom)
-                                val parameters = parameters(sig.desc).toSet()
 
-                                Sources.of(
-                                    classSelf.methods.find { method ->
-                                        method.name == sig.name && method.parameters.all { parameters.contains(it.name) }
-                                    } ?: throw IllegalArgumentException("Failed to find method: '$methodFrom'.")
+                                ProvidedInstructionReader(
+                                    node.methods.firstOrNull {
+                                        (it.name + it.desc) == methodFrom
+                                    }?.instructions
+                                        ?: throw IllegalArgumentException("Failed to find method: '$methodFrom'.")
                                 )
                             },
 
@@ -240,7 +235,7 @@ public class YakSoftwareComponent : SoftwareComponent {
 
                     override fun parseData(
                         data: Map<String, String>,
-                        classloader: ClassLoader
+                        ref: ArchiveReference
                     ): FieldInjectionData {
                         return FieldInjectionData(
                             data.dataNotNull("access").toInt(),
@@ -264,6 +259,17 @@ public class YakSoftwareComponent : SoftwareComponent {
                     ProGuardMappingParser
                 ).associateByTo(HashMap(), MappingProvider::type)
             )
+        }
+
+        private fun loadInjectionPoint(name: String, archive: ArchiveReference): SourceInjectionPoint {
+            return when (name) {
+                "net.yakclient.components.yak.mixin.InjectionPoints\$AfterBegin" -> InjectionPoints.AfterBegin()
+                "net.yakclient.components.yak.mixin.InjectionPoints\$BeforeEnd" -> InjectionPoints.BeforeEnd()
+                "net.yakclient.components.yak.mixin.InjectionPoints\$BeforeInvoke" -> InjectionPoints.BeforeInvoke()
+                "net.yakclient.components.yak.mixin.InjectionPoints\$BeforeReturn" -> InjectionPoints.BeforeReturn()
+                "net.yakclient.components.yak.mixin.InjectionPoints\$Overwrite" -> InjectionPoints.Overwrite()
+                else -> throw IllegalArgumentException("Invalid injection point: '$name'. Custom injections points are not yet implemented.")
+            }
         }
     }
 }

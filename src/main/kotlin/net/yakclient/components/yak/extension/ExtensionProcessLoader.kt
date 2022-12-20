@@ -15,7 +15,7 @@ import org.objectweb.asm.tree.*
 public class ExtensionProcessLoader(
     private val privilegeManager: PrivilegeManager,
     private val parentClassloader: ClassLoader,
-    private val resolver: ArchiveResolver<*, *>,
+//    private val resolver: ArchiveResolver<*, *>,
     private val context: ComponentContext,
     private val yakContext: YakContext,
     private val mappings: MappedArchive,
@@ -97,44 +97,51 @@ public class ExtensionProcessLoader(
         archiveReference.reader.entries()
             .filter { it.name.endsWith(".class") }
             .forEach {
-                it.transform(config, dependencies + minecraftRef)
+                val entry = it.transform(config, dependencies + minecraftRef)
+                archiveReference.writer.put(entry)
             }
     }
 
     override fun load(info: ExtensionInfo): ExtensionProcess {
         val (ref, children, dependencies, erm, containerHandle) = info
 
-        val archives = children.map { it.handle } + dependencies + JpmArchives.moduleToArchive(this::class.java.module)
+        val archives = children.map { it.process.archive } + dependencies + JpmArchives.moduleToArchive(this::class.java.module)
 
         transformArchive(ref, archives)
 
-        val handle = Archives.resolve(
-            ref,
-            ExtensionClassLoader(
-                ref,
-                archives,
-                privilegeManager,
-                parentClassloader,
-                containerHandle
-            ),
-            resolver as ArchiveResolver<ArchiveReference, *>,
-            archives.toSet()
-        ).archive
-
-        val s = "${erm.groupId}:${erm.name}:${erm.version}"
-
-        val extensionClass =
-            runCatching(ClassNotFoundException::class) { handle.classloader.loadClass(erm.extensionClass) }
-                ?: throw IllegalArgumentException("Could not load extension: '$s' because the class: '${erm.extensionClass}' couldnt be found.")
-        val extensionConstructor = runCatching(NoSuchMethodException::class) { extensionClass.getConstructor() }
-            ?: throw IllegalArgumentException("Could not find no-arg constructor in class: '${erm.extensionClass}' in extension: '$s'.")
-
-        val instance = extensionConstructor.newInstance() as? Extension
-            ?: throw IllegalArgumentException("Extension class: '${erm.extensionClass}' does not implement: '${Extension::class.qualifiedName} in extension: '$s'.")
 
         return ExtensionProcess(
-            instance,
-            handle,
+            ExtensionReference { minecraft ->
+                val result = Archives.resolve(
+                    ref,
+                    ExtensionClassLoader(
+                        ref,
+                        archives + minecraft,
+                        privilegeManager,
+                        parentClassloader,
+                        containerHandle
+                    ),
+                    Archives.Resolvers.JPM_RESOLVER,
+                    archives.toSet() + minecraft
+                )
+
+                result.controller.addReads(result.module, minecraft.classloader.unnamedModule)
+
+                val handle by result::archive
+
+                val s = "${erm.groupId}:${erm.name}:${erm.version}"
+
+                val extensionClass =
+                    runCatching(ClassNotFoundException::class) { handle.classloader.loadClass(erm.extensionClass) }
+                        ?: throw IllegalArgumentException("Could not load extension: '$s' because the class: '${erm.extensionClass}' couldnt be found.")
+                val extensionConstructor = runCatching(NoSuchMethodException::class) { extensionClass.getConstructor() }
+                    ?: throw IllegalArgumentException("Could not find no-arg constructor in class: '${erm.extensionClass}' in extension: '$s'.")
+
+                val instance = extensionConstructor.newInstance() as? Extension
+                    ?: throw IllegalArgumentException("Extension class: '${erm.extensionClass}' does not implement: '${Extension::class.qualifiedName} in extension: '$s'.")
+
+                instance to handle
+            },
             ExtensionContext(
                 context,
                 yakContext

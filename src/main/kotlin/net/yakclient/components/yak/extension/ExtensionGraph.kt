@@ -38,7 +38,6 @@ import kotlin.io.path.writeBytes
 public class ExtensionGraph(
     private val path: Path,
     private val finder: ArchiveFinder<*>,
-    resolver: ArchiveResolver<*, *>,
     private val privilegeManager: PrivilegeManager,
     parent: ClassLoader,
     private val dependencyProviders: DependencyProviders,
@@ -53,7 +52,6 @@ public class ExtensionGraph(
     private val extProcessLoader = ExtensionProcessLoader(
         privilegeManager,
         parent,
-        resolver,
         context,
         yakContext,
         mappings,
@@ -77,7 +75,7 @@ public class ExtensionGraph(
     private fun getJarPathFor(desc: ExtensionDescriptor): Path =
         getBasePathFor(desc) resolve "${desc.artifact}-${desc.version}.jar"
 
-    private fun getErmPathFor(desc: ExtensionDescriptor): Path =
+    private fun  getErmPathFor(desc: ExtensionDescriptor): Path =
         getBasePathFor(desc) resolve "${desc.artifact}-${desc.version}-erm.json"
 
     override fun get(request: ExtensionArtifactRequest): Either<ArchiveLoadException, ExtensionNode> {
@@ -131,7 +129,7 @@ public class ExtensionGraph(
             ) else null
 
             ExtensionNode(
-                container?.handle,
+                ref,
                 children.toSet(),
                 dependencies.toSet(),
                 container,

@@ -12,6 +12,7 @@ module yakclient {
     requires transitive yakclient.archives.mixin;
     requires java.logging;
     requires yakclient.archive.mapper;
+    requires kotlin.reflect;
 
     exports net.yakclient.components.yak.extension;
     exports net.yakclient.components.yak;

@@ -1,6 +1,5 @@
 package net.yakclient.components.yak.test.extension
 
-import arrow.core.Either
 import com.durganmcbroom.artifact.resolver.createContext
 import com.durganmcbroom.artifact.resolver.simple.maven.HashType
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMaven
@@ -15,6 +14,7 @@ import net.yakclient.boot.security.PrivilegeAccess
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.boot.withBootDependencies
 import net.yakclient.components.yak.YakSoftwareComponent
+import net.yakclient.components.yak.extension.ExtensionContext
 import net.yakclient.components.yak.extension.ExtensionGraph
 import net.yakclient.components.yak.extension.artifact.ExtensionArtifactRequest
 import net.yakclient.components.yak.extension.artifact.ExtensionRepositorySettings
@@ -111,7 +111,6 @@ class TestExtensionComponent {
         val graph = ExtensionGraph(
             Path.of(cache),
             Archives.Finders.JPM_FINDER,
-            Archives.Resolvers.JPM_RESOLVER,
             PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
             this::class.java.classLoader,
             context.bootContext.dependencyProviders,
@@ -133,14 +132,14 @@ class TestExtensionComponent {
         println(node1)
 
         val flatMap = node1.orNull()?.let { node ->
-            if (node.runtimeModel.mixins.isNotEmpty()) checkNotNull(node.archive) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
+            if (node.runtimeModel.mixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
             node.runtimeModel.mixins.flatMap { mixin ->
                 mixin.injections.map {
                     val provider = yakContext.injectionProviders[it.type]
                         ?: throw IllegalArgumentException("Unknown mixin type: '${it.type}' in mixin class: '${mixin.classname}'")
 
                     MixinMetadata(
-                        provider.parseData(it.options, node.archive!!.classloader),
+                        provider.parseData(it.options, node.archiveReference!!),
                         provider.get() as MixinInjection<MixinInjection.InjectionData>
                     ) to mappings.mapClassName(mixin.destination.withSlashes()).withDots()
                 }
@@ -153,6 +152,12 @@ class TestExtensionComponent {
         minecraftHandler.writeAll()
         minecraftHandler.loadMinecraft()
 
+        val ref = node1.orNull()?.extension?.process?.ref
+        ref?.supplyMinecraft(minecraftHandler.archive)
+        ref?.extension?.init(ExtensionContext(
+            context,
+            yakContext
+        ))
 
 //        testEnable(
 //            MinecraftBootstrapper(),
