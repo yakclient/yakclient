@@ -8,10 +8,9 @@ import com.durganmcbroom.artifact.resolver.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
-import net.yakclient.archive.mapper.MappedArchive
+import net.yakclient.archive.mapper.ArchiveMapping
 import net.yakclient.archives.ArchiveFinder
 import net.yakclient.archives.ArchiveReference
-import net.yakclient.archives.ArchiveResolver
 import net.yakclient.boot.archive.ArchiveGraph
 import net.yakclient.boot.archive.ArchiveLoadException
 import net.yakclient.boot.archive.handleOrChildren
@@ -43,7 +42,7 @@ public class ExtensionGraph(
     private val dependencyProviders: DependencyProviders,
     context: ComponentContext,
     yakContext: YakContext,
-    mappings: MappedArchive,
+    mappings: ArchiveMapping,
     minecraftRef: ArchiveReference,
 ) : ArchiveGraph<ExtensionArtifactRequest, ExtensionNode, ExtensionRepositorySettings>(
     ExtensionRepositoryFactory(dependencyProviders)

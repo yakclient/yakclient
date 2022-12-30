@@ -1,9 +1,10 @@
 package net.yakclient.components.yak.test.extension
 
 import net.yakclient.archive.mapper.*
+import net.yakclient.archive.mapper.MappingType.*
 import net.yakclient.archives.Archives
-import net.yakclient.archives.transform.ByteCodeUtils
 import net.yakclient.archives.transform.TransformerConfig
+import net.yakclient.common.util.openStream
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Handle
 import org.objectweb.asm.tree.*
@@ -12,6 +13,7 @@ import java.lang.reflect.Method
 import java.net.URI
 import kotlin.test.Test
 import net.yakclient.components.yak.mapping.*;
+import java.net.URL
 
 class TestTypeMapping {
     private fun printAndCheck(any: Any, other: Any) {
@@ -21,35 +23,23 @@ class TestTypeMapping {
 
     @Test
     fun `Test single type mapping`() {
-
-
-        val parser = Parsers[Parsers.PRO_GUARD]!!
+        val parser = net.yakclient.archive.mapper.parsers.ProGuardMappingParser
 
         val mappings =
-            parser.parse(URI("https://launcher.mojang.com/v1/objects/a661c6a55a0600bd391bdbbd6827654c05b2109c/client.txt"))
+            parser.parse(URL("https://launcher.mojang.com/v1/objects/a661c6a55a0600bd391bdbbd6827654c05b2109c/client.txt").openStream())
 
-        fun mapType(type: String): String =
-            if (type.isEmpty()) type
-            else if (ByteCodeUtils.isPrimitiveType(type.first())) type
-            else if (type.startsWith("[")) {
-                "[" + mapType(type.substring(1 until type.length))
-            } else {
-                val byReal = mappings.classes.getByReal(type.trim('L', ';'))
-                byReal?.fakeName?.let { "L$it;" } ?: type
-            }
-
-        printAndCheck(mapType("C"), "C")
-        printAndCheck(mapType("Ljava/lang/String;"), "Ljava/lang/String;")
-        printAndCheck(mapType("Lcom.mojang.blaze3d.platform.InputConstants;"), "Ldsh;")
-        printAndCheck(mapType("[[[Lcom.mojang.blaze3d.platform.InputConstants;"), "[[[Ldsh;")
+        printAndCheck(mappings.mapType("C"), "C")
+        printAndCheck(mappings.mapType("Ljava/lang/String;"), "Ljava/lang/String;")
+        printAndCheck(mappings.mapType("Lcom.mojang.blaze3d.platform.InputConstants;"), "Ldsh;")
+        printAndCheck(mappings.mapType("[[[Lcom.mojang.blaze3d.platform.InputConstants;"), "[[[Ldsh;")
     }
 
     @Test
     fun `Test map signature`() {
-        val parser = Parsers[Parsers.PRO_GUARD]!!
+        val parser = net.yakclient.archive.mapper.parsers.ProGuardMappingParser
 
         val mappings =
-            parser.parse(URI("https://launcher.mojang.com/v1/objects/a661c6a55a0600bd391bdbbd6827654c05b2109c/client.txt"))
+            parser.parse(URI("https://launcher.mojang.com/v1/objects/a661c6a55a0600bd391bdbbd6827654c05b2109c/client.txt").openStream())
 
         printAndCheck(mappings.mapMethodSignature("net/minecraft/client/gui/screens/TitleScreen", "init()V"), "b()V")
     }
@@ -57,132 +47,153 @@ class TestTypeMapping {
 
     @Test
     fun `Test full class type map`() {
-        val mappings = MappedArchive(
-            "",
-            "",
-            ObfuscationMap(
-                listOf(
-                    MappedClass(
-                        "net/yakclient/components/yak/test/extension/RealClass",
-                        "net/yakclient/components/yak/test/extension/FakeClass",
-                        ObfuscationMap(
-                            mapOf(
-                               "doRealThing()V" to "doFakeThing()V" to MappedMethod(
-                                    "doRealThing",
-                                    "doFakeThing",
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    listOf(),
-                                    PrimitiveTypeDescriptor.VOID,
-                                ),
-                                "doSomethingElse([Ljava/lang/String;)V" to "doOtherFakeThing([Ljava/lang/String;)V" to MappedMethod(
-                                    "doSomethingElse",
-                                    "doOtherFakeThing",
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    listOf(
-                                        ArrayTypeDescriptor(
-                                            ClassTypeDescriptor(
-                                                "java/lang/String"
-                                            )
-                                        )
-                                    ),
-                                    PrimitiveTypeDescriptor.VOID,
-                                )
-                            )
-                        ),
-                        ObfuscationMap(
-                            listOf(
-                                MappedField(
-                                    "realStringValue",
-                                    "fakeStringValue",
-                                    ClassTypeDescriptor("java.lang.String")
-                                )
-                            )
-                        )
-                    ),
-                    MappedClass(
-                        "net.yakclient.components.yak.test.extension.RealException",
-                        "net.yakclient.components.yak.test.extension.FakeException",
-                        ObfuscationMap(),
-                        ObfuscationMap()
-                    )
-                )
+
+        val thingMethod = MethodMapping(
+            MethodIdentifier("doRealThing", listOf(), REAL),
+            MethodIdentifier("doFakeThing", listOf(), FAKE),
+            null,
+            null,
+            null,
+            null,
+            PrimitiveTypeIdentifier.VOID,
+            PrimitiveTypeIdentifier.VOID,
+        )
+
+        val somethingMethod = MethodMapping(
+            MethodIdentifier(
+                "doSomethingElse",
+                listOf(ArrayTypeIdentifier(ClassTypeIdentifier("java/lang/String"))),
+                REAL
+            ),
+            MethodIdentifier(
+                "doOtherFakeThing",
+                listOf(ArrayTypeIdentifier(ClassTypeIdentifier("java/lang/String"))),
+                FAKE
+            ),
+            null,
+            null,
+            null,
+            null,
+            PrimitiveTypeIdentifier.VOID,
+            PrimitiveTypeIdentifier.VOID,
+        )
+
+        val stringValueField = FieldMapping(
+            FieldIdentifier("realStringValue", REAL),
+            FieldIdentifier("fakeStringValue", FAKE),
+            ClassTypeIdentifier("java/lang/String"),
+            ClassTypeIdentifier("java/lang/String")
+
+        )
+        val classMapping = ClassMapping(
+            ClassIdentifier(
+                "net/yakclient/components/yak/test/extension/RealClass", REAL
+            ),
+            ClassIdentifier("net/yakclient/components/yak/test/extension/FakeClass", FAKE),
+            mapOf(
+                thingMethod.realIdentifier to thingMethod,
+                thingMethod.fakeIdentifier to thingMethod,
+                somethingMethod.realIdentifier to somethingMethod,
+                somethingMethod.fakeIdentifier to somethingMethod
+            ),
+
+            mapOf(
+                stringValueField.realIdentifier to stringValueField,
+                stringValueField.fakeIdentifier to stringValueField
+            )
+        )
+
+        val exceptionMapping = ClassMapping(
+            ClassIdentifier(
+                "net/yakclient/components/yak/test/extension/RealException", REAL
+            ),
+            ClassIdentifier("net/yakclient/components/yak/test/extension/FakeException", FAKE),
+            mapOf(),
+            mapOf()
+        )
+        val mappings = ArchiveMapping(
+            mapOf(
+                classMapping.realIdentifier to classMapping,
+                classMapping.fakeIdentifier to classMapping,
+                exceptionMapping.realIdentifier to exceptionMapping,
+                exceptionMapping.fakeIdentifier to exceptionMapping
             )
         )
 
         val config = TransformerConfig.of {
-            transformClass {
-                it
-            }
-
             transformField { node ->
-                node.desc =  mappings.mapType(node.desc)
+                node.desc = mappings.mapType(node.desc)
 
                 node
             }
 
             transformMethod { node ->
-                node.desc = mappings.mapMethodDesc(node.desc)
+                mappings.run {
+                    node.desc = mapMethodDesc(node.desc)
 
-                node.exceptions = node.exceptions.map( mappings::mapType)
+                    node.exceptions = node.exceptions.map(::mapType)
 
-                node.localVariables.forEach {
-                    it.desc =  mappings.mapType(it.desc)
-                }
+                    node.localVariables.forEach {
+                        it.desc = mapType(it.desc)
+                    }
 
-                node.tryCatchBlocks.forEach {
-                    it.type =  mappings.mapClassName(it.type)
-                }
+                    node.tryCatchBlocks.forEach {
+                        it.type = mapClassName(it.type)
+                    }
 
-                // AbstractInsnNode
-                node.instructions.forEach {
-                    when (it) {
-                        is FieldInsnNode -> {
-                            val mapClassName =  mappings.mapClassName(it.owner)
-                            it.name = run {
-                                mappings.getMappedClass(it.owner)
-                                    ?.fields
-                                    ?.getByReal(it.name)
-                                    ?.fakeName
-                                    ?: it.name
+                    // AbstractInsnNode
+                    node.instructions.forEach {
+                        when (it) {
+                            is FieldInsnNode -> {
+                                val mapClassName = mapClassName(it.owner)
+                                it.name = run {
+                                    getMappedClass(it.owner)
+                                        ?.fields
+                                        ?.get(
+                                            FieldIdentifier(
+                                                it.name,
+                                                MappingType.REAL
+                                            )
+                                        )
+                                        ?.fakeIdentifier?.name
+                                        ?: it.name
+                                }
+                                it.owner = mapClassName
+                                it.desc = mapType(it.desc)
                             }
-                            it.owner = mapClassName
-                            it.desc =  mappings.mapType(it.desc)
-                        }
-                        is InvokeDynamicInsnNode -> {
-                            // Can ignore name because only the name of the bootstrap method is known at compile time and that is held in the handle field
-                            it.desc =  mappings.mapMethodDesc(it.desc) // Expected descriptor type of the generated call site
 
-                            val desc =  mappings.mapMethodDesc(it.bsm.desc)
-                            it.bsm = Handle(
-                                it.bsm.tag,
-                                mappings.mapType(it.bsm.owner),
-                                mappings.mapMethodName(it.bsm.owner, it.bsm.name, desc),
-                                desc,
-                                it.bsm.isInterface
-                            )
-                        }
-                        is MethodInsnNode -> {
-                            val mapDesc =  mappings.mapMethodDesc(it.desc)
+                            is InvokeDynamicInsnNode -> {
+                                // Can ignore name because only the name of the bootstrap method is known at compile time and that is held in the handle field
+                                it.desc = mapMethodDesc(it.desc) // Expected descriptor type of the generated call site
 
-                            it.name =  mappings.mapMethodName(it.owner, it.name, mapDesc)
-                            it.owner =  mappings.mapClassName(it.owner)
-                            it.desc = mapDesc
-                        }
-                        is MultiANewArrayInsnNode -> {
-                            it.desc =  mappings.mapType(it.desc)
-                        }
-                        is TypeInsnNode -> {
-                            it.desc =  mappings.mapClassName(it.desc)
+                                val desc = mapMethodDesc(it.bsm.desc)
+                                it.bsm = Handle(
+                                    it.bsm.tag,
+                                    mapType(it.bsm.owner),
+                                    mapMethodName(it.bsm.owner, it.bsm.name, desc),
+                                    desc,
+                                    it.bsm.isInterface
+                                )
+                            }
+
+                            is MethodInsnNode -> {
+                                val mapDesc = mapMethodDesc(it.desc)
+
+                                it.name = mapMethodName(it.owner, it.name, mapDesc)
+                                it.owner = mapClassName(it.owner)
+                                it.desc = mapDesc
+                            }
+
+                            is MultiANewArrayInsnNode -> {
+                                it.desc = mapType(it.desc)
+                            }
+
+                            is TypeInsnNode -> {
+                                it.desc = mapClassName(it.desc)
+                            }
                         }
                     }
                 }
-
 
                 node
             }

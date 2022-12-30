@@ -3,10 +3,11 @@ package net.yakclient.components.yak
 import arrow.core.continuations.either
 import arrow.core.handleErrorWith
 import com.durganmcbroom.artifact.resolver.simple.maven.HashType
-import net.yakclient.archive.mapper.MappedArchive
+import net.yakclient.archive.mapper.ArchiveMapping
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.Archives
 import net.yakclient.archives.mixin.*
+import net.yakclient.archives.transform.MethodSignature
 import net.yakclient.archives.transform.ProvidedInstructionReader
 import net.yakclient.boot.component.ComponentContext
 import net.yakclient.boot.component.SoftwareComponent
@@ -143,9 +144,16 @@ public class YakSoftwareComponent : SoftwareComponent {
     internal companion object {
         private val logger = Logger.getLogger(this::class.simpleName)
 
-        fun createContext(context: ComponentContext, mappings: MappedArchive): YakContext {
+        fun createContext(context: ComponentContext, mappings: ArchiveMapping): YakContext {
             fun Map<String, String>.dataNotNull(name: String): String =
                 checkNotNull(this[name]) { "Invalid Mixin options, no '$name' value provided in '$this'." }
+
+            fun ArchiveMapping.justMapSignatureDescriptor(signature: String): String {
+                val (name, desc, ret) = MethodSignature.of(signature)
+
+                val retOrBlank = ret ?: ""
+                return name + mapMethodDesc("($desc)$retOrBlank")
+            }
 
             return YakContext(context, mutableListOf(
                 object : MixinInjectionProvider<SourceInjectionData> {
@@ -159,7 +167,8 @@ public class YakSoftwareComponent : SoftwareComponent {
                         val self = data.dataNotNull("self")
                         val point = data.dataNotNull("point")
 
-                        val clsSelf = ref.reader["${self.withSlashes()}.class"] ?: throw IllegalArgumentException("Failed to find class: '$self' in extension when loading source injection.")
+                        val clsSelf = ref.reader["${self.withSlashes()}.class"]
+                            ?: throw IllegalArgumentException("Failed to find class: '$self' in extension when loading source injection.")
                         val node = ClassNode().also { ClassReader(clsSelf.resource.open()).accept(it, 0) }
 
                         val toWithSlashes = data.dataNotNull("to").withSlashes()
@@ -173,7 +182,7 @@ public class YakSoftwareComponent : SoftwareComponent {
 
                                 ProvidedInstructionReader(
                                     node.methods.firstOrNull {
-                                        (it.name + it.desc) == methodFrom
+                                        (it.name + it.desc) == mappings.justMapSignatureDescriptor(methodFrom)
                                     }?.instructions
                                         ?: throw IllegalArgumentException("Failed to find method: '$methodFrom'.")
                                 )
@@ -202,7 +211,9 @@ public class YakSoftwareComponent : SoftwareComponent {
                         ref: ArchiveReference
                     ): MethodInjectionData {
                         val self = data.dataNotNull("self")
-                        val classSelf = ref.reader["${self.withSlashes()}.class"] ?: throw IllegalArgumentException("Failed to find class: '$self' when loading method injections.")
+                        val classSelf = ref.reader["${self.withSlashes()}.class"] ?: throw IllegalArgumentException(
+                            "Failed to find class: '$self' when loading method injections."
+                        )
                         val node = ClassNode().also { ClassReader(classSelf.resource.open()).accept(it, 0) }
 
                         return MethodInjectionData(
@@ -213,7 +224,7 @@ public class YakSoftwareComponent : SoftwareComponent {
 
                                 ProvidedInstructionReader(
                                     node.methods.firstOrNull {
-                                        (it.name + it.desc) == methodFrom
+                                        (it.name + it.desc) == mappings.justMapSignatureDescriptor(methodFrom)
                                     }?.instructions
                                         ?: throw IllegalArgumentException("Failed to find method: '$methodFrom'.")
                                 )

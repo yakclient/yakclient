@@ -40,7 +40,7 @@
     },
     {
       "request": {
-        "descriptor": "net.yakclient:archive-mapper:1.0-SNAPSHOT"
+        "descriptor": "net.yakclient:archive-mapper:1.1-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",

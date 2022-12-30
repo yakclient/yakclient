@@ -16,7 +16,7 @@ configurations.all {
 }
 
 dependencies {
-    implementation("net.yakclient:archive-mapper:1.0-SNAPSHOT")
+    implementation("net.yakclient:archive-mapper:1.1-SNAPSHOT")
     implementation("com.durganmcbroom:event-api:1.0-SNAPSHOT")
     implementation("io.arrow-kt:arrow-core:1.1.2")
 
@@ -119,7 +119,6 @@ allprojects {
 
     repositories {
         mavenCentral()
-        mavenLocal()
         maven {
             isAllowInsecureProtocol = true
             url = uri("http://maven.yakclient.net/snapshots")

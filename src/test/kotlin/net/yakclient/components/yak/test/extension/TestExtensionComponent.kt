@@ -59,7 +59,6 @@ class TestExtensionComponent {
         )
     }
 
-    // TODO Figure out why it throws an exception when the default minecraft modules contains a _ and is open.
     @Test
     fun `Load extension`() {
         val cache = Files.createTempDirectory("m2").resolve(UUID.randomUUID().toString()).toString()

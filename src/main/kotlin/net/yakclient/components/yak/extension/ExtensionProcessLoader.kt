@@ -1,6 +1,8 @@
 package net.yakclient.components.yak.extension
 
-import net.yakclient.archive.mapper.MappedArchive
+import net.yakclient.archive.mapper.ArchiveMapping
+import net.yakclient.archive.mapper.FieldIdentifier
+import net.yakclient.archive.mapper.MappingType
 import net.yakclient.archives.*
 import net.yakclient.archives.transform.TransformerConfig
 import net.yakclient.boot.component.ComponentContext
@@ -18,7 +20,7 @@ public class ExtensionProcessLoader(
 //    private val resolver: ArchiveResolver<*, *>,
     private val context: ComponentContext,
     private val yakContext: YakContext,
-    private val mappings: MappedArchive,
+    private val mappings: ArchiveMapping,
     private val minecraftRef: ArchiveReference,
 ) : ProcessLoader<ExtensionInfo, ExtensionProcess> {
     private val config = TransformerConfig.of {
@@ -50,8 +52,11 @@ public class ExtensionProcessLoader(
                             it.name = run {
                                 getMappedClass(it.owner)
                                     ?.fields
-                                    ?.getByReal(it.name)
-                                    ?.fakeName
+                                    ?.get(FieldIdentifier(
+                                        it.name,
+                                        MappingType.REAL
+                                    ))
+                                    ?.fakeIdentifier?.name
                                     ?: it.name
                             }
                             it.owner = mapClassName
