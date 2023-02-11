@@ -3,6 +3,7 @@ package net.yakclient.components.yak
 import arrow.core.continuations.either
 import arrow.core.handleErrorWith
 import com.durganmcbroom.artifact.resolver.simple.maven.HashType
+import net.yakclient.client.api.ExtensionContext
 import net.yakclient.archive.mapper.ArchiveMapping
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.Archives
@@ -13,7 +14,6 @@ import net.yakclient.boot.component.ComponentContext
 import net.yakclient.boot.component.SoftwareComponent
 import net.yakclient.boot.security.PrivilegeAccess
 import net.yakclient.boot.security.PrivilegeManager
-import net.yakclient.components.yak.extension.ExtensionContext
 import net.yakclient.components.yak.extension.ExtensionGraph
 import net.yakclient.components.yak.extension.ExtensionNode
 import net.yakclient.components.yak.extension.artifact.ExtensionArtifactRequest
@@ -81,6 +81,7 @@ public class YakSoftwareComponent : SoftwareComponent {
             yakContext,
             mappings,
             MinecraftBootstrapper.instance.minecraftHandler.minecraftReference.archive,
+            MinecraftBootstrapper.instance.minecraftHandler.version
         )
 
         val either = either.eager {
@@ -127,9 +128,7 @@ public class YakSoftwareComponent : SoftwareComponent {
             ref?.supplyMinecraft(minecraftHandler.archive)
             val extension = ref?.extension
 
-            extension?.init(it.archive!!)
-
-            extension?.init(ExtensionContext(context, yakContext))
+            extension?.init(ExtensionContext())
         }
 
         minecraftHandler.startMinecraft()
@@ -145,7 +144,7 @@ public class YakSoftwareComponent : SoftwareComponent {
         private val logger = Logger.getLogger(this::class.simpleName)
 
         fun createContext(context: ComponentContext, mappings: ArchiveMapping): YakContext {
-            fun Map<String, String>.dataNotNull(name: String): String =
+            fun Map<String, String>.notNull(name: String): String =
                 checkNotNull(this[name]) { "Invalid Mixin options, no '$name' value provided in '$this'." }
 
             fun ArchiveMapping.justMapSignatureDescriptor(signature: String): String {
@@ -161,24 +160,23 @@ public class YakSoftwareComponent : SoftwareComponent {
                     private val pointCache = HashMap<String, SourceInjectionPoint>()
 
                     override fun parseData(
-                        data: Map<String, String>,
+                        options: Map<String, String>,
                         ref: ArchiveReference
                     ): SourceInjectionData {
-                        val self = data.dataNotNull("self")
-                        val point = data.dataNotNull("point")
+                        val self = options.notNull("self")
+                        val point = options.notNull("point")
 
                         val clsSelf = ref.reader["${self.withSlashes()}.class"]
                             ?: throw IllegalArgumentException("Failed to find class: '$self' in extension when loading source injection.")
                         val node = ClassNode().also { ClassReader(clsSelf.resource.open()).accept(it, 0) }
 
-                        val toWithSlashes = data.dataNotNull("to").withSlashes()
-                        val methodTo = data.dataNotNull("methodTo")
+                        val toWithSlashes = options.notNull("to").withSlashes()
+                        val methodTo = options.notNull("methodTo")
                         val data = SourceInjectionData(
                             mappings.mapClassName(toWithSlashes).withDots(),
                             self,
                             run {
-                                val methodFrom = data.dataNotNull("methodFrom")
-
+                                val methodFrom = options.notNull("methodFrom")
 
                                 ProvidedInstructionReader(
                                     node.methods.firstOrNull {
@@ -207,20 +205,20 @@ public class YakSoftwareComponent : SoftwareComponent {
                     override val type: String = "method"
 
                     override fun parseData(
-                        data: Map<String, String>,
+                        options: Map<String, String>,
                         ref: ArchiveReference
                     ): MethodInjectionData {
-                        val self = data.dataNotNull("self")
+                        val self = options.notNull("self")
                         val classSelf = ref.reader["${self.withSlashes()}.class"] ?: throw IllegalArgumentException(
                             "Failed to find class: '$self' when loading method injections."
                         )
                         val node = ClassNode().also { ClassReader(classSelf.resource.open()).accept(it, 0) }
 
                         return MethodInjectionData(
-                            mappings.mapClassName(data.dataNotNull("to").withSlashes()).withDots(),
+                            mappings.mapClassName(options.notNull("to").withSlashes()).withDots(),
                             self,
                             run {
-                                val methodFrom = data.dataNotNull("methodFrom")
+                                val methodFrom = options.notNull("methodFrom")
 
                                 ProvidedInstructionReader(
                                     node.methods.firstOrNull {
@@ -230,14 +228,13 @@ public class YakSoftwareComponent : SoftwareComponent {
                                 )
                             },
 
-                            data.dataNotNull("access").toInt(),
-                            data.dataNotNull("name"),
-                            data.dataNotNull("description"),
-                            data["signature"],
-                            data.dataNotNull("exceptions").split(',')
+                            options.notNull("access").toInt(),
+                            options.notNull("name"),
+                            options.notNull("description"),
+                            options["signature"],
+                            options.notNull("exceptions").split(',')
                         )
                     }
-
 
                     override fun get(): MixinInjection<MethodInjectionData> = MethodInjection
                 },
@@ -245,16 +242,16 @@ public class YakSoftwareComponent : SoftwareComponent {
                     override val type: String = "field"
 
                     override fun parseData(
-                        data: Map<String, String>,
+                        options: Map<String, String>,
                         ref: ArchiveReference
                     ): FieldInjectionData {
                         return FieldInjectionData(
-                            data.dataNotNull("access").toInt(),
-                            data.dataNotNull("name"),
-                            data.dataNotNull("type"),
-                            data["signature"],
+                            options.notNull("access").toInt(),
+                            options.notNull("name"),
+                            options.notNull("type"),
+                            options["signature"],
                             run {
-                                if (data["value"] != null) logger.log(
+                                if (options["value"] != null) logger.log(
                                     Level.WARNING,
                                     "Cannot set initial values in mixins at this time, this will eventually be a feature."
                                 )

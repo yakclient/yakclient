@@ -5,17 +5,19 @@ plugins {
     kotlin("jvm") version "1.7.10"
     id("org.javamodularity.moduleplugin") version "1.8.12"
 
-    id("signing")
     id("maven-publish")
     id("org.jetbrains.dokka") version "1.6.0"
 }
 
+group = "net.yakclient.components"
+version = "1.0-SNAPSHOT"
 
 configurations.all {
     resolutionStrategy.cacheChangingModulesFor(0, "seconds")
 }
 
 dependencies {
+    implementation(project(":client-api"))
     implementation("net.yakclient:archive-mapper:1.1-SNAPSHOT")
     implementation("com.durganmcbroom:event-api:1.0-SNAPSHOT")
     implementation("io.arrow-kt:arrow-core:1.1.2")
@@ -70,18 +72,16 @@ task<Jar>("javadocJar") {
 
 publishing {
     publications {
-        create<MavenPublication>("yakclient-maven") {
+        create<MavenPublication>("yak-maven") {
             from(components["java"])
             artifact(tasks["sourcesJar"])
             artifact(tasks["javadocJar"])
-            artifact("${sourceSets.main.get().resources.srcDirs.first().absoluteFile}${File.separator}component-model.json").classifier =
-                "component-model"
 
-            artifactId = "yakclient"
+            artifactId = "yak"
 
             pom {
-                name.set("YakClient")
-                description.set("The YakClient component for the boot module.")
+                name.set("YakClient Software Component for loading Yak Extensions")
+                description.set("YakClients Extension Loader")
                 url.set("https://github.com/yakclient/yakclient")
 
                 packaging = "jar"
@@ -113,12 +113,12 @@ publishing {
 allprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "maven-publish")
+    apply(plugin = "org.jetbrains.dokka")
 
-    group = "net.yakclient.components"
-    version = "1.0-SNAPSHOT"
 
     repositories {
         mavenCentral()
+        mavenLocal()
         maven {
             isAllowInsecureProtocol = true
             url = uri("http://maven.yakclient.net/snapshots")

@@ -13,6 +13,7 @@ module yakclient {
     requires java.logging;
     requires yakclient.archive.mapper;
     requires kotlin.reflect;
+    requires yakclient.client.api;
 
     exports net.yakclient.components.yak.extension;
     exports net.yakclient.components.yak;

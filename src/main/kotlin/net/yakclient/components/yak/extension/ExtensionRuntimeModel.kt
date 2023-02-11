@@ -23,6 +23,7 @@ public data class ExtensionRuntimeModel(
 
     val mixins : Set<ExtensionMixin> = HashSet(),
 
+    val versioningPartitions: Map<String, List<String>> // Versions to partition
 //    val mappingsType: String,
     // URI
 //    val mappings: URI,

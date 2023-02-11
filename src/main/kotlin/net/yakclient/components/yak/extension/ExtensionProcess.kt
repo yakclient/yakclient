@@ -3,6 +3,8 @@ package net.yakclient.components.yak.extension
 import net.yakclient.archives.ArchiveHandle
 import net.yakclient.boot.container.ContainerProcess
 import net.yakclient.common.util.immutableLateInit
+import net.yakclient.client.api.Extension
+import net.yakclient.client.api.ExtensionContext
 
 public data class ExtensionProcess(
     val ref: ExtensionReference,

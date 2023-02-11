@@ -1,0 +1,19 @@
+name: publish-snapshot
+on:
+  push:
+    branches: [dev]
+jobs:
+  publish-to-maven:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cloning Repo
+        uses: actions/checkout@v3
+      - name: Setting up Java 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Grant permissions to Gradle
+        run: chmod +x gradlew
+      - name: Publish with Gradle
+        run: ./gradlew clean publish api:publish -Pmaven-user=${{ secrets.MAVEN_REPO_USER }} -Pmaven-pass=${{ secrets.MAVEN_REPO_PASS }} -PisSnapshot=true -Dorg.gradle.jvmargs=-Xmx512m

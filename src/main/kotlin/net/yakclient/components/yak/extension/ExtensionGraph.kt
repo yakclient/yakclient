@@ -44,6 +44,7 @@ public class ExtensionGraph(
     yakContext: YakContext,
     mappings: ArchiveMapping,
     minecraftRef: ArchiveReference,
+    minecraftVersion: String
 ) : ArchiveGraph<ExtensionArtifactRequest, ExtensionNode, ExtensionRepositorySettings>(
     ExtensionRepositoryFactory(dependencyProviders)
 ) {
@@ -54,7 +55,8 @@ public class ExtensionGraph(
         context,
         yakContext,
         mappings,
-        minecraftRef
+        minecraftRef,
+        minecraftVersion
     )
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
     private val mutableGraph: MutableMap<ExtensionDescriptor, ExtensionNode> = HashMap()

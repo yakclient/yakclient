@@ -4,6 +4,7 @@ import com.durganmcbroom.artifact.resolver.createContext
 import com.durganmcbroom.artifact.resolver.simple.maven.HashType
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMaven
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
+import net.yakclient.client.api.ExtensionContext
 import net.yakclient.archives.Archives
 import net.yakclient.archives.mixin.MixinInjection
 import net.yakclient.boot.BootContext
@@ -14,7 +15,6 @@ import net.yakclient.boot.security.PrivilegeAccess
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.boot.withBootDependencies
 import net.yakclient.components.yak.YakSoftwareComponent
-import net.yakclient.components.yak.extension.ExtensionContext
 import net.yakclient.components.yak.extension.ExtensionGraph
 import net.yakclient.components.yak.extension.artifact.ExtensionArtifactRequest
 import net.yakclient.components.yak.extension.artifact.ExtensionRepositorySettings
@@ -117,6 +117,7 @@ class TestExtensionComponent {
             yakContext,
             mappings,
             minecraftHandler.minecraftReference.archive,
+            minecraftHandler.version,
         )
 
         val cacheResult = graph.cacherOf(
@@ -153,10 +154,7 @@ class TestExtensionComponent {
 
         val ref = node1.orNull()?.extension?.process?.ref
         ref?.supplyMinecraft(minecraftHandler.archive)
-        ref?.extension?.init(ExtensionContext(
-            context,
-            yakContext
-        ))
+        ref?.extension?.init(ExtensionContext())
 
 //        testEnable(
 //            MinecraftBootstrapper(),

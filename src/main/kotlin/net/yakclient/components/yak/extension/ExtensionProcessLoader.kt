@@ -1,5 +1,7 @@
 package net.yakclient.components.yak.extension
 
+import net.yakclient.client.api.Extension
+import net.yakclient.client.api.ExtensionContext
 import net.yakclient.archive.mapper.ArchiveMapping
 import net.yakclient.archive.mapper.FieldIdentifier
 import net.yakclient.archive.mapper.MappingType
@@ -22,6 +24,7 @@ public class ExtensionProcessLoader(
     private val yakContext: YakContext,
     private val mappings: ArchiveMapping,
     private val minecraftRef: ArchiveReference,
+    private val minecraftVersion: String
 ) : ProcessLoader<ExtensionInfo, ExtensionProcess> {
     private val config = TransformerConfig.of {
         transformField { node ->
@@ -114,7 +117,6 @@ public class ExtensionProcessLoader(
 
         transformArchive(ref, archives)
 
-
         return ExtensionProcess(
             ExtensionReference { minecraft ->
                 val result = Archives.resolve(
@@ -124,7 +126,8 @@ public class ExtensionProcessLoader(
                         archives + minecraft,
                         privilegeManager,
                         parentClassloader,
-                        containerHandle
+                        containerHandle,
+                        erm.versioningPartitions[minecraftVersion]?.toSet() ?: HashSet()
                     ),
                     Archives.Resolvers.JPM_RESOLVER,
                     archives.toSet() + minecraft
@@ -147,10 +150,7 @@ public class ExtensionProcessLoader(
 
                 instance to handle
             },
-            ExtensionContext(
-                context,
-                yakContext
-            )
+            ExtensionContext()
         )
     }
 }
