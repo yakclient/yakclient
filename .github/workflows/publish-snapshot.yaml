@@ -16,4 +16,4 @@ jobs:
       - name: Grant permissions to Gradle
         run: chmod +x gradlew
       - name: Publish with Gradle
-        run: ./gradlew clean publish api:publish -Pmaven-user=${{ secrets.MAVEN_REPO_USER }} -Pmaven-pass=${{ secrets.MAVEN_REPO_PASS }} -PisSnapshot=true -Dorg.gradle.jvmargs=-Xmx512m
+        run: ./gradlew clean publish :client-api:publish -Pmaven-user=${{ secrets.MAVEN_REPO_USER }} -Pmaven-pass=${{ secrets.MAVEN_REPO_PASS }} -PisSnapshot=true -Dorg.gradle.jvmargs=-Xmx512m
