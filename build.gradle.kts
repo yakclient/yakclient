@@ -19,6 +19,8 @@ configurations.all {
 dependencies {
     implementation(project(":client-api"))
     implementation("net.yakclient:archive-mapper:1.1-SNAPSHOT")
+    implementation("net.yakclient:archive-mapper-transform:1.1-SNAPSHOT")
+
     implementation("com.durganmcbroom:event-api:1.0-SNAPSHOT")
     implementation("io.arrow-kt:arrow-core:1.1.2")
 

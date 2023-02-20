@@ -11,7 +11,7 @@ public data class ExtensionNode(
     override val children: Set<ExtensionNode>,
     public val dependencies: Set<DependencyNode>,
     public val extension: Container<ExtensionProcess>?,
-    public val runtimeModel: ExtensionRuntimeModel
+    public val extensionMetadata: ExtensionMetadata,
 ) : ArchiveNode {
     override val archive: ArchiveHandle?
         get() = extension?.process?.archive

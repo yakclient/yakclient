@@ -15,6 +15,7 @@ import net.yakclient.boot.component.SoftwareComponent
 import net.yakclient.boot.security.PrivilegeAccess
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.components.yak.extension.ExtensionGraph
+import net.yakclient.components.yak.extension.ExtensionMixin
 import net.yakclient.components.yak.extension.ExtensionNode
 import net.yakclient.components.yak.extension.artifact.ExtensionArtifactRequest
 import net.yakclient.components.yak.extension.artifact.ExtensionRepositorySettings
@@ -102,8 +103,8 @@ public class YakSoftwareComponent : SoftwareComponent {
         val minecraftHandler = MinecraftBootstrapper.instance.minecraftHandler
 
         val flatMap = this.extensions.flatMap { node ->
-            if (node.runtimeModel.mixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
-            node.runtimeModel.mixins.flatMap { mixin ->
+            if (node.extensionMetadata.mixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
+            val flatMap = node.extensionMetadata.mixins.flatMap { mixin: ExtensionMixin ->
                 mixin.injections.map {
                     val provider = yakContext.injectionProviders[it.type]
                         ?: throw IllegalArgumentException("Unknown mixin type: '${it.type}' in mixin class: '${mixin.classname}'")
@@ -115,6 +116,7 @@ public class YakSoftwareComponent : SoftwareComponent {
                 }
             }
 
+            flatMap
         }
         flatMap.forEach { (it, to) -> minecraftHandler.registerMixin(to, it) }
 

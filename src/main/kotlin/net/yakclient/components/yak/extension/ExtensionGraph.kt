@@ -76,8 +76,11 @@ public class ExtensionGraph(
     private fun getJarPathFor(desc: ExtensionDescriptor): Path =
         getBasePathFor(desc) resolve "${desc.artifact}-${desc.version}.jar"
 
-    private fun  getErmPathFor(desc: ExtensionDescriptor): Path =
+    private fun getErmPathFor(desc: ExtensionDescriptor): Path =
         getBasePathFor(desc) resolve "${desc.artifact}-${desc.version}-erm.json"
+
+    public fun getMixinsPathFor(desc: ExtensionDescriptor) : Path =
+        getBasePathFor(desc) resolve "${desc.artifact}-${desc.version}-mixins.json"
 
     override fun get(request: ExtensionArtifactRequest): Either<ArchiveLoadException, ExtensionNode> {
         return graph[request.descriptor]?.right() ?: either.eager {
@@ -88,8 +91,13 @@ public class ExtensionGraph(
             val ermPath = ensureNotNull(getErmPathFor(request.descriptor).takeIf(Files::exists)) {
                 ArchiveLoadException.IllegalState("Extension runtime model for request: '${request.descriptor}' not found cached.")
             }
-
             val erm: ExtensionRuntimeModel = mapper.readValue(ermPath.toFile())
+
+            val mixinsPath =  ensureNotNull(getMixinsPathFor(request.descriptor).takeIf(Files::exists)) {
+                ArchiveLoadException.IllegalState("Mixins metadata for request: '${request.descriptor}' not found cached.")
+            }
+
+            val mixins = mapper.readValue<List<ExtensionMixin>>(mixinsPath.toFile())
 
             val children: List<ExtensionNode> = erm.extensions.map {
                 val extRequest = dependencyProviders["simple-maven"]!!.parseRequest(it)
@@ -120,7 +128,9 @@ public class ExtensionGraph(
                     ref,
                     children.flatMap(::containerOrChildren),
                     dependencies.flatMap { it.handleOrChildren() },
-                    erm,
+                    ExtensionMetadata(
+                        erm,mixins
+                    ),
                     containerHandle
                 ),
                 containerHandle,
@@ -134,7 +144,9 @@ public class ExtensionGraph(
                 children.toSet(),
                 dependencies.toSet(),
                 container,
-                erm
+                ExtensionMetadata(
+                    erm,mixins
+                )
             ).also {
                 mutableGraph[request.descriptor] = it
             }
@@ -174,9 +186,10 @@ public class ExtensionGraph(
                 cache(stub.request, childRef).bind()
             }
 
-            val metadata = ref.metadata
-            metadata.erm.dependencies.forEach { dependency ->
-                metadata.erm.dependencyRepositories.firstNotNullOfOrNull findRepo@{ settings ->
+            val metadata: ExtensionArtifactMetadata = ref.metadata
+            val extensionMetadata = metadata.extensionMetadata
+            extensionMetadata.erm.dependencies.forEach { dependency ->
+                extensionMetadata.erm.dependencyRepositories.firstNotNullOfOrNull findRepo@{ settings ->
                     val provider = dependencyProviders[settings.type]
                         ?: return@findRepo null
 
@@ -193,7 +206,7 @@ public class ExtensionGraph(
 
                     (loader as DependencyGraph.DependencyCacher).cache(depReq).bind()
                 }
-                    ?: shift(ArchiveLoadException.IllegalState("Failed to load dependency: '$dependency' from repositories '${metadata.erm.dependencyRepositories}''"))
+                    ?: shift(ArchiveLoadException.IllegalState("Failed to load dependency: '$dependency' from repositories '${extensionMetadata.erm.dependencyRepositories}''"))
             }
 
             val jarPath = getJarPathFor(request.descriptor)
@@ -201,7 +214,11 @@ public class ExtensionGraph(
             val ermPath = getErmPathFor(request.descriptor)
             if (!Files.exists(ermPath)) ermPath.make()
 
-            ermPath.writeBytes(mapper.writeValueAsBytes(metadata.erm))
+            val mixinsPath = getMixinsPathFor(request.descriptor)
+            if (!Files.exists(mixinsPath)) mixinsPath.make()
+
+            ermPath.writeBytes(mapper.writeValueAsBytes(extensionMetadata.erm))
+            mixinsPath.writeBytes(mapper.writeValueAsBytes(extensionMetadata.mixins))
 
             val resource = metadata.resource
             if (resource != null) {
@@ -214,7 +231,7 @@ public class ExtensionGraph(
                 }
             }
 
-            store.put(request.descriptor, metadata.erm)
+            store.put(request.descriptor, extensionMetadata.erm)
         }
     }
 }

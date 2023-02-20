@@ -14,6 +14,7 @@ module yakclient {
     requires yakclient.archive.mapper;
     requires kotlin.reflect;
     requires yakclient.client.api;
+    requires yakclient.archive.mapper.transform;
 
     exports net.yakclient.components.yak.extension;
     exports net.yakclient.components.yak;

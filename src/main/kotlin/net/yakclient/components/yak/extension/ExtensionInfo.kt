@@ -10,6 +10,6 @@ public data class ExtensionInfo(
     public val archive: ArchiveReference,
     public val children: List<Container<ExtensionProcess>>,
     public val dependencies: List<ArchiveHandle>,
-    public val erm: ExtensionRuntimeModel,
+    public val extensionMetadata: ExtensionMetadata,
     public val handle: ContainerHandle<ExtensionProcess>
 ) : ContainerInfo

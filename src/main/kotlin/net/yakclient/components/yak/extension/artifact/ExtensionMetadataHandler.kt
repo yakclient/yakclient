@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
 import net.yakclient.boot.dependency.DependencyProviders
+import net.yakclient.components.yak.extension.ExtensionMetadata
+import net.yakclient.components.yak.extension.ExtensionMixin
 import net.yakclient.components.yak.extension.ExtensionRuntimeModel
 
 
@@ -23,11 +25,13 @@ public class ExtensionMetadataHandler(settings: SimpleMavenRepositorySettings, p
         return either.eager {
             val (group, artifact, version) = desc
 
-            val valueOr = layout.resourceOf(group, artifact, version, "erm", "json").bind()
-            val erm = mapper.readValue<ExtensionRuntimeModel>(valueOr.open())
+            val ermOr = layout.resourceOf(group, artifact, version, "erm", "json").bind()
+            val erm = mapper.readValue<ExtensionRuntimeModel>(ermOr.open())
+
+            val mixinsOr = layout.resourceOf(group, artifact, version, "mixins", "json").bind()
+            val mixins = mapper.readValue<List<ExtensionMixin>>(mixinsOr.open())
 
             val children = erm.extensions
-
 
             ExtensionArtifactMetadata(
                 desc,
@@ -48,13 +52,15 @@ public class ExtensionMetadataHandler(settings: SimpleMavenRepositorySettings, p
                         erm.extensionRepositories.map { settings ->
                             SimpleMavenRepositoryStub(
                                 (simpleMaven.parseSettings(settings) as? SimpleMavenRepositorySettings)?.toPomRepository()
-                                    ?: throw IllegalArgumentException("Unknown repository declaration: '$settings' in extension runtime model: '$desc' at '${valueOr.location}'. Cannot parse.")
+                                    ?: throw IllegalArgumentException("Unknown repository declaration: '$settings' in extension runtime model: '$desc' at '${ermOr.location}'. Cannot parse.")
                             )
                         },
                         "compile"
                     )
                 },
-                erm
+                ExtensionMetadata(
+                    erm, mixins
+                )
             )
         }
     }

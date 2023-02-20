@@ -1,7 +1,11 @@
 package net.yakclient.components.yak.extension
 
 import net.yakclient.components.yak.mixin.InjectionPriorities
-import java.net.URI
+
+public data class ExtensionMetadata(
+    val erm: ExtensionRuntimeModel,
+    val mixins: List<ExtensionMixin>
+)
 
 
 // TODO make jackson parsing return a more readable yak wrapped error.
@@ -21,12 +25,12 @@ public data class ExtensionRuntimeModel(
     val extensionRepositories: List<Map<String, String>> = ArrayList(),
     val extensions: List<Map<String, String>> = ArrayList(),
 
-    val mixins : Set<ExtensionMixin> = HashSet(),
-
     val versioningPartitions: Map<String, List<String>> // Versions to partition
-//    val mappingsType: String,
-    // URI
-//    val mappings: URI,
+)
+
+public data class ErmRepository(
+    val type: String,
+    val settings: Map<String, String>
 )
 
 public data class ExtensionMixin(
@@ -41,7 +45,3 @@ public data class ExtensionInjection(
     val priority: Int = InjectionPriorities.DEFAULT
 )
 
-public data class ErmRepository(
-    val type: String,
-    val settings: Map<String, String>
-)

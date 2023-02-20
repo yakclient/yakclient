@@ -132,10 +132,10 @@ class TestExtensionComponent {
         println(node1)
 
         val flatMap = node1.orNull()?.let { node ->
-            if (node.runtimeModel.mixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
-            node.runtimeModel.mixins.flatMap { mixin ->
+            if (node.extensionMetadata.mixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
+            node.extensionMetadata.mixins.flatMap { mixin ->
                 mixin.injections.map {
-                    val provider = yakContext.injectionProviders[it.type]
+                    val provider = yakContext.injectionProviders[ it.type]
                         ?: throw IllegalArgumentException("Unknown mixin type: '${it.type}' in mixin class: '${mixin.classname}'")
 
                     MixinMetadata(
