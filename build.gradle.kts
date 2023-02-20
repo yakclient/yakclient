@@ -55,8 +55,6 @@ dependencies {
 
 tasks.test {
     jvmArgs = listOf(
-//        "--add-reads",
-//        "yakclient.minecraft.provider._default=yakclient.archive.mapper",
         "--add-reads",
         "kotlin.stdlib=kotlinx.coroutines.core.jvm"
     )
