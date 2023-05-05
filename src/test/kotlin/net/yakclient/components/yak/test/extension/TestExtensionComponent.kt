@@ -4,6 +4,8 @@ import com.durganmcbroom.artifact.resolver.createContext
 import com.durganmcbroom.artifact.resolver.simple.maven.HashType
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMaven
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
+import net.yakclient.archive.mapper.transform.MappingDirection
+import net.yakclient.archive.mapper.transform.mapClassName
 import net.yakclient.client.api.ExtensionContext
 import net.yakclient.archives.Archives
 import net.yakclient.archives.mixin.MixinInjection
@@ -13,12 +15,12 @@ import net.yakclient.boot.createMavenProvider
 import net.yakclient.boot.dependency.DependencyProviders
 import net.yakclient.boot.security.PrivilegeAccess
 import net.yakclient.boot.security.PrivilegeManager
-import net.yakclient.boot.withBootDependencies
 import net.yakclient.components.yak.YakSoftwareComponent
 import net.yakclient.components.yak.extension.ExtensionGraph
+import net.yakclient.components.yak.extension.ExtensionMixin
+import net.yakclient.components.yak.extension.ExtensionVersionPartition
 import net.yakclient.components.yak.extension.artifact.ExtensionArtifactRequest
 import net.yakclient.components.yak.extension.artifact.ExtensionRepositorySettings
-import net.yakclient.components.yak.mapping.mapClassName
 import net.yakclient.components.yak.mapping.withDots
 import net.yakclient.components.yak.mapping.withSlashes
 import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapper
@@ -26,6 +28,7 @@ import net.yakclient.minecraft.bootstrapper.MixinMetadata
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
+import kotlin.collections.ArrayList
 import kotlin.test.Test
 
 class TestExtensionComponent {
@@ -37,16 +40,7 @@ class TestExtensionComponent {
             DependencyProviders()
         )
         bootContext.dependencyProviders.add(
-            createMavenProvider(cache, withBootDependencies {
-                val yakCentral = SimpleMaven.createContext(
-                    SimpleMavenRepositorySettings.default(
-                        "http://repo.yakclient.net/snapshots",
-                        preferredHash = HashType.SHA1
-                    )
-                )
-
-                yakCentral.it("net.yakclient:archive-mapper:1.0-SNAPSHOT")
-            })
+            createMavenProvider(cache)
         )
         YakSoftwareComponent().onEnable(
             ComponentContext(
@@ -67,16 +61,7 @@ class TestExtensionComponent {
             DependencyProviders()
         )
         bootContext.dependencyProviders.add(
-            createMavenProvider(cache, withBootDependencies {
-                val yakCentral = SimpleMaven.createContext(
-                    SimpleMavenRepositorySettings.default(
-                        "http://repo.yakclient.net/snapshots",
-                        preferredHash = HashType.SHA1
-                    )
-                )
-
-                yakCentral.it("net.yakclient:archive-mapper:1.0-SNAPSHOT")
-            })
+            createMavenProvider(cache,)
         )
 
         val context = ComponentContext(
@@ -89,8 +74,8 @@ class TestExtensionComponent {
             ComponentContext(
                 mapOf(
                     "version" to "1.19.2",
-                    "repository" to "/Users/durgan/.m2/repository",
-                    "repositoryType" to "LOCAL",
+                    "repository" to "http://maven.yakclient.net/snapshots",
+                    "repositoryType" to "DEFAULT",
                     "cache" to cache,
                     "providerVersionMappings" to "file:///Users/durgan/IdeaProjects/durganmcbroom/minecraft-bootstrapper/cache/version-mappings.json",
                     "mcArgs" to "--version;1.19.2;--accessToken;"
@@ -109,7 +94,7 @@ class TestExtensionComponent {
 
         val graph = ExtensionGraph(
             Path.of(cache),
-            Archives.Finders.JPM_FINDER,
+            Archives.Finders.ZIP_FINDER,
             PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
             this::class.java.classLoader,
             context.bootContext.dependencyProviders,
@@ -132,19 +117,22 @@ class TestExtensionComponent {
         println(node1)
 
         val flatMap = node1.orNull()?.let { node ->
-            if (node.extensionMetadata.mixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
-            node.extensionMetadata.mixins.flatMap { mixin ->
+           val allMixins = node.archiveReference?.enabledPartitions
+                ?.flatMap(ExtensionVersionPartition::mixins) ?: ArrayList()
+
+            if (allMixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove mixins or add an archive." }
+            val flatMap = allMixins.flatMap { mixin: ExtensionMixin ->
                 mixin.injections.map {
-                    val provider = yakContext.injectionProviders[ it.type]
+                    val provider = yakContext.injectionProviders[it.type]
                         ?: throw IllegalArgumentException("Unknown mixin type: '${it.type}' in mixin class: '${mixin.classname}'")
 
                     MixinMetadata(
                         provider.parseData(it.options, node.archiveReference!!),
                         provider.get() as MixinInjection<MixinInjection.InjectionData>
-                    ) to mappings.mapClassName(mixin.destination.withSlashes()).withDots()
+                    ) to (mappings.mapClassName(mixin.destination.withSlashes(), MappingDirection.TO_FAKE)?.withDots() ?: mixin.destination.withDots())
                 }
             }
-
+            flatMap
         }
         flatMap?.forEach { (it, to) -> minecraftHandler.registerMixin(to, it) }
 

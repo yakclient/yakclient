@@ -5,6 +5,10 @@ import arrow.core.handleErrorWith
 import com.durganmcbroom.artifact.resolver.simple.maven.HashType
 import net.yakclient.client.api.ExtensionContext
 import net.yakclient.archive.mapper.ArchiveMapping
+import net.yakclient.archive.mapper.transform.MappingDirection
+import net.yakclient.archive.mapper.transform.mapClassName
+import net.yakclient.archive.mapper.transform.mapMethodDesc
+import net.yakclient.archive.mapper.transform.mapMethodSignature
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.Archives
 import net.yakclient.archives.mixin.*
@@ -17,8 +21,10 @@ import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.components.yak.extension.ExtensionGraph
 import net.yakclient.components.yak.extension.ExtensionMixin
 import net.yakclient.components.yak.extension.ExtensionNode
+import net.yakclient.components.yak.extension.ExtensionVersionPartition
 import net.yakclient.components.yak.extension.artifact.ExtensionArtifactRequest
 import net.yakclient.components.yak.extension.artifact.ExtensionRepositorySettings
+import net.yakclient.components.yak.extension.archive.ExtensionArchiveReference
 import net.yakclient.components.yak.mapping.MappingProvider
 import net.yakclient.components.yak.mapping.ProGuardMappingParser
 import net.yakclient.components.yak.mixin.MixinInjectionProvider
@@ -74,7 +80,7 @@ public class YakSoftwareComponent : SoftwareComponent {
 
         graph = ExtensionGraph(
             Path.of(cache),
-            Archives.Finders.JPM_FINDER,
+            Archives.Finders.ZIP_FINDER,
             PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
             this::class.java.classLoader,
             context.bootContext.dependencyProviders,
@@ -102,9 +108,12 @@ public class YakSoftwareComponent : SoftwareComponent {
 
         val minecraftHandler = MinecraftBootstrapper.instance.minecraftHandler
 
+
         val flatMap = this.extensions.flatMap { node ->
-            if (node.extensionMetadata.mixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
-            val flatMap = node.extensionMetadata.mixins.flatMap { mixin: ExtensionMixin ->
+            val allMixins = node.erm.versionPartitions.flatMap(ExtensionVersionPartition::mixins)
+
+            if (allMixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
+            val flatMap = allMixins.flatMap { mixin: ExtensionMixin ->
                 mixin.injections.map {
                     val provider = yakContext.injectionProviders[it.type]
                         ?: throw IllegalArgumentException("Unknown mixin type: '${it.type}' in mixin class: '${mixin.classname}'")
@@ -112,7 +121,7 @@ public class YakSoftwareComponent : SoftwareComponent {
                     MixinMetadata(
                         provider.parseData(it.options, node.archiveReference!!),
                         provider.get() as MixinInjection<MixinInjection.InjectionData>
-                    ) to mappings.mapClassName(mixin.destination.withSlashes()).withDots()
+                    ) to (mappings.mapClassName(mixin.destination.withSlashes(), MappingDirection.TO_FAKE)?.withDots() ?: mixin.destination.withSlashes())
                 }
             }
 
@@ -153,7 +162,7 @@ public class YakSoftwareComponent : SoftwareComponent {
                 val (name, desc, ret) = MethodSignature.of(signature)
 
                 val retOrBlank = ret ?: ""
-                return name + mapMethodDesc("($desc)$retOrBlank")
+                return name + mapMethodDesc("($desc)$retOrBlank", MappingDirection.TO_FAKE)
             }
 
             return YakContext(context, mutableListOf(
@@ -163,7 +172,7 @@ public class YakSoftwareComponent : SoftwareComponent {
 
                     override fun parseData(
                         options: Map<String, String>,
-                        ref: ArchiveReference
+                        ref: ExtensionArchiveReference
                     ): SourceInjectionData {
                         val self = options.notNull("self")
                         val point = options.notNull("point")
@@ -175,7 +184,7 @@ public class YakSoftwareComponent : SoftwareComponent {
                         val toWithSlashes = options.notNull("to").withSlashes()
                         val methodTo = options.notNull("methodTo")
                         val data = SourceInjectionData(
-                            mappings.mapClassName(toWithSlashes).withDots(),
+                            mappings.mapClassName(toWithSlashes, MappingDirection.TO_FAKE)?.withDots() ?: toWithSlashes,
                             self,
                             run {
                                 val methodFrom = options.notNull("methodFrom")
@@ -191,6 +200,7 @@ public class YakSoftwareComponent : SoftwareComponent {
                                 mappings.mapMethodSignature(
                                     toWithSlashes,
                                     methodTo,
+                                    MappingDirection.TO_FAKE
                                 )
                             },
                             pointCache[point] ?: run {
@@ -208,7 +218,7 @@ public class YakSoftwareComponent : SoftwareComponent {
 
                     override fun parseData(
                         options: Map<String, String>,
-                        ref: ArchiveReference
+                        ref: ExtensionArchiveReference
                     ): MethodInjectionData {
                         val self = options.notNull("self")
                         val classSelf = ref.reader["${self.withSlashes()}.class"] ?: throw IllegalArgumentException(
@@ -216,8 +226,9 @@ public class YakSoftwareComponent : SoftwareComponent {
                         )
                         val node = ClassNode().also { ClassReader(classSelf.resource.open()).accept(it, 0) }
 
+                        val to = options.notNull("to").withSlashes()
                         return MethodInjectionData(
-                            mappings.mapClassName(options.notNull("to").withSlashes()).withDots(),
+                            mappings.mapClassName(to, MappingDirection.TO_FAKE)?.withDots() ?: to,
                             self,
                             run {
                                 val methodFrom = options.notNull("methodFrom")
@@ -245,7 +256,7 @@ public class YakSoftwareComponent : SoftwareComponent {
 
                     override fun parseData(
                         options: Map<String, String>,
-                        ref: ArchiveReference
+                        ref: ExtensionArchiveReference
                     ): FieldInjectionData {
                         return FieldInjectionData(
                             options.notNull("access").toInt(),

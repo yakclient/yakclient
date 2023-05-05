@@ -1,22 +1,17 @@
 package net.yakclient.components.yak.extension
 
-import net.yakclient.client.api.Extension
-import net.yakclient.client.api.ExtensionContext
 import net.yakclient.archive.mapper.ArchiveMapping
-import net.yakclient.archive.mapper.FieldIdentifier
-import net.yakclient.archive.mapper.MappingType
 import net.yakclient.archive.mapper.transform.MappingDirection
-import net.yakclient.archive.mapper.transform.transformArchive
+import net.yakclient.archive.mapper.transform.mappingTransformConfigFor
 import net.yakclient.archives.*
-import net.yakclient.archives.transform.TransformerConfig
 import net.yakclient.boot.component.ComponentContext
 import net.yakclient.boot.container.ProcessLoader
 import net.yakclient.boot.security.PrivilegeManager
+import net.yakclient.client.api.Extension
+import net.yakclient.client.api.ExtensionContext
 import net.yakclient.common.util.runCatching
 import net.yakclient.components.yak.YakContext
-import net.yakclient.components.yak.mapping.*
-import org.objectweb.asm.Handle
-import org.objectweb.asm.tree.*
+import net.yakclient.components.yak.extension.versioning.VersionedExtArchiveHandle
 
 public class ExtensionProcessLoader(
     private val privilegeManager: PrivilegeManager,
@@ -27,7 +22,10 @@ public class ExtensionProcessLoader(
     private val minecraftRef: ArchiveReference,
     private val minecraftVersion: String
 ) : ProcessLoader<ExtensionInfo, ExtensionProcess> {
-//    private val config = TransformerConfig.of {
+    private val config = mappingTransformConfigFor(
+        mappings,
+        MappingDirection.TO_FAKE
+    )
 //        transformField { node ->
 //            node.desc = mappings.mapType(node.desc)
 //
@@ -100,43 +98,41 @@ public class ExtensionProcessLoader(
 //        }
 //    }
 
-//    private fun transformArchive(archiveReference: ArchiveReference, dependencies: List<ArchiveHandle>) {
-//        archiveReference.reader.entries()
-//            .filter { it.name.endsWith(".class") }
-//            .forEach {
-//                val entry = it.transform(config, dependencies + minecraftRef)
-//                archiveReference.writer.put(entry)
-//            }
-//    }
+    private fun transformEachEntry(archiveReference: ArchiveReference, dependencies: List<ArchiveTree>) {
+        archiveReference.reader.entries()
+            .filter { it.name.endsWith(".class") }
+            .forEach {
+                val entry = it.transform(config, dependencies)
+                archiveReference.writer.put(entry)
+            }
+    }
 
     override fun load(info: ExtensionInfo): ExtensionProcess {
-        val (ref, children, dependencies, metadata, containerHandle) = info
+        val (ref, children, dependencies, erm, containerHandle) = info
 
-        val archives: List<ArchiveHandle> = children.map { it.process.archive } + dependencies + JpmArchives.moduleToArchive(this::class.java.module)
+        val archives: List<ArchiveHandle> =
+            children.map { it.process.archive } + dependencies
 
-        transformArchive(ref, archives + minecraftRef, mappings, MappingDirection.TO_FAKE)
-
-        val (erm) = metadata
+        transformEachEntry(ref, archives + minecraftRef)
 
         return ExtensionProcess(
             ExtensionReference { minecraft ->
                 val result = Archives.resolve(
-                    ref,
+                    ref.delegate,
                     ExtensionClassLoader(
                         ref,
                         archives + minecraft,
                         privilegeManager,
                         parentClassloader,
                         containerHandle,
-                        erm.versioningPartitions[minecraftVersion]?.toSet() ?: HashSet()
                     ),
-                    Archives.Resolvers.JPM_RESOLVER,
+                    Archives.Resolvers.ZIP_RESOLVER,
                     archives.toSet() + minecraft
                 )
 
-                result.controller.addReads(result.module, minecraft.classloader.unnamedModule)
+//                result.controller.addReads(result.module, minecraft.classloader.unnamedModule)
 
-                val handle by result::archive
+                val handle = VersionedExtArchiveHandle(result.archive, ref)
 
                 val s = "${erm.groupId}:${erm.name}:${erm.version}"
 

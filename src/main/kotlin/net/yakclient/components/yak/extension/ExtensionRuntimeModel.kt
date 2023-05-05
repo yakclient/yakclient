@@ -2,12 +2,6 @@ package net.yakclient.components.yak.extension
 
 import net.yakclient.components.yak.mixin.InjectionPriorities
 
-public data class ExtensionMetadata(
-    val erm: ExtensionRuntimeModel,
-    val mixins: List<ExtensionMixin>
-)
-
-
 // TODO make jackson parsing return a more readable yak wrapped error.
 // Represents the YakClient ERM (or Extension runtime model)
 public data class ExtensionRuntimeModel(
@@ -18,17 +12,15 @@ public data class ExtensionRuntimeModel(
     val packagingType: String, // Jar, War, Zip, etc...
 
     val extensionClass: String,
-
-    val dependencyRepositories: List<ErmRepository> = ArrayList(),
-    val dependencies: List<Map<String, String>> = ArrayList(),
+    val mainPartition: String, // its name
 
     val extensionRepositories: List<Map<String, String>> = ArrayList(),
     val extensions: List<Map<String, String>> = ArrayList(),
 
-    val versioningPartitions: Map<String, List<String>> // Versions to partition
+    val versionPartitions: List<ExtensionVersionPartition>,
 )
 
-public data class ErmRepository(
+public data class ExtensionRepository(
     val type: String,
     val settings: Map<String, String>
 )
@@ -43,5 +35,17 @@ public data class ExtensionInjection(
     val type: String,
     val options: Map<String, String>,
     val priority: Int = InjectionPriorities.DEFAULT
+)
+
+public data class ExtensionVersionPartition(
+    val name: String,
+    val path: String,
+
+    val supportedVersions: Set<String>,
+
+    val repositories: List<ExtensionRepository>,
+    val dependencies: List<Map<String, String>>,
+
+    val mixins: List<ExtensionMixin>
 )
 

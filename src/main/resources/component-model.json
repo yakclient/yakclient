@@ -8,7 +8,6 @@
         "descriptor": "net.yakclient.components:minecraft-bootstrapper:1.0-SNAPSHOT"
       },
       "repository": {
-
         "type": "local",
         "settings": {
           "location" : "/Users/durgan/.m2/repository"
@@ -19,7 +18,7 @@
   "dependencies": [
     {
       "request": {
-        "descriptor": "net.yakclient:archives-mixin:1.0-SNAPSHOT"
+        "descriptor": "net.yakclient:archives-mixin:1.1-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",
@@ -47,6 +46,29 @@
         "type": "simple-maven",
         "settings": {
           "location": "http://maven.yakclient.net/snapshots"
+        }
+      }
+    },
+    {
+      "request": {
+        "descriptor": "net.yakclient:archive-mapper-transform:1.1-SNAPSHOT"
+      },
+      "repository": {
+        "type": "simple-maven",
+        "settings": {
+          "location": "http://maven.yakclient.net/snapshots"
+        }
+      }
+    },
+    {
+      "request": {
+        "descriptor": "net.yakclient:client-api:1.0-SNAPSHOT"
+      },
+      "repository": {
+        "type": "simple-maven",
+        "settings": {
+          "location" : "/Users/durgan/.m2/repository",
+          "type": "local"
         }
       }
     }

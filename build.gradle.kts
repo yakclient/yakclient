@@ -21,10 +21,9 @@ dependencies {
     implementation("net.yakclient:archive-mapper:1.1-SNAPSHOT")
     implementation("net.yakclient:archive-mapper-transform:1.1-SNAPSHOT")
 
-    implementation("com.durganmcbroom:event-api:1.0-SNAPSHOT")
     implementation("io.arrow-kt:arrow-core:1.1.2")
 
-    api("net.yakclient:archives-mixin:1.0-SNAPSHOT") {
+    api("net.yakclient:archives-mixin:1.1-SNAPSHOT") {
         isChanging = true
     }
     implementation("net.yakclient:boot:1.0-SNAPSHOT") {
@@ -76,6 +75,8 @@ publishing {
             from(components["java"])
             artifact(tasks["sourcesJar"])
             artifact(tasks["javadocJar"])
+            artifact("${sourceSets.main.get().resources.srcDirs.first().absoluteFile}${File.separator}component-model.json").classifier =
+                "component-model"
 
             artifactId = "yak"
 
@@ -118,7 +119,6 @@ allprojects {
 
     repositories {
         mavenCentral()
-        mavenLocal()
         maven {
             isAllowInsecureProtocol = true
             url = uri("http://maven.yakclient.net/snapshots")

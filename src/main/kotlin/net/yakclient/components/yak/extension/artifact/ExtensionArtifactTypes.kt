@@ -2,7 +2,7 @@ package net.yakclient.components.yak.extension.artifact
 
 import com.durganmcbroom.artifact.resolver.CheckedResource
 import com.durganmcbroom.artifact.resolver.simple.maven.*
-import net.yakclient.components.yak.extension.ExtensionMetadata
+import net.yakclient.components.yak.extension.ExtensionRuntimeModel
 
 public typealias ExtensionArtifactRequest = SimpleMavenArtifactRequest
 
@@ -22,6 +22,6 @@ public class ExtensionArtifactMetadata(
     desc: SimpleMavenDescriptor,
     resource: CheckedResource?,
     children: List<ExtensionChildInfo>,
-    public val extensionMetadata: ExtensionMetadata,
+    public val erm: ExtensionRuntimeModel,
 ) : SimpleMavenArtifactMetadata(desc, resource, children)
 

@@ -2,6 +2,10 @@ package net.yakclient.components.yak.test.extension
 
 import net.yakclient.archive.mapper.*
 import net.yakclient.archive.mapper.MappingType.*
+import net.yakclient.archive.mapper.transform.MappingDirection
+import net.yakclient.archive.mapper.transform.mapMethodSignature
+import net.yakclient.archive.mapper.transform.mapType
+import net.yakclient.archive.mapper.transform.transformClass
 import net.yakclient.archives.Archives
 import net.yakclient.archives.transform.TransformerConfig
 import net.yakclient.common.util.openStream
@@ -13,6 +17,7 @@ import java.lang.reflect.Method
 import java.net.URI
 import kotlin.test.Test
 import net.yakclient.components.yak.mapping.*;
+import org.objectweb.asm.ClassWriter
 import java.net.URL
 
 class TestTypeMapping {
@@ -28,10 +33,10 @@ class TestTypeMapping {
         val mappings =
             parser.parse(URL("https://launcher.mojang.com/v1/objects/a661c6a55a0600bd391bdbbd6827654c05b2109c/client.txt").openStream())
 
-        printAndCheck(mappings.mapType("C"), "C")
-        printAndCheck(mappings.mapType("Ljava/lang/String;"), "Ljava/lang/String;")
-        printAndCheck(mappings.mapType("Lcom.mojang.blaze3d.platform.InputConstants;"), "Ldsh;")
-        printAndCheck(mappings.mapType("[[[Lcom.mojang.blaze3d.platform.InputConstants;"), "[[[Ldsh;")
+        printAndCheck(mappings.mapType("C", MappingDirection.TO_FAKE), "C")
+        printAndCheck(mappings.mapType("Ljava/lang/String;", MappingDirection.TO_FAKE), "Ljava/lang/String;")
+        printAndCheck(mappings.mapType("Lcom.mojang.blaze3d.platform.InputConstants;", MappingDirection.TO_FAKE), "Ldsh;")
+        printAndCheck(mappings.mapType("[[[Lcom.mojang.blaze3d.platform.InputConstants;", MappingDirection.TO_FAKE), "[[[Ldsh;")
     }
 
     @Test
@@ -41,13 +46,12 @@ class TestTypeMapping {
         val mappings =
             parser.parse(URI("https://launcher.mojang.com/v1/objects/a661c6a55a0600bd391bdbbd6827654c05b2109c/client.txt").openStream())
 
-        printAndCheck(mappings.mapMethodSignature("net/minecraft/client/gui/screens/TitleScreen", "init()V"), "b()V")
+        printAndCheck(mappings.mapMethodSignature("net/minecraft/client/gui/screens/TitleScreen", "init()V", MappingDirection.TO_FAKE), "b()V")
     }
 
 
     @Test
     fun `Test full class type map`() {
-
         val thingMethod = MethodMapping(
             MethodIdentifier("doRealThing", listOf(), REAL),
             MethodIdentifier("doFakeThing", listOf(), FAKE),
@@ -120,84 +124,7 @@ class TestTypeMapping {
             )
         )
 
-        val config = TransformerConfig.of {
-            transformField { node ->
-                node.desc = mappings.mapType(node.desc)
 
-                node
-            }
-
-            transformMethod { node ->
-                mappings.run {
-                    node.desc = mapMethodDesc(node.desc)
-
-                    node.exceptions = node.exceptions.map(::mapType)
-
-                    node.localVariables.forEach {
-                        it.desc = mapType(it.desc)
-                    }
-
-                    node.tryCatchBlocks.forEach {
-                        it.type = mapClassName(it.type)
-                    }
-
-                    // AbstractInsnNode
-                    node.instructions.forEach {
-                        when (it) {
-                            is FieldInsnNode -> {
-                                val mapClassName = mapClassName(it.owner)
-                                it.name = run {
-                                    getMappedClass(it.owner)
-                                        ?.fields
-                                        ?.get(
-                                            FieldIdentifier(
-                                                it.name,
-                                                MappingType.REAL
-                                            )
-                                        )
-                                        ?.fakeIdentifier?.name
-                                        ?: it.name
-                                }
-                                it.owner = mapClassName
-                                it.desc = mapType(it.desc)
-                            }
-
-                            is InvokeDynamicInsnNode -> {
-                                // Can ignore name because only the name of the bootstrap method is known at compile time and that is held in the handle field
-                                it.desc = mapMethodDesc(it.desc) // Expected descriptor type of the generated call site
-
-                                val desc = mapMethodDesc(it.bsm.desc)
-                                it.bsm = Handle(
-                                    it.bsm.tag,
-                                    mapType(it.bsm.owner),
-                                    mapMethodName(it.bsm.owner, it.bsm.name, desc),
-                                    desc,
-                                    it.bsm.isInterface
-                                )
-                            }
-
-                            is MethodInsnNode -> {
-                                val mapDesc = mapMethodDesc(it.desc)
-
-                                it.name = mapMethodName(it.owner, it.name, mapDesc)
-                                it.owner = mapClassName(it.owner)
-                                it.desc = mapDesc
-                            }
-
-                            is MultiANewArrayInsnNode -> {
-                                it.desc = mapType(it.desc)
-                            }
-
-                            is TypeInsnNode -> {
-                                it.desc = mapClassName(it.desc)
-                            }
-                        }
-                    }
-                }
-
-                node
-            }
-        }
 
 
         val classloader = object : ClassLoader(this::class.java.classLoader) {
@@ -205,9 +132,12 @@ class TestTypeMapping {
             override fun loadClass(name: String?): Class<*> {
                 if (name == ToTransform::class.java.name && !loaded) {
                     loaded = true
-                    val resolve = Archives.resolve(
+
+                    val resolve = transformClass(
                         ClassReader(ToTransform::class.java.name),
-                        config,
+                        mappings,
+                        MappingDirection.TO_FAKE,
+                        ClassWriter(0)
                     )
                     return defineClass(ToTransform::class.java.name, resolve, 0, resolve.size)
                 }

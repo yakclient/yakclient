@@ -25,6 +25,7 @@ import net.yakclient.boot.store.CachingDataStore
 import net.yakclient.common.util.make
 import net.yakclient.common.util.resolve
 import net.yakclient.components.yak.YakContext
+import net.yakclient.components.yak.extension.versioning.VersionedExtErmArchiveReference
 import net.yakclient.components.yak.extension.artifact.*
 import java.io.File
 import java.io.FileOutputStream
@@ -44,19 +45,13 @@ public class ExtensionGraph(
     yakContext: YakContext,
     mappings: ArchiveMapping,
     minecraftRef: ArchiveReference,
-    minecraftVersion: String
+    private val minecraftVersion: String
 ) : ArchiveGraph<ExtensionArtifactRequest, ExtensionNode, ExtensionRepositorySettings>(
     ExtensionRepositoryFactory(dependencyProviders)
 ) {
     private val store = CachingDataStore(ExtensionDataAccess(path))
     private val extProcessLoader = ExtensionProcessLoader(
-        privilegeManager,
-        parent,
-        context,
-        yakContext,
-        mappings,
-        minecraftRef,
-        minecraftVersion
+        privilegeManager, parent, context, yakContext, mappings, minecraftRef, minecraftVersion
     )
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
     private val mutableGraph: MutableMap<ExtensionDescriptor, ExtensionNode> = HashMap()
@@ -67,11 +62,9 @@ public class ExtensionGraph(
         return ExtensionCacher(ExtensionRepositoryFactory(dependencyProviders).createContext(settings))
     }
 
-    private fun getBasePathFor(desc: ExtensionDescriptor): Path =
-        path resolve desc.group.replace(
-            '.',
-            File.separatorChar
-        ) resolve desc.artifact resolve desc.version
+    private fun getBasePathFor(desc: ExtensionDescriptor): Path = path resolve desc.group.replace(
+        '.', File.separatorChar
+    ) resolve desc.artifact resolve desc.version
 
     private fun getJarPathFor(desc: ExtensionDescriptor): Path =
         getBasePathFor(desc) resolve "${desc.artifact}-${desc.version}.jar"
@@ -79,25 +72,25 @@ public class ExtensionGraph(
     private fun getErmPathFor(desc: ExtensionDescriptor): Path =
         getBasePathFor(desc) resolve "${desc.artifact}-${desc.version}-erm.json"
 
-    public fun getMixinsPathFor(desc: ExtensionDescriptor) : Path =
-        getBasePathFor(desc) resolve "${desc.artifact}-${desc.version}-mixins.json"
-
     override fun get(request: ExtensionArtifactRequest): Either<ArchiveLoadException, ExtensionNode> {
         return graph[request.descriptor]?.right() ?: either.eager {
             val path = getJarPathFor(request.descriptor)
-
-            val ref = path.takeIf(Files::exists)?.let(finder::find)
 
             val ermPath = ensureNotNull(getErmPathFor(request.descriptor).takeIf(Files::exists)) {
                 ArchiveLoadException.IllegalState("Extension runtime model for request: '${request.descriptor}' not found cached.")
             }
             val erm: ExtensionRuntimeModel = mapper.readValue(ermPath.toFile())
 
-            val mixinsPath =  ensureNotNull(getMixinsPathFor(request.descriptor).takeIf(Files::exists)) {
-                ArchiveLoadException.IllegalState("Mixins metadata for request: '${request.descriptor}' not found cached.")
+            val enabledPartitions = erm.versionPartitions.filterTo(HashSet()) {
+                it.supportedVersions.contains(minecraftVersion)
             }
 
-            val mixins = mapper.readValue<List<ExtensionMixin>>(mixinsPath.toFile())
+            val reference = path.takeIf(Files::exists)?.let(finder::find)?.let {
+                VersionedExtErmArchiveReference(
+                    it, enabledPartitions, erm
+                )
+            }
+
 
             val children: List<ExtensionNode> = erm.extensions.map {
                 val extRequest = dependencyProviders["simple-maven"]!!.parseRequest(it)
@@ -105,10 +98,17 @@ public class ExtensionGraph(
                 get(extRequest as ExtensionArtifactRequest).bind()
             }
 
-            val dependencies = erm.dependencies.map { dep ->
-                val find = erm.dependencyRepositories.firstNotNullOfOrNull find@{ repo ->
-                    val provider = dependencyProviders[repo.type]
-                        ?: shift(ArchiveLoadException.DependencyTypeNotFound(repo.type))
+            val allPartitions = erm.versionPartitions
+
+            val allDependencies = allPartitions
+                .flatMapTo(HashSet(), ExtensionVersionPartition::dependencies)
+            val allDependencyRepositories = allPartitions
+                .flatMapTo(HashSet(), ExtensionVersionPartition::repositories)
+
+            val dependencies = allDependencies.map { dep ->
+                val find = allDependencyRepositories.firstNotNullOfOrNull find@{ repo ->
+                    val provider =
+                        dependencyProviders[repo.type] ?: shift(ArchiveLoadException.DependencyTypeNotFound(repo.type))
                     val depReq = provider.parseRequest(dep) ?: return@find null
 
                     (provider.graph as DependencyGraph<ArtifactRequest<*>, *, *>).get(depReq).orNull()
@@ -123,14 +123,12 @@ public class ExtensionGraph(
             fun containerOrChildren(node: ExtensionNode): List<Container<ExtensionProcess>> =
                 node.extension?.let(::listOf) ?: children.flatMap { containerOrChildren(it) }
 
-            val container = if (ref != null) ContainerLoader.load(
+            val container = if (reference != null) ContainerLoader.load(
                 ExtensionInfo(
-                    ref,
+                    reference,
                     children.flatMap(::containerOrChildren),
                     dependencies.flatMap { it.handleOrChildren() },
-                    ExtensionMetadata(
-                        erm,mixins
-                    ),
+                    erm,
                     containerHandle
                 ),
                 containerHandle,
@@ -140,13 +138,7 @@ public class ExtensionGraph(
             ) else null
 
             ExtensionNode(
-                ref,
-                children.toSet(),
-                dependencies.toSet(),
-                container,
-                ExtensionMetadata(
-                    erm,mixins
-                )
+                reference, children.toSet(), dependencies.toSet(), container, erm
             ).also {
                 mutableGraph[request.descriptor] = it
             }
@@ -159,13 +151,13 @@ public class ExtensionGraph(
         resolver
     ) {
         private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
+
         override fun cache(request: ExtensionArtifactRequest): Either<ArchiveLoadException, Unit> = either.eager {
             val desc = request.descriptor
             val path = getJarPathFor(desc)
             if (!path.exists()) {
                 val ref = resolver.repositoryContext.artifactRepository.get(request)
-                    .mapLeft(ArchiveLoadException::ArtifactLoadException)
-                    .bind()
+                    .mapLeft(ArchiveLoadException::ArtifactLoadException).bind()
 
                 cache(request, ref as ArtifactReference<ExtensionArtifactMetadata, ExtensionArtifactStub>).bind()
             }
@@ -176,53 +168,52 @@ public class ExtensionGraph(
             ref: ArtifactReference<ExtensionArtifactMetadata, ExtensionArtifactStub>,
         ): Either<ArchiveLoadException, Unit> = either.eager {
             ref.children.forEach { stub ->
-                val resolve = resolver.resolverContext.stubResolver
-                    .resolve(stub)
+                val resolve = resolver.resolverContext.stubResolver.resolve(stub)
 
-                val childRef = resolve
-                    .mapLeft(ArchiveLoadException::ArtifactLoadException)
+                val childRef = resolve.mapLeft(ArchiveLoadException::ArtifactLoadException)
                     .bind() as ArtifactReference<ExtensionArtifactMetadata, ExtensionArtifactStub>
 
                 cache(stub.request, childRef).bind()
             }
 
             val metadata: ExtensionArtifactMetadata = ref.metadata
-            val extensionMetadata = metadata.extensionMetadata
-            extensionMetadata.erm.dependencies.forEach { dependency ->
-                extensionMetadata.erm.dependencyRepositories.firstNotNullOfOrNull findRepo@{ settings ->
-                    val provider = dependencyProviders[settings.type]
-                        ?: return@findRepo null
 
-                    val depReq = provider.parseRequest(dependency)
-                        ?: return@findRepo null
+            val allPartitions = metadata.erm.versionPartitions
 
-                    val repoSettings = provider.parseSettings(settings.settings)
-                        ?: return@findRepo null
+            val allDependencies = allPartitions
+                .flatMapTo(HashSet(), ExtensionVersionPartition::dependencies)
+            val allDependencyRepositories = allPartitions
+                .flatMapTo(HashSet(), ExtensionVersionPartition::repositories)
 
-                    val loader =
-                        (provider.graph as DependencyGraph<ArtifactRequest<*>, *, RepositorySettings>).cacherOf(
-                            repoSettings
-                        )
+            allDependencies
+                .forEach { dependency ->
+                    allDependencyRepositories.firstNotNullOfOrNull findRepo@{ settings ->
+                        val provider = dependencyProviders[settings.type] ?: return@findRepo null
 
-                    (loader as DependencyGraph.DependencyCacher).cache(depReq).bind()
+                        val depReq = provider.parseRequest(dependency) ?: return@findRepo null
+
+                        val repoSettings = provider.parseSettings(settings.settings) ?: return@findRepo null
+
+                        val loader =
+                            (provider.graph as DependencyGraph<ArtifactRequest<*>, *, RepositorySettings>).cacherOf(
+                                repoSettings
+                            )
+
+                        (loader as DependencyGraph.DependencyCacher).cache(depReq).orNull()
+                    }
+                        ?: shift(ArchiveLoadException.IllegalState("Failed to load dependency: '$dependency' from repositories '${allDependencyRepositories}''"))
                 }
-                    ?: shift(ArchiveLoadException.IllegalState("Failed to load dependency: '$dependency' from repositories '${extensionMetadata.erm.dependencyRepositories}''"))
-            }
-
-            val jarPath = getJarPathFor(request.descriptor)
 
             val ermPath = getErmPathFor(request.descriptor)
             if (!Files.exists(ermPath)) ermPath.make()
 
-            val mixinsPath = getMixinsPathFor(request.descriptor)
-            if (!Files.exists(mixinsPath)) mixinsPath.make()
-
-            ermPath.writeBytes(mapper.writeValueAsBytes(extensionMetadata.erm))
-            mixinsPath.writeBytes(mapper.writeValueAsBytes(extensionMetadata.mixins))
+            ermPath.writeBytes(mapper.writeValueAsBytes(metadata.erm))
 
             val resource = metadata.resource
             if (resource != null) {
+                val jarPath = getJarPathFor(request.descriptor)
                 if (!Files.exists(jarPath)) jarPath.make()
+
 
                 Channels.newChannel(resource.open()).use { cin ->
                     FileOutputStream(jarPath.toFile()).use { fout ->
@@ -231,7 +222,7 @@ public class ExtensionGraph(
                 }
             }
 
-            store.put(request.descriptor, extensionMetadata.erm)
+            store.put(request.descriptor, metadata.erm)
         }
     }
 }
