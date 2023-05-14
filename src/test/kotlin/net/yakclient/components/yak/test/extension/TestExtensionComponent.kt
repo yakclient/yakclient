@@ -1,20 +1,16 @@
 package net.yakclient.components.yak.test.extension
 
-import com.durganmcbroom.artifact.resolver.createContext
-import com.durganmcbroom.artifact.resolver.simple.maven.HashType
-import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMaven
-import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
 import net.yakclient.archive.mapper.transform.MappingDirection
 import net.yakclient.archive.mapper.transform.mapClassName
-import net.yakclient.client.api.ExtensionContext
 import net.yakclient.archives.Archives
 import net.yakclient.archives.mixin.MixinInjection
-import net.yakclient.boot.BootContext
+import net.yakclient.boot.BootInstance
 import net.yakclient.boot.component.ComponentContext
 import net.yakclient.boot.createMavenProvider
 import net.yakclient.boot.dependency.DependencyProviders
 import net.yakclient.boot.security.PrivilegeAccess
 import net.yakclient.boot.security.PrivilegeManager
+import net.yakclient.client.api.ExtensionContext
 import net.yakclient.components.yak.YakSoftwareComponent
 import net.yakclient.components.yak.extension.ExtensionGraph
 import net.yakclient.components.yak.extension.ExtensionMixin
@@ -28,7 +24,8 @@ import net.yakclient.minecraft.bootstrapper.MixinMetadata
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
-import kotlin.collections.ArrayList
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlin.test.Test
 
 class TestExtensionComponent {
@@ -36,19 +33,16 @@ class TestExtensionComponent {
     fun `Start component graph`() {
         val cache = Files.createTempDirectory("m2").resolve(UUID.randomUUID().toString()).toString()
 
-        val bootContext = BootContext(
-            DependencyProviders()
-        )
-        bootContext.dependencyProviders.add(
-            createMavenProvider(cache)
-        )
+        val boot = BootInstance.new(cache)
+
+
         YakSoftwareComponent().onEnable(
             ComponentContext(
                 mapOf(
                     "cache" to cache,
                     "extensions" to "net.yakclient.extensions:example-extension:1.0-SNAPSHOT->/Users/durgan/.m2/repository@local"
                 ),
-                bootContext
+                boot
             )
         )
     }
@@ -56,17 +50,13 @@ class TestExtensionComponent {
     @Test
     fun `Load extension`() {
         val cache = Files.createTempDirectory("m2").resolve(UUID.randomUUID().toString()).toString()
+        println("THING IS HERE: $cache")
 
-        val bootContext = BootContext(
-            DependencyProviders()
-        )
-        bootContext.dependencyProviders.add(
-            createMavenProvider(cache,)
-        )
+        val boot = BootInstance.new(cache)
 
         val context = ComponentContext(
             mapOf(),
-            bootContext
+            boot
         )
 
 
@@ -80,7 +70,7 @@ class TestExtensionComponent {
                     "providerVersionMappings" to "file:///Users/durgan/IdeaProjects/durganmcbroom/minecraft-bootstrapper/cache/version-mappings.json",
                     "mcArgs" to "--version;1.19.2;--accessToken;"
                 ),
-                bootContext
+                boot
             )
         )
 
@@ -97,7 +87,7 @@ class TestExtensionComponent {
             Archives.Finders.ZIP_FINDER,
             PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
             this::class.java.classLoader,
-            context.bootContext.dependencyProviders,
+            context.boot.dependencyProviders,
             context,
             yakContext,
             mappings,
@@ -113,10 +103,10 @@ class TestExtensionComponent {
 
         println(cacheResult)
 
-        val node1 = graph.get(ExtensionArtifactRequest("net.yakclient.extensions:example-extension:1.0-SNAPSHOT"))
+        val node1 = graph.get(ExtensionArtifactRequest("net.yakclient.extensions:example-extension:1.0-SNAPSHOT")).orNull()
         println(node1)
 
-        val flatMap = node1.orNull()?.let { node ->
+        val flatMap = node1?.let { node ->
            val allMixins = node.archiveReference?.enabledPartitions
                 ?.flatMap(ExtensionVersionPartition::mixins) ?: ArrayList()
 
@@ -140,9 +130,20 @@ class TestExtensionComponent {
         minecraftHandler.writeAll()
         minecraftHandler.loadMinecraft()
 
-        val ref = node1.orNull()?.extension?.process?.ref
+        val ref = node1?.extension?.process?.ref
         ref?.supplyMinecraft(minecraftHandler.archive)
         ref?.extension?.init(ExtensionContext())
+
+        node1?.also {
+
+            val ref = it.extension?.process?.ref
+            val extension = ref?.extension
+
+            extension?.init(ExtensionContext())
+        }
+
+        minecraftHandler.startMinecraft()
+
 
 //        testEnable(
 //            MinecraftBootstrapper(),

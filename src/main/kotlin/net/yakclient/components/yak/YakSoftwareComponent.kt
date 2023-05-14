@@ -83,7 +83,7 @@ public class YakSoftwareComponent : SoftwareComponent {
             Archives.Finders.ZIP_FINDER,
             PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
             this::class.java.classLoader,
-            context.bootContext.dependencyProviders,
+            context.boot.dependencyProviders,
             context,
             yakContext,
             mappings,
