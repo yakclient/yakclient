@@ -8,9 +8,9 @@
         "descriptor": "net.yakclient.components:minecraft-bootstrapper:1.0-SNAPSHOT"
       },
       "repository": {
-        "type": "local",
+        "type": "default",
         "settings": {
-          "location" : "/Users/durgan/.m2/repository"
+          "location" : "http://maven.yakclient.net/snapshots"
         }
       }
     }
@@ -67,8 +67,8 @@
       "repository": {
         "type": "simple-maven",
         "settings": {
-          "location" : "/Users/durgan/.m2/repository",
-          "type": "local"
+          "location" : "http://maven.yakclient.net/snapshots",
+          "type": "default"
         }
       }
     }

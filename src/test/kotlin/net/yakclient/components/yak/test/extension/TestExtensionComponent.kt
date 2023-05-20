@@ -1,5 +1,6 @@
 package net.yakclient.components.yak.test.extension
 
+import com.durganmcbroom.artifact.resolver.simple.maven.layout.mavenLocal
 import net.yakclient.archive.mapper.transform.MappingDirection
 import net.yakclient.archive.mapper.transform.mapClassName
 import net.yakclient.archives.Archives
@@ -40,7 +41,7 @@ class TestExtensionComponent {
             ComponentContext(
                 mapOf(
                     "cache" to cache,
-                    "extensions" to "net.yakclient.extensions:example-extension:1.0-SNAPSHOT->/Users/durgan/.m2/repository@local"
+                    "extensions" to "net.yakclient.extensions:example-extension:1.0-SNAPSHOT->$mavenLocal@local"
                 ),
                 boot
             )
@@ -67,7 +68,7 @@ class TestExtensionComponent {
                     "repository" to "http://maven.yakclient.net/snapshots",
                     "repositoryType" to "DEFAULT",
                     "cache" to cache,
-                    "providerVersionMappings" to "file:///Users/durgan/IdeaProjects/durganmcbroom/minecraft-bootstrapper/cache/version-mappings.json",
+                    "providerVersionMappings" to "http://maven.yakclient.net/public/mc-version-mappings.json",
                     "mcArgs" to "--version;1.19.2;--accessToken;"
                 ),
                 boot
@@ -96,7 +97,7 @@ class TestExtensionComponent {
         )
 
         val cacheResult = graph.cacherOf(
-            ExtensionRepositorySettings.local("/Users/durgan/.m2/repository")
+            ExtensionRepositorySettings.local()
         ).cache(
             ExtensionArtifactRequest("net.yakclient.extensions:example-extension:1.0-SNAPSHOT")
         )
@@ -143,27 +144,5 @@ class TestExtensionComponent {
         }
 
         minecraftHandler.startMinecraft()
-
-
-//        testEnable(
-//            MinecraftBootstrapper(),
-//            mapOf(
-//                "version" to "1.19.2",
-//                "repository" to "/Users/durgan/.m2/repository",
-//                "repositoryType" to "LOCAL",
-//                "cache" to cache,
-//                "providerVersionMappings" to "file:///Users/durgan/IdeaProjects/durganmcbroom/minecraft-bootstrapper/cache/version-mappings.json",
-//                "mcArgs" to "--version;1.19.2;--accessToken;"
-//            ),
-//        )
-//
-//        testEnable(
-//            YakSoftwareComponent(),
-//            mapOf(
-//                "cache" to System.getProperty("user.dir"),
-//                "extensions" to "net.yakclient.extensions:example-extension:1.0-SNAPSHOT->/Users/durgan/.m2/repository@local"
-//            ),
-//            mavenCache = cache
-//        )
     }
 }
