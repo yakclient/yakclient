@@ -14,17 +14,15 @@ import net.yakclient.archives.ArchiveReference
 import net.yakclient.boot.archive.ArchiveGraph
 import net.yakclient.boot.archive.ArchiveLoadException
 import net.yakclient.boot.archive.handleOrChildren
-import net.yakclient.boot.component.ComponentContext
 import net.yakclient.boot.container.Container
 import net.yakclient.boot.container.ContainerLoader
 import net.yakclient.boot.container.volume.RootVolume
 import net.yakclient.boot.dependency.DependencyGraph
-import net.yakclient.boot.dependency.DependencyProviders
+import net.yakclient.boot.dependency.DependencyTypeProvider
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.boot.store.CachingDataStore
 import net.yakclient.common.util.make
 import net.yakclient.common.util.resolve
-import net.yakclient.components.yak.YakContext
 import net.yakclient.components.yak.extension.versioning.VersionedExtErmArchiveReference
 import net.yakclient.components.yak.extension.artifact.*
 import java.io.File
@@ -40,25 +38,27 @@ public class ExtensionGraph(
     private val finder: ArchiveFinder<*>,
     private val privilegeManager: PrivilegeManager,
     parent: ClassLoader,
-    private val dependencyProviders: DependencyProviders,
-    context: ComponentContext,
-    yakContext: YakContext,
+    private val dependencyProviders: DependencyTypeProvider,
     mappings: ArchiveMapping,
     minecraftRef: ArchiveReference,
     private val minecraftVersion: String
-) : ArchiveGraph<ExtensionArtifactRequest, ExtensionNode, ExtensionRepositorySettings>(
+) : ArchiveGraph<ExtensionDescriptor, ExtensionNode, ExtensionRepositorySettings>(
     ExtensionRepositoryFactory(dependencyProviders)
 ) {
-    private val store = CachingDataStore(ExtensionDataAccess(path))
+    private val store: CachingDataStore<ExtensionDescriptor, ExtensionRuntimeModel> = CachingDataStore(ExtensionDataAccess(path))
     private val extProcessLoader = ExtensionProcessLoader(
-        privilegeManager, parent, context, yakContext, mappings, minecraftRef, minecraftVersion
+        privilegeManager, parent,  mappings, minecraftRef
     )
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
     private val mutableGraph: MutableMap<ExtensionDescriptor, ExtensionNode> = HashMap()
     override val graph: Map<ExtensionDescriptor, ExtensionNode>
         get() = mutableGraph.toMap()
 
-    override fun cacherOf(settings: ExtensionRepositorySettings): ArchiveCacher<*> {
+    override fun isCached(descriptor: ExtensionDescriptor): Boolean {
+         return store.contains(descriptor)
+    }
+
+    override fun cacherOf(settings: ExtensionRepositorySettings): ExtensionCacher {
         return ExtensionCacher(ExtensionRepositoryFactory(dependencyProviders).createContext(settings))
     }
 
@@ -72,12 +72,12 @@ public class ExtensionGraph(
     private fun getErmPathFor(desc: ExtensionDescriptor): Path =
         getBasePathFor(desc) resolve "${desc.artifact}-${desc.version}-erm.json"
 
-    override fun get(request: ExtensionArtifactRequest): Either<ArchiveLoadException, ExtensionNode> {
-        return graph[request.descriptor]?.right() ?: either.eager {
-            val path = getJarPathFor(request.descriptor)
+    override fun get(descriptor: ExtensionDescriptor): Either<ArchiveLoadException, ExtensionNode> {
+        return graph[descriptor]?.right() ?: either.eager {
+            val path = getJarPathFor(descriptor)
 
-            val ermPath = ensureNotNull(getErmPathFor(request.descriptor).takeIf(Files::exists)) {
-                ArchiveLoadException.IllegalState("Extension runtime model for request: '${request.descriptor}' not found cached.")
+            val ermPath = ensureNotNull(getErmPathFor(descriptor).takeIf(Files::exists)) {
+                ArchiveLoadException.IllegalState("Extension runtime model for request: '${descriptor}' not found cached.")
             }
             val erm: ExtensionRuntimeModel = mapper.readValue(ermPath.toFile())
 
@@ -91,11 +91,10 @@ public class ExtensionGraph(
                 )
             }
 
-
             val children: List<ExtensionNode> = erm.extensions.map {
                 val extRequest = dependencyProviders["simple-maven"]!!.parseRequest(it)
                     ?: shift(ArchiveLoadException.IllegalState("Illegal extension request: '$it'"))
-                get(extRequest as ExtensionArtifactRequest).bind()
+                get((extRequest as ExtensionArtifactRequest).descriptor).bind()
             }
 
             val allPartitions = erm.versionPartitions
@@ -111,10 +110,10 @@ public class ExtensionGraph(
                         dependencyProviders[repo.type] ?: shift(ArchiveLoadException.DependencyTypeNotFound(repo.type))
                     val depReq = provider.parseRequest(dep) ?: return@find null
 
-                    (provider.graph as DependencyGraph<ArtifactRequest<*>, *, *>).get(depReq).orNull()
+                    (provider.graph as DependencyGraph<ArtifactMetadata.Descriptor, *>).get(depReq.descriptor).orNull()
                 }
                 find
-                    ?: shift(ArchiveLoadException.IllegalState("Couldn't load dependency: '${dep}' for extension: '${request.descriptor}'"))
+                    ?: shift(ArchiveLoadException.IllegalState("Couldn't load dependency: '${dep}' for extension: '${descriptor}'"))
             }
 
 
@@ -133,21 +132,21 @@ public class ExtensionGraph(
                 ),
                 containerHandle,
                 extProcessLoader,
-                RootVolume.derive(erm.name, getBasePathFor(request.descriptor)),
+                RootVolume.derive(erm.name, getBasePathFor(descriptor)),
                 privilegeManager
             ) else null
 
             ExtensionNode(
                 reference, children.toSet(), dependencies.toSet(), container, erm
             ).also {
-                mutableGraph[request.descriptor] = it
+                mutableGraph[descriptor] = it
             }
         }
     }
 
-    private inner class ExtensionCacher(
+    public inner class ExtensionCacher(
         resolver: ResolutionContext<ExtensionArtifactRequest, ExtensionStub, ArtifactReference<*, ExtensionStub>>,
-    ) : ArchiveCacher<ExtensionStub>(
+    ) : ArchiveCacher<ExtensionArtifactRequest, ExtensionStub>(
         resolver
     ) {
         private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
@@ -195,11 +194,11 @@ public class ExtensionGraph(
                         val repoSettings = provider.parseSettings(settings.settings) ?: return@findRepo null
 
                         val loader =
-                            (provider.graph as DependencyGraph<ArtifactRequest<*>, *, RepositorySettings>).cacherOf(
+                            (provider.graph as DependencyGraph<*, RepositorySettings>).cacherOf(
                                 repoSettings
                             )
 
-                        (loader as DependencyGraph.DependencyCacher).cache(depReq).orNull()
+                        (loader as DependencyGraph<*, RepositorySettings>.DependencyCacher<ArtifactRequest<*>, *>).cache(depReq).orNull()
                     }
                         ?: shift(ArchiveLoadException.IllegalState("Failed to load dependency: '$dependency' from repositories '${allDependencyRepositories}''"))
                 }

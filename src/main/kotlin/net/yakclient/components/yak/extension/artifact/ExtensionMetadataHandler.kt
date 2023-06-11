@@ -9,13 +9,13 @@ import com.durganmcbroom.artifact.resolver.simple.maven.pom.PomRepository.Compan
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
-import net.yakclient.boot.dependency.DependencyProviders
+import net.yakclient.boot.dependency.DependencyTypeProvider
 import net.yakclient.components.yak.extension.ExtensionRuntimeModel
 
 
 public class ExtensionMetadataHandler(
     settings: SimpleMavenRepositorySettings,
-    private val providers: DependencyProviders
+    private val providers: DependencyTypeProvider
 ) : SimpleMavenMetadataHandler(settings) {
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 

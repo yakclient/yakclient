@@ -3,24 +3,22 @@ package net.yakclient.components.yak.extension
 import net.yakclient.archive.mapper.ArchiveMapping
 import net.yakclient.archive.mapper.transform.MappingDirection
 import net.yakclient.archive.mapper.transform.mappingTransformConfigFor
-import net.yakclient.archives.*
-import net.yakclient.boot.component.ComponentContext
+import net.yakclient.archives.ArchiveHandle
+import net.yakclient.archives.ArchiveReference
+import net.yakclient.archives.ArchiveTree
+import net.yakclient.archives.Archives
 import net.yakclient.boot.container.ProcessLoader
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.client.api.Extension
 import net.yakclient.client.api.ExtensionContext
 import net.yakclient.common.util.runCatching
-import net.yakclient.components.yak.YakContext
 import net.yakclient.components.yak.extension.versioning.VersionedExtArchiveHandle
 
 public class ExtensionProcessLoader(
     private val privilegeManager: PrivilegeManager,
     private val parentClassloader: ClassLoader,
-    private val context: ComponentContext,
-    private val yakContext: YakContext,
-    private val mappings: ArchiveMapping,
+    mappings: ArchiveMapping,
     private val minecraftRef: ArchiveReference,
-    private val minecraftVersion: String
 ) : ProcessLoader<ExtensionInfo, ExtensionProcess> {
     private val config = mappingTransformConfigFor(
         mappings,

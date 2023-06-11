@@ -14,7 +14,7 @@ public data class ExtensionProcess(
     override val archive: ExtensionArchiveHandle
         get() = ref.archive
 
-    override fun start(): Unit = ref.extension.init(context)
+    override fun start(): Unit = ref.extension.init()
 }
 
 public data class ExtensionReference(

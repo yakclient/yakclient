@@ -49,7 +49,7 @@ dependencies {
     }
 
     testImplementation(kotlin("test"))
-
+    testImplementation("net.yakclient:boot-test:1.0-SNAPSHOT")
 }
 
 tasks.test {
@@ -118,6 +118,7 @@ allprojects {
 
 
     repositories {
+        mavenLocal()
         mavenCentral()
         maven {
             isAllowInsecureProtocol = true
