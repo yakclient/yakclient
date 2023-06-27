@@ -1,3 +1,4 @@
+import org.gradle.api.publish.maven.internal.publisher.MavenLocalPublisher
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 
@@ -52,13 +53,6 @@ dependencies {
     testImplementation("net.yakclient:boot-test:1.0-SNAPSHOT")
 }
 
-tasks.test {
-    jvmArgs = listOf(
-        "--add-reads",
-        "kotlin.stdlib=kotlinx.coroutines.core.jvm"
-    )
-}
-
 task<Jar>("sourcesJar") {
     archiveClassifier.set("sources")
     from(sourceSets.main.get().allSource)
@@ -69,14 +63,43 @@ task<Jar>("javadocJar") {
     from(tasks.dokkaJavadoc)
 }
 
+tasks.withType<AbstractPublishToMaven> {
+    onlyIf {
+        ((this is PublishToMavenLocal && publication.name == "local") ||
+                (this is PublishToMavenRepository && publication.name == "prod"))
+    }
+}
+
+val createDevModel by tasks.creating {
+    val out = File(project.buildDir, "tmp/component-model-dev.json")
+    outputs.file(out)
+
+    File(out.parent).mkdirs()
+    val model = File("${sourceSets.main.get().resources.srcDirs.first().absoluteFile}${File.separator}component-model-dev.json")
+            .inputStream()
+            .readBytes()
+            .let(::String)
+            .replace("<MAVEN_LOCAL>", File(repositories.mavenLocal().url).toString())
+
+    out.writeText(model)
+}
+
 publishing {
     publications {
-        create<MavenPublication>("yak-maven") {
+        create<MavenPublication>("local") {
+            from(components["java"])
+            artifact(createDevModel.outputs.files.singleFile).classifier =
+                    "component-model"
+
+            artifactId = "yak"
+        }
+
+        create<MavenPublication>("prod") {
             from(components["java"])
             artifact(tasks["sourcesJar"])
             artifact(tasks["javadocJar"])
             artifact("${sourceSets.main.get().resources.srcDirs.first().absoluteFile}${File.separator}component-model.json").classifier =
-                "component-model"
+                    "component-model"
 
             artifactId = "yak"
 
@@ -129,9 +152,9 @@ allprojects {
             url = uri("https://maven.pkg.github.com/durganmcbroom/artifact-resolver")
             credentials {
                 username = project.findProperty("dm.gpr.user") as? String
-                    ?: throw IllegalArgumentException("Need a Github package registry username!")
+                        ?: throw IllegalArgumentException("Need a Github package registry username!")
                 password = project.findProperty("dm.gpr.key") as? String
-                    ?: throw IllegalArgumentException("Need a Github package registry key!")
+                        ?: throw IllegalArgumentException("Need a Github package registry key!")
             }
         }
     }

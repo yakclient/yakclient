@@ -132,7 +132,7 @@ public class YakSoftwareComponent(
 
     internal companion object {
         private val logger = Logger.getLogger(this::class.simpleName)
-        private val RELATIVE_CACHE = "components"
+        private val RELATIVE_CACHE = "extensions"
 
         fun getInjectionProviders(mappings: ArchiveMapping): Map<String, MixinInjectionProvider<*>> {
             fun Map<String, String>.notNull(name: String): String =
