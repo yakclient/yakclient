@@ -1,37 +1,14 @@
 package net.yakclient.components.yak.test.extension
 
-import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
-import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
-import com.durganmcbroom.artifact.resolver.simple.maven.layout.mavenLocal
-import net.yakclient.archive.mapper.transform.MappingDirection
-import net.yakclient.archive.mapper.transform.mapClassName
-import net.yakclient.archives.Archives
-import net.yakclient.archives.mixin.MixinInjection
-import net.yakclient.boot.BootInstance
-import net.yakclient.boot.component.artifact.SoftwareComponentArtifactRequest
 import net.yakclient.boot.component.artifact.SoftwareComponentDescriptor
-import net.yakclient.boot.component.artifact.SoftwareComponentRepositorySettings
-import net.yakclient.boot.security.PrivilegeAccess
-import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.boot.test.testBootInstance
-import net.yakclient.client.api.ExtensionContext
-import net.yakclient.components.yak.YakComponentFactory
-import net.yakclient.components.yak.YakConfiguration
-import net.yakclient.components.yak.YakExtensionConfiguration
-import net.yakclient.components.yak.YakSoftwareComponent
-import net.yakclient.components.yak.extension.ExtensionGraph
-import net.yakclient.components.yak.extension.ExtensionMixin
-import net.yakclient.components.yak.extension.ExtensionVersionPartition
-import net.yakclient.components.yak.extension.artifact.ExtensionArtifactRequest
+import net.yakclient.components.yak.ExtensionLoaderFactory
+import net.yakclient.components.yak.ExtLoaderConfiguration
+import net.yakclient.components.yak.ExtLoaderExtConfiguration
 import net.yakclient.components.yak.extension.artifact.ExtensionDescriptor
 import net.yakclient.components.yak.extension.artifact.ExtensionRepositorySettings
-import net.yakclient.components.yak.mapping.withDots
-import net.yakclient.components.yak.mapping.withSlashes
-import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapper
 import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapperFactory
-import net.yakclient.minecraft.bootstrapper.MixinMetadata
 import java.nio.file.Files
-import java.nio.file.Path
 import java.util.*
 import kotlin.test.Test
 
@@ -51,10 +28,10 @@ class TestExtensionComponent {
                 ) to MinecraftBootstrapperFactory::class.java
         ))
 
-        val instance = YakComponentFactory(boot).new(YakConfiguration(
+        val instance = ExtensionLoaderFactory(boot).new(ExtLoaderConfiguration(
                 "1.19.2", listOf("--version", "1.19.2", "--accessToken", ""),
                 listOf(
-                        YakExtensionConfiguration(
+                        ExtLoaderExtConfiguration(
                                 ExtensionDescriptor.parseDescription("net.yakclient.extensions:example-extension:1.0-SNAPSHOT")!!,
                                 ExtensionRepositorySettings.local()
                         )

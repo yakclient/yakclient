@@ -1,7 +1,6 @@
 package net.yakclient.components.yak
 
 import com.durganmcbroom.artifact.resolver.simple.maven.HashType
-import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
 import net.yakclient.boot.BootInstance
 import net.yakclient.boot.component.ComponentFactory
@@ -13,10 +12,9 @@ import net.yakclient.boot.new
 import net.yakclient.components.yak.extension.artifact.ExtensionDescriptor
 import net.yakclient.components.yak.extension.artifact.ExtensionRepositorySettings
 import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapperConfiguration
-import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapperFactory
 
-public class YakComponentFactory(boot: BootInstance) : ComponentFactory<YakConfiguration, YakSoftwareComponent>(boot) {
-    override fun parseConfiguration(value: ContextNodeValue): YakConfiguration {
+public class ExtensionLoaderFactory(boot: BootInstance) : ComponentFactory<ExtLoaderConfiguration, ExtensionLoader>(boot) {
+    override fun parseConfiguration(value: ContextNodeValue): ExtLoaderConfiguration {
         val tree = value.coerceTree()
 
         fun <T : Any> T?.check(name: () -> String): T {
@@ -27,7 +25,7 @@ public class YakComponentFactory(boot: BootInstance) : ComponentFactory<YakConfi
             return get(key)?.coerceType(ContextNodeTypes.String).check { key }
         }
 
-        fun parseExt(contextNodeValue: ContextNodeValue): YakExtensionConfiguration {
+        fun parseExt(contextNodeValue: ContextNodeValue): ExtLoaderExtConfiguration {
             val extTree = contextNodeValue.coerceTree()
 
             fun parseDescriptor(tree: ContextNodeTree): ExtensionDescriptor = ExtensionDescriptor(
@@ -48,21 +46,21 @@ public class YakComponentFactory(boot: BootInstance) : ComponentFactory<YakConfi
                 }
             }
 
-            return YakExtensionConfiguration(
+            return ExtLoaderExtConfiguration(
                     parseDescriptor(extTree["descriptor"].check { "descriptor" }.coerceTree()),
                     parseSettings(extTree["repository"].check { "descriptor" }.coerceTree())
             )
         }
 
-        return YakConfiguration(
+        return ExtLoaderConfiguration(
                 tree.getCoerceCheck("mcVersion"),
                 tree["mcArgs"]?.coerceArray()?.list()?.map { it.coerceType(ContextNodeTypes.String) }.check { "mcArgs" },
                 tree["extensions"]?.coerceArray()?.list()?.map(::parseExt).check { "extensions" }
         )
     }
 
-    override fun new(configuration: YakConfiguration): YakSoftwareComponent {
-        return YakSoftwareComponent(
+    override fun new(configuration: ExtLoaderConfiguration): ExtensionLoader {
+        return ExtensionLoader(
                 boot,
                 configuration,
                 boot.new(SoftwareComponentDescriptor(

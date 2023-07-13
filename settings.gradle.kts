@@ -1,4 +1,4 @@
 
-rootProject.name = "yakclient"
+rootProject.name = "ext-loader"
 
 include(":client-api")

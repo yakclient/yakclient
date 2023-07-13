@@ -91,7 +91,7 @@ publishing {
             artifact(createDevModel.outputs.files.singleFile).classifier =
                     "component-model"
 
-            artifactId = "yak"
+            artifactId = "ext-loader"
         }
 
         create<MavenPublication>("prod") {
@@ -101,12 +101,12 @@ publishing {
             artifact("${sourceSets.main.get().resources.srcDirs.first().absoluteFile}${File.separator}component-model.json").classifier =
                     "component-model"
 
-            artifactId = "yak"
+            artifactId = "ext-loader"
 
             pom {
                 name.set("YakClient Software Component for loading Yak Extensions")
-                description.set("YakClients Extension Loader")
-                url.set("https://github.com/yakclient/yakclient")
+                description.set("Extension Loader")
+                url.set("https://github.com/yakclient/ext-loader")
 
                 packaging = "jar"
 
@@ -125,9 +125,9 @@ publishing {
                 }
 
                 scm {
-                    connection.set("scm:git:git://github.com/yakclient/yakclient")
-                    developerConnection.set("scm:git:ssh://github.com:yakclient/yakclient.git")
-                    url.set("https://github.com/yakclient/yakclient")
+                    connection.set("scm:git:git://github.com/yakclient/ext-loader")
+                    developerConnection.set("scm:git:ssh://github.com:yakclient/ext-loader.git")
+                    url.set("https://github.com/yakclient/ext-loader")
                 }
             }
         }
@@ -141,7 +141,6 @@ allprojects {
 
 
     repositories {
-        mavenLocal()
         mavenCentral()
         maven {
             isAllowInsecureProtocol = true
