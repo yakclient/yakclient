@@ -1,7 +1,7 @@
 {
   "name": "yakclient",
   "packaging": "jar",
-  "entrypoint": "net.yakclient.components.yak.YakComponentFactory",
+  "entrypoint": "net.yakclient.components.extloader.ExtensionLoaderFactory",
   "children": [
     {
       "request": {
