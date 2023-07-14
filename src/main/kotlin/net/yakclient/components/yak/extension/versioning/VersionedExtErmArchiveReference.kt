@@ -25,6 +25,11 @@ internal class VersionedExtErmArchiveReference(
     private inner class VersioningAwareReader(
         val delegate: ArchiveReference.Reader
     ) : ArchiveReference.Reader by delegate {
+        // Move main partition to back of the list
+        private val partitions = erm.versionPartitions
+            .partition { it.name != erm.mainPartition }
+            .let { it.first + it.second }
+
         override fun entries(): Sequence<ArchiveReference.Entry> {
             return delegate.entries()
                 .map(ArchiveReference.Entry::name)
@@ -32,9 +37,9 @@ internal class VersionedExtErmArchiveReference(
         }
 
         override fun of(name: String): ArchiveReference.Entry? {
-            return erm.versionPartitions.firstNotNullOfOrNull {
+            return partitions.firstNotNullOfOrNull {
                 delegate["${it.path.removeSuffix("/")}/$name"]
-            } ?: delegate[name]
+            }
         }
 
         override operator fun get(name: String): ArchiveReference.Entry? = of(name)
