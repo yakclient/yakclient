@@ -13,8 +13,6 @@ import java.util.*
 import kotlin.test.Test
 
 class TestExtensionComponent {
-
-
     @Test
     fun `Load extension`() {
         val cache = Files.createTempDirectory("m2").resolve(UUID.randomUUID().toString()).toString()

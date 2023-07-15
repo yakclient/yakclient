@@ -2,107 +2,74 @@ package net.yakclient.components.extloader.extension
 
 import net.yakclient.archive.mapper.ArchiveMapping
 import net.yakclient.archive.mapper.transform.MappingDirection
+import net.yakclient.archive.mapper.transform.mapClassName
 import net.yakclient.archive.mapper.transform.mappingTransformConfigFor
 import net.yakclient.archives.ArchiveHandle
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.ArchiveTree
 import net.yakclient.archives.Archives
+import net.yakclient.archives.transform.AwareClassWriter
+import net.yakclient.archives.transform.TransformerConfig
 import net.yakclient.boot.container.ProcessLoader
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.client.api.Extension
 import net.yakclient.client.api.ExtensionContext
 import net.yakclient.common.util.runCatching
 import net.yakclient.components.extloader.extension.versioning.VersionedExtArchiveHandle
+import org.objectweb.asm.ClassReader
+import java.util.HashSet
 
 public class ExtensionProcessLoader(
     private val privilegeManager: PrivilegeManager,
     private val parentClassloader: ClassLoader,
-    mappings: ArchiveMapping,
+    private val mappings: ArchiveMapping,
     private val minecraftRef: ArchiveReference,
 ) : ProcessLoader<ExtensionInfo, ExtensionProcess> {
     private val config = mappingTransformConfigFor(
         mappings,
         MappingDirection.TO_FAKE
     )
-//        transformField { node ->
-//            node.desc = mappings.mapType(node.desc)
-//
-//            node
-//        }
-//
-//        transformMethod { node ->
-//            mappings.run {
-//                node.desc = mapMethodDesc(node.desc)
-//
-//                node.exceptions = node.exceptions.map(::mapType)
-//
-//                node.localVariables.forEach {
-//                    it.desc = mapType(it.desc)
-//                }
-//
-//                node.tryCatchBlocks.forEach {
-//                    it.type = mapClassName(it.type)
-//                }
-//
-//                // AbstractInsnNode
-//                node.instructions.forEach {
-//                    when (it) {
-//                        is FieldInsnNode -> {
-//                            val mapClassName = mapClassName(it.owner)
-//                            it.name = run {
-//                                getMappedClass(it.owner)
-//                                    ?.fields
-//                                    ?.get(FieldIdentifier(
-//                                        it.name,
-//                                        MappingType.REAL
-//                                    ))
-//                                    ?.fakeIdentifier?.name
-//                                    ?: it.name
-//                            }
-//                            it.owner = mapClassName
-//                            it.desc = mapType(it.desc)
-//                        }
-//                        is InvokeDynamicInsnNode -> {
-//                            // Can ignore name because only the name of the bootstrap method is known at compile time and that is held in the handle field
-//                            it.desc = mapMethodDesc(it.desc) // Expected descriptor type of the generated call site
-//
-//                            val desc = mapMethodDesc(it.bsm.desc)
-//                            it.bsm = Handle(
-//                                it.bsm.tag,
-//                                mapType(it.bsm.owner),
-//                                mapMethodName(it.bsm.owner, it.bsm.name, desc),
-//                                desc,
-//                                it.bsm.isInterface
-//                            )
-//                        }
-//                        is MethodInsnNode -> {
-//                            val mapDesc = mapMethodDesc(it.desc)
-//
-//                            it.name = mapMethodName(it.owner, it.name, mapDesc)
-//                            it.owner = mapClassName(it.owner)
-//                            it.desc = mapDesc
-//                        }
-//                        is MultiANewArrayInsnNode -> {
-//                            it.desc = mapType(it.desc)
-//                        }
-//                        is TypeInsnNode -> {
-//                            it.desc = mapClassName(it.desc)
-//                        }
-//                    }
-//                }
-//            }
-//
-//            node
-//        }
-//    }
 
-    private fun transformEachEntry(archiveReference: ArchiveReference, dependencies: List<ArchiveTree>) {
-        archiveReference.reader.entries()
+    private fun transformEachEntry(
+        erm: ExtensionRuntimeModel,
+        archiveReference: ArchiveReference,
+        dependencies: List<ArchiveTree>
+    ) {
+        val mixinClasses = erm.versionPartitions
+            .flatMapTo(HashSet()) { v ->
+                v.mixins.map { ("${v.path.removeSuffix("/")}/${it.classname.replace('.', '/')}.class") to it }
+            }.associate { it }
+
+        val (mixins, nonMixins) = archiveReference.reader.entries()
+            .filterNot(ArchiveReference.Entry::isDirectory)
+            .partition { mixinClasses.contains(it.name) }
+
+        nonMixins
             .filter { it.name.endsWith(".class") }
             .forEach {
                 val entry = it.transform(config, dependencies)
                 archiveReference.writer.put(entry)
             }
+
+        mixins.map {
+            archiveReference.writer.put(transformMixinEntry(it, mixinClasses[it.name]!!, dependencies))
+        }
+    }
+
+    private fun transformMixinEntry(
+        entry: ArchiveReference.Entry,
+        mixin: ExtensionMixin,
+        dependencies: List<ArchiveTree>
+    ): ArchiveReference.Entry {
+        return entry.transform(
+            TransformerConfig.of {
+                transformClass {
+                    it.name = mixin.destination.replace('.', '/')
+                    config.ct(it)
+                }
+            },
+            dependencies
+        )
     }
 
     override fun load(info: ExtensionInfo): ExtensionProcess {
@@ -111,7 +78,7 @@ public class ExtensionProcessLoader(
         val archives: List<ArchiveHandle> =
             children.map { it.process.archive } + dependencies
 
-        transformEachEntry(ref, archives + minecraftRef)
+        transformEachEntry(erm, ref, archives + minecraftRef)
 
         return ExtensionProcess(
             ExtensionReference { minecraft ->
@@ -127,8 +94,6 @@ public class ExtensionProcessLoader(
                     Archives.Resolvers.ZIP_RESOLVER,
                     archives.toSet() + minecraft
                 )
-
-//                result.controller.addReads(result.module, minecraft.classloader.unnamedModule)
 
                 val handle = VersionedExtArchiveHandle(result.archive, ref)
 

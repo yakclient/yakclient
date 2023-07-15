@@ -81,13 +81,9 @@ public class ExtensionGraph(
             }
             val erm: ExtensionRuntimeModel = mapper.readValue(ermPath.toFile())
 
-            val enabledPartitions = erm.versionPartitions.filterTo(HashSet()) {
-                it.supportedVersions.contains(minecraftVersion)
-            }
-
             val reference = path.takeIf(Files::exists)?.let(finder::find)?.let {
                 VersionedExtErmArchiveReference(
-                    it, enabledPartitions, erm
+                    it, minecraftVersion, erm
                 )
             }
 
