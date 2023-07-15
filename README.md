@@ -44,13 +44,25 @@ pluginManagement {
 }
 ```
 
-Next, add the YakClient plugin to your gradle file:
+Next, add the YakClient plugin and the maven-publish to your gradle file:
 ```kotlin
 plugins {
     // ...
     
+    id("maven-publish")
     id("net.yakclient") version "1.0"
     /* kotlin("kapt") version "1.8.10" - IF USING KOTLIN */ 
+}
+```
+
+Add the yakclient repo to your build.gradle file:
+```kotlin
+repositories {
+    mavenCentral()
+    maven {
+        isAllowInsecureProtocol = true
+        url = uri("http://maven.yakclient.net/snapshots")
+    }
 }
 ```
 
@@ -93,7 +105,20 @@ yakclient {
 }
 ```
 
-Lastly you will want to setup maven publish, without this the yakclient `launch` test will not work.
+Lastly you will want to setup maven publish, without this the yakclient `launch` test will not work. 
+Here is enough to get your started:
+```kotlin
+publishing {
+    publications {
+        create<MavenPublication>("<YOUR NAME>") {
+            artifact(tasks["jar"])
+            artifact(project.buildDir.toPath().resolve("libs/erm.json")).classifier = "erm" // Keep this line
+
+            artifactId = "<YOUR ARTIFACT_ID>"
+        }
+    }
+}
+```
 
 For a complete example of the gradle build file with yakclient, see [example-extension](https://github.com/yakclient/example-extension).
 
@@ -117,8 +142,8 @@ public class ExampleExtension : Extension() {
 ```
 
 Great! Thats your first extension complete! Now head to your command line and launch minecraft, for MacOS/Linux 
-the command is `./gradlew launch -PmcVersion=<YOUR VERISON, ie, 1.19.2>` or for Windows 
-`gradle launch launch -PmcVersion=<YOUR VERISON, ie, 1.19.2>`.
+the command is `./gradlew launch -PmcVersion=<YOUR VERISON, ie, 1.20.1>` or for Windows 
+`gradle launch launch -PmcVersion=<YOUR VERISON, ie, 1.20.1>`.
 
 # Mixins
 
@@ -144,17 +169,18 @@ Source injections are a type of mixin that allow you to inject code from one met
 in Minecraft. The following is how you define this (API SUBJECT TO CHANGE).
 ```kotlin
 // Your mixin class here...
-    @SourceInjection(
-        point = BEFORE_END,
-        from = "net.yakclient.extensions.example.MyFirstMixin",
-        to = "net.minecraft.client.main.Main", // Some minecraft class
-        methodFrom = "anExample()V", // Important, this must be a valid java methodName + java method Descriptor
-        methodTo = "main([java/lang/String)V", // Same as above, this time targeting the minecraft method
-        priority = 0 // Priority over other extensions, since we have no others, we can set this to 0. 
-    )
-    fun anExample() {
-        println("A Mixin from : '${this::class.java.name}'") // This should print 'net.minecraft.client.main.Main' if all goes well!
-    }
+
+@SourceInjection(
+    point = BEFORE_END,
+    from = "net.yakclient.extensions.example.MyFirstMixin",
+    to = "net.minecraft.client.main.Main", // Some minecraft class
+    methodFrom = "anExample()V", // Important, this must be a valid java methodName + java method Descriptor
+    methodTo = "main([java/lang/String)V", // Same as above, this time targeting the minecraft method
+    priority = 0 // Priority over other extensions, since we have no others, we can set this to 0. 
+)
+fun anExample() {
+    println("A Mixin to : '${this::class.java.name}'") // This should print "A Mixin to : 'net.minecraft.client.main.Main'" if all goes well!
+}
 ```
 Lets go over each part here:
  - `point`: An injection point is the place in the method where an injection should be placed. For example `AFTER_BEGIN`
@@ -180,9 +206,9 @@ To define a method extension, do the following:
     from = "net.yakclient.extensions.example.MyFirstMixin",
     to = "net.minecraft.client.main.Main",
     methodFrom = "Method to be injected(Ljava/lang/String;)V", // Yes, this works!
-   // The rest will define how the method will be defined once its injected, this will later become optional.
-    access = 1, // Java method access
-    name = "Method to be injected", //
+   // The rest will tell yakclient how to define the method once its injected. In later releases this will be optional.
+    access = 1,
+    name = "Method to be injected",
     description = "(Ljava/lang/String;)V",
     signature = "",
     exceptions = "",
@@ -211,15 +237,15 @@ Field injections are what they sound like, they allow us to inject fields into c
 
 The example:
 ```kotlin
-   @FieldInjection(
-       name = "someField",
-       access = 1,
-       type = "Ljava/lang/String;",
-       signature = "",
-       priority = 0
-   )
-    @JvmField // IMPORTANT FOR KOTLIN
-    public val someField : String = "" // this part will not happen. 
+@FieldInjection(
+    name = "someField",
+    access = 1,
+    type = "Ljava/lang/String;",
+    signature = "", 
+    priority = 0
+)
+@JvmField // IMPORTANT FOR KOTLIN
+public val someField : String = "" // this part will not happen. 
 ```
 In the near future this form of annotation based declaration will change and all these fields will be filled out
 by default depending on what is annotated, for now though this is necessary. 
@@ -240,8 +266,10 @@ In your gradle project, `SourceSet`s are used to separate your version logic - t
 jar file through the yakclient gradle plugin. To define a new partition do the following:
 ```kotlin 
 // build.gradle.kts
+
 yakclient {
     // Main source set ...
+    
     partitions {
         named("1.19.2") {
             dependencies {
@@ -265,7 +293,7 @@ yakclient {
 Reload your project, and if you are using a gradle compatible IDE (eg. IntelliJ) you should be prompted to create
 a new `sourceset` when creating a directory under `src/`. To define dependencies between partitions do the following:
 ```kotlin
-   // build.gradle.kts
+// build.gradle.kts
 
 yakclient {
     partitions {
@@ -297,7 +325,7 @@ define declarations that partitions overload. For example, if we define a class 
 // Class declaration ...
 
 fun getMcVersion() : String {
-    TODO()
+    throw IllegalStateException("Illegal version of minecraft, no supporting version partition!")
 }
 ```
 
@@ -306,7 +334,7 @@ partition (you should implement the overload in all other partitions) like:
 ```kotlin
 // net.yakclient.extensions.example.OverloadingExtample.kt @ 1.19.2
 
-// Class declaration, needs to be the same as before...
+// Class/method declaration, needs to be the same as before...
 
 fun getMcVersion() : String {
    return "1.19.2"
@@ -322,7 +350,7 @@ independent code with extremely little overhead!
 
 
 
-# Thanks, Thats it!
+# Thanks, That's it!
 
-Alright, thanks for reading! Thats it! If you have any question at all please reach out to me on discord 
-`@durganmcbroom` or submit a PR/bug request here or join the [YakClient discord](https://discord.gg/dpGxnEtnw3)! 
+Alright, thanks for reading! That's it! If you have any question at all please reach out to me on discord 
+`@durganmcbroom`, submit a PR/bug here or join the [YakClient discord](https://discord.gg/dpGxnEtnw3)! 
