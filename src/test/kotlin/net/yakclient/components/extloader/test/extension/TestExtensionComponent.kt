@@ -27,7 +27,7 @@ class TestExtensionComponent {
         ))
 
         val instance = ExtensionLoaderFactory(boot).new(ExtLoaderConfiguration(
-                "1.19.2", listOf("--version", "1.19.2", "--accessToken", ""),
+                "1.20.1", listOf("--version", "1.19.2", "--accessToken", ""),
                 listOf(
                         ExtLoaderExtConfiguration(
                                 ExtensionDescriptor.parseDescription("net.yakclient.extensions:example-extension:1.0-SNAPSHOT")!!,

@@ -76,9 +76,8 @@ public class ExtensionLoader(
 
 
         val flatMap = this.extensions.flatMap { node ->
-            val allMixins = node.erm.versionPartitions.flatMap(ExtensionVersionPartition::mixins)
+            val allMixins = node.archiveReference?.enabledPartitions?.flatMap(ExtensionVersionPartition::mixins) ?: listOf()
 
-            if (allMixins.isNotEmpty()) checkNotNull(node.archiveReference) { "Extension has registered mixins but no archive! Please remove this mixins or add a archive." }
             val flatMap = allMixins.flatMap { mixin: ExtensionMixin ->
                 mixin.injections.map {
                     val provider = injectionProviders[it.type]
@@ -148,6 +147,7 @@ public class ExtensionLoader(
 
                         val clsSelf = ref.reader["${self.withSlashes()}.class"]
                             ?: throw IllegalArgumentException("Failed to find class: '$self' in extension when loading source injection.")
+
                         val node = ClassNode().also { ClassReader(clsSelf.resource.open()).accept(it, 0) }
 
                         val toWithSlashes = options.notNull("to").withSlashes()
