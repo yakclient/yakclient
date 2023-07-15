@@ -1,9 +1,7 @@
 package net.yakclient.components.extloader.extension
 
 import net.yakclient.archive.mapper.ArchiveMapping
-import net.yakclient.archive.mapper.transform.MappingDirection
-import net.yakclient.archive.mapper.transform.mapClassName
-import net.yakclient.archive.mapper.transform.mappingTransformConfigFor
+import net.yakclient.archive.mapper.transform.*
 import net.yakclient.archives.ArchiveHandle
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.ArchiveTree
@@ -17,6 +15,8 @@ import net.yakclient.client.api.ExtensionContext
 import net.yakclient.common.util.runCatching
 import net.yakclient.components.extloader.extension.versioning.VersionedExtArchiveHandle
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Handle
+import org.objectweb.asm.tree.*
 import java.util.HashSet
 
 public class ExtensionProcessLoader(
@@ -29,6 +29,77 @@ public class ExtensionProcessLoader(
         mappings,
         MappingDirection.TO_FAKE
     )
+
+    private fun mixinConfigFor(destination: String) = TransformerConfig.of {
+        transformClass { classNode: ClassNode ->
+            val destinationInternal = destination.replace('.', '/')
+            mappings.run {
+                val direction = MappingDirection.TO_FAKE
+                classNode.methods.forEach { methodNode ->
+                    // AbstractInsnNode
+                    methodNode.instructions.forEach { insnNode ->
+                        when (insnNode) {
+                            is FieldInsnNode -> {
+                                val newOwner =
+                                    if (insnNode.owner == classNode.name) destinationInternal else insnNode.owner
+
+                                insnNode.name = mapFieldName(newOwner, insnNode.name, direction) ?: insnNode.name
+                                insnNode.owner = mapClassName(newOwner, direction) ?: newOwner
+                                insnNode.desc = mapType(insnNode.desc, direction)
+                            }
+
+                            is InvokeDynamicInsnNode -> {
+                                val newOwner = if (insnNode.bsm.owner == classNode.name) destinationInternal else insnNode.bsm.owner
+
+                                insnNode.bsm = Handle(
+                                    insnNode.bsm.tag,
+                                    mapType(newOwner, direction),
+                                    mapMethodName(newOwner, insnNode.bsm.name, insnNode.bsm.desc, direction)
+                                        ?: insnNode.bsm.name,
+                                    mapMethodDesc(insnNode.bsm.desc, direction),
+                                    insnNode.bsm.isInterface
+                                )
+
+                                // Can ignore name because only the name of the bootstrap method is known at compile time and that is held in the handle field
+                                insnNode.desc =
+                                    mapMethodDesc(
+                                        insnNode.desc,
+                                        direction
+                                    ) // Expected descriptor type of the generated call site
+                            }
+
+                            is MethodInsnNode -> {
+                                val newOwner =
+                                    if (insnNode.owner == classNode.name) destinationInternal else insnNode.owner
+
+                                insnNode.name = mapMethodName(newOwner, insnNode.name, insnNode.desc, direction)
+                                    ?: (classNode.interfaces + classNode.superName)
+                                        .firstNotNullOfOrNull {
+                                            mapMethodName(
+                                                it,
+                                                insnNode.name,
+                                                insnNode.desc,
+                                                direction
+                                            )
+                                        } ?: insnNode.name
+
+                                insnNode.owner = mapClassName(newOwner, direction) ?: newOwner
+                                insnNode.desc = mapMethodDesc(insnNode.desc, direction)
+                            }
+
+                            is MultiANewArrayInsnNode -> {
+                                insnNode.desc = mapType(insnNode.desc, direction)
+                            }
+
+                            is TypeInsnNode -> {
+                                insnNode.desc = mapClassName(insnNode.desc, direction) ?: insnNode.desc
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     private fun transformEachEntry(
         erm: ExtensionRuntimeModel,
@@ -61,13 +132,10 @@ public class ExtensionProcessLoader(
         mixin: ExtensionMixin,
         dependencies: List<ArchiveTree>
     ): ArchiveReference.Entry {
+        println("OME HERE")
+
         return entry.transform(
-            TransformerConfig.of {
-                transformClass {
-                    it.name = mixin.destination.replace('.', '/')
-                    config.ct(it)
-                }
-            },
+            mixinConfigFor(mixin.destination),
             dependencies
         )
     }
