@@ -50,7 +50,7 @@ plugins {
     // ...
     
     id("maven-publish")
-    id("net.yakclient") version "1.0"
+    id("net.yakclient") version "1.0.1"
     /* kotlin("kapt") version "1.8.10" - IF USING KOTLIN */ 
 }
 ```
@@ -90,7 +90,7 @@ yakclient {
 
     // Your partitions, start by setting up the main one.
     partitions {
-        val main by named {
+        create("main") {
             dependencies {
                 minecraft("1.19.2")
                 /* annotationProcessor("net.yakclient:yakclient-preprocessor:1.0-SNAPSHOT") - IF USING JAVA */
@@ -99,8 +99,6 @@ yakclient {
                 /* implementation("org.jetbrains.kotlin:kotlin-stdlib:1.8.10") - IF USING KOTLIN */
             }
         }
-
-        this.main = main
     }
 }
 ```
@@ -110,7 +108,7 @@ Here is enough to get your started:
 ```kotlin
 publishing {
     publications {
-        create<MavenPublication>("<YOUR NAME>") {
+        create<MavenPublication>("<YOUR PUBLICATION NAME>") {
             artifact(tasks["jar"])
             artifact(project.buildDir.toPath().resolve("libs/erm.json")).classifier = "erm" // Keep this line
 
