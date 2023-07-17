@@ -132,8 +132,6 @@ public class ExtensionProcessLoader(
         mixin: ExtensionMixin,
         dependencies: List<ArchiveTree>
     ): ArchiveReference.Entry {
-        println("OME HERE")
-
         return entry.transform(
             mixinConfigFor(mixin.destination),
             dependencies
