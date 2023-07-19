@@ -146,7 +146,6 @@ allprojects {
             isAllowInsecureProtocol = true
             url = uri("http://maven.yakclient.net/snapshots")
         }
-
     }
 
     publishing {

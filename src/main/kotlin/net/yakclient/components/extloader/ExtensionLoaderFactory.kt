@@ -72,7 +72,8 @@ public class ExtensionLoaderFactory(boot: BootInstance) : ComponentFactory<ExtLo
                         SimpleMavenRepositorySettings.default("http://maven.yakclient.net/snapshots", preferredHash = HashType.SHA1),
                         boot.location.resolve("mc").toString(),
                         "http://maven.yakclient.net/public/mc-version-mappings.json",
-                        configuration.mcArgs
+                        configuration.mcArgs,
+                    true
                 ))
         )
 

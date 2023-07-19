@@ -74,7 +74,6 @@ public class ExtensionLoader(
 
         val minecraftHandler = mc.minecraftHandler
 
-
         val flatMap = this.extensions.flatMap { node ->
             val allMixins = node.archiveReference?.enabledPartitions?.flatMap(ExtensionVersionPartition::mixins) ?: listOf()
 
