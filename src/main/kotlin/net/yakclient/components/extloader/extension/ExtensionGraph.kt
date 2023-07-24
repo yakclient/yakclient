@@ -41,7 +41,7 @@ public class ExtensionGraph(
     private val dependencyProviders: DependencyTypeProvider,
     mappings: ArchiveMapping,
     minecraftRef: ArchiveReference,
-    private val minecraftVersion: String
+    private val minecraftVersion: String,
 ) : ArchiveGraph<ExtensionDescriptor, ExtensionNode, ExtensionRepositorySettings>(
     ExtensionRepositoryFactory(dependencyProviders)
 ) {

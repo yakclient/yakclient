@@ -18,12 +18,12 @@ public data class ExtensionProcess(
 }
 
 public data class ExtensionReference(
-    private val lazyLoader: (minecraft: ArchiveHandle) -> Pair<Extension, ExtensionArchiveHandle>
+    private val lazyLoader: (minecraft: MinecraftLinker) -> Pair<Extension, ExtensionArchiveHandle>
 ) {
     public var extension : Extension by immutableLateInit()
     public var archive: ExtensionArchiveHandle by immutableLateInit()
 
-    public fun supplyMinecraft(handle: ArchiveHandle) {
+    public fun supplyMinecraft(handle: MinecraftLinker) {
         val (e, a) = lazyLoader(handle)
         extension = e
         archive = a

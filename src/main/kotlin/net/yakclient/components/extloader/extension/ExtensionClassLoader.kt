@@ -15,8 +15,9 @@ public fun ExtensionClassLoader(
     manager: PrivilegeManager,
     parent: ClassLoader,
     handle: ContainerHandle<ExtensionProcess>,
+    linker: MinecraftLinker
 ): ClassLoader = IntegratedLoader(
-    cp = dependencies.map(::ArchiveClassProvider).let(::DelegatingClassProvider),
+    cp = DelegatingClassProvider(dependencies.map(::ArchiveClassProvider) + linker.minecraftClassProvider),
     sp = ExtensionSourceProvider(archive),
     sd = { name, bytes, loader, definer ->
         val domain = ProtectionDomain(ContainerSource(handle), manager.permissions)

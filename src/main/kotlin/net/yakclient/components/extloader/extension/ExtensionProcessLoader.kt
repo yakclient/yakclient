@@ -6,7 +6,6 @@ import net.yakclient.archives.ArchiveHandle
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.ArchiveTree
 import net.yakclient.archives.Archives
-import net.yakclient.archives.transform.AwareClassWriter
 import net.yakclient.archives.transform.TransformerConfig
 import net.yakclient.boot.container.ProcessLoader
 import net.yakclient.boot.security.PrivilegeManager
@@ -25,12 +24,58 @@ public class ExtensionProcessLoader(
     private val mappings: ArchiveMapping,
     private val minecraftRef: ArchiveReference,
 ) : ProcessLoader<ExtensionInfo, ExtensionProcess> {
-    private val config = mappingTransformConfigFor(
-        mappings,
-        MappingDirection.TO_FAKE
-    )
+    private val mcInheritanceTree = run {
+        minecraftRef.reader.entries()
+            .filterNot(ArchiveReference.Entry::isDirectory)
+            .filter { it.name.endsWith(".class") }
+            .map (::createRealMcInheritancePath)
+            .associateBy { it.name }
+    }
 
-    private fun mixinConfigFor(destination: String) = TransformerConfig.of {
+    private fun createRealMcInheritancePath(entry: ArchiveReference.Entry) : ClassInheritancePath {
+        val classReader = ClassReader(entry.resource.open())
+        val node = ClassNode()
+        classReader.accept(node, 0)
+
+        return ClassInheritancePath(
+            mappings.mapClassName(node.name, MappingDirection.TO_REAL) ?: node.name,
+
+            minecraftRef.reader[node.superName + ".class"]?.let(::createRealMcInheritancePath),
+            node.interfaces?.mapNotNull { n ->
+                minecraftRef. reader["$n.class"]?.let(::createRealMcInheritancePath)
+            } ?: listOf()
+        )
+    }
+
+    private fun createExtensionInheritanceTree(ref: ArchiveReference) : ClassInheritanceTree {
+        val reader = ref.reader
+
+        fun createExtensionInheritancePath(entry: ArchiveReference.Entry) : ClassInheritancePath {
+            val classReader = ClassReader(entry.resource.open())
+            val node = ClassNode()
+            classReader.accept(node, 0)
+
+            return ClassInheritancePath(
+                node.name,
+                reader[node.superName + ".class"]?.let(::createExtensionInheritancePath) ?: mcInheritanceTree[node.superName],
+                node.interfaces?.mapNotNull { n ->
+                     reader["$n.class"]?.let(::createExtensionInheritancePath) ?: mcInheritanceTree[n]
+                } ?: listOf()
+            )
+        }
+
+        return ref.reader.entries()
+            .filterNot(ArchiveReference.Entry::isDirectory)
+            .filter { it.name.endsWith(".class") }
+            .map (::createExtensionInheritancePath)
+            .associateBy { it.name }
+    }
+
+    private fun mixinConfigFor(destination: String, tree: ClassInheritanceTree) = TransformerConfig.of {
+        fun ClassInheritancePath.toCheck(): List<String> {
+            return listOf(name) + interfaces.flatMap { it.toCheck() } + (superClass?.toCheck() ?: listOf())
+        }
+
         transformClass { classNode: ClassNode ->
             val destinationInternal = destination.replace('.', '/')
             mappings.run {
@@ -43,7 +88,14 @@ public class ExtensionProcessLoader(
                                 val newOwner =
                                     if (insnNode.owner == classNode.name) destinationInternal else insnNode.owner
 
-                                insnNode.name = mapFieldName(newOwner, insnNode.name, direction) ?: insnNode.name
+                                insnNode.name = tree[newOwner]?.toCheck()?.firstNotNullOfOrNull {
+                                    mapFieldName(
+                                        it,
+                                        insnNode.name,
+                                        direction
+                                    )
+                                } ?: insnNode.name
+
                                 insnNode.owner = mapClassName(newOwner, direction) ?: newOwner
                                 insnNode.desc = mapType(insnNode.desc, direction)
                             }
@@ -51,14 +103,24 @@ public class ExtensionProcessLoader(
                             is InvokeDynamicInsnNode -> {
                                 val newOwner = if (insnNode.bsm.owner == classNode.name) destinationInternal else insnNode.bsm.owner
 
-                                insnNode.bsm = Handle(
-                                    insnNode.bsm.tag,
+                                fun Handle.mapHandle(): Handle = Handle(
+                                    tag,
                                     mapType(newOwner, direction),
-                                    mapMethodName(newOwner, insnNode.bsm.name, insnNode.bsm.desc, direction)
-                                        ?: insnNode.bsm.name,
-                                    mapMethodDesc(insnNode.bsm.desc, direction),
-                                    insnNode.bsm.isInterface
+                                    tree[newOwner]?.toCheck()?.firstNotNullOfOrNull {
+                                        mapMethodName(
+                                            it,
+                                            name,
+                                            desc,
+                                            direction
+                                        )
+                                    } ?: name,
+                                    mapMethodDesc(desc, direction),
+                                    isInterface
                                 )
+
+                                // Type and Handle
+                                insnNode.bsm = insnNode.bsm.mapHandle()
+
 
                                 // Can ignore name because only the name of the bootstrap method is known at compile time and that is held in the handle field
                                 insnNode.desc =
@@ -72,16 +134,14 @@ public class ExtensionProcessLoader(
                                 val newOwner =
                                     if (insnNode.owner == classNode.name) destinationInternal else insnNode.owner
 
-                                insnNode.name = mapMethodName(newOwner, insnNode.name, insnNode.desc, direction)
-                                    ?: (classNode.interfaces + classNode.superName)
-                                        .firstNotNullOfOrNull {
-                                            mapMethodName(
-                                                it,
-                                                insnNode.name,
-                                                insnNode.desc,
-                                                direction
-                                            )
-                                        } ?: insnNode.name
+                                insnNode.name = tree[newOwner]?.toCheck()?.firstNotNullOfOrNull {
+                                    mapMethodName(
+                                        it,
+                                        insnNode.name,
+                                        insnNode.desc,
+                                        direction
+                                    )
+                                } ?: insnNode.name
 
                                 insnNode.owner = mapClassName(newOwner, direction) ?: newOwner
                                 insnNode.desc = mapMethodDesc(insnNode.desc, direction)
@@ -115,6 +175,13 @@ public class ExtensionProcessLoader(
             .filterNot(ArchiveReference.Entry::isDirectory)
             .partition { mixinClasses.contains(it.name) }
 
+        val inheritanceTree = createExtensionInheritanceTree(archiveReference)
+        val config = mappingTransformConfigFor(
+            mappings,
+            MappingDirection.TO_FAKE,
+            inheritanceTree + mcInheritanceTree
+        )
+
         nonMixins
             .filter { it.name.endsWith(".class") }
             .forEach {
@@ -123,19 +190,12 @@ public class ExtensionProcessLoader(
             }
 
         mixins.map {
-            archiveReference.writer.put(transformMixinEntry(it, mixinClasses[it.name]!!, dependencies))
+            val new = it.transform(
+                mixinConfigFor(mixinClasses[it.name]!!.destination, mcInheritanceTree),
+                dependencies
+            )
+            archiveReference.writer.put(new)
         }
-    }
-
-    private fun transformMixinEntry(
-        entry: ArchiveReference.Entry,
-        mixin: ExtensionMixin,
-        dependencies: List<ArchiveTree>
-    ): ArchiveReference.Entry {
-        return entry.transform(
-            mixinConfigFor(mixin.destination),
-            dependencies
-        )
     }
 
     override fun load(info: ExtensionInfo): ExtensionProcess {
@@ -152,13 +212,13 @@ public class ExtensionProcessLoader(
                     ref.delegate,
                     ExtensionClassLoader(
                         ref,
-                        archives + minecraft,
+                        archives,
                         privilegeManager,
                         parentClassloader,
-                        containerHandle,
+                        containerHandle,minecraft
                     ),
                     Archives.Resolvers.ZIP_RESOLVER,
-                    archives.toSet() + minecraft
+                    archives.toSet()
                 )
 
                 val handle = VersionedExtArchiveHandle(result.archive, ref)

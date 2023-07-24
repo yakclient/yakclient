@@ -20,7 +20,9 @@ configurations.all {
 dependencies {
     implementation(project(":client-api"))
     implementation("net.yakclient:archive-mapper:1.1-SNAPSHOT")
-    implementation("net.yakclient:archive-mapper-transform:1.1-SNAPSHOT")
+    implementation("net.yakclient:archive-mapper-transform:1.1-SNAPSHOT") {
+        isChanging = true
+    }
 
     implementation("io.arrow-kt:arrow-core:1.1.2")
 
@@ -142,6 +144,7 @@ allprojects {
 
     repositories {
         mavenCentral()
+        mavenLocal()
         maven {
             isAllowInsecureProtocol = true
             url = uri("http://maven.yakclient.net/snapshots")
