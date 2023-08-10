@@ -2,7 +2,7 @@ package net.yakclient.components.extloader.extension.versioning
 
 import net.yakclient.archives.ArchiveHandle
 import net.yakclient.components.extloader.extension.archive.ExtensionArchiveHandle
-import net.yakclient.components.extloader.extension.archive.ExtensionArchiveReference
+import net.yakclient.internal.api.extension.archive.ExtensionArchiveReference
 
 internal class VersionedExtArchiveHandle(
     private val delegate: ArchiveHandle,

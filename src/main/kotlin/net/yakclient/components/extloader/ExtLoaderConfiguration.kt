@@ -8,8 +8,7 @@ public data class ExtLoaderConfiguration(
         val mcVersion: String,
         val mcArgs: List<String>,
         val extension: List<ExtLoaderExtConfiguration>
-) : ComponentConfiguration {
-}
+) : ComponentConfiguration
 
 public data class ExtLoaderExtConfiguration(
         val descriptor: ExtensionDescriptor,

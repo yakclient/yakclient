@@ -18,23 +18,20 @@ configurations.all {
 }
 
 dependencies {
+    implementation(project(":internal-api"))
     implementation(project(":client-api"))
     implementation("net.yakclient:archive-mapper:1.1-SNAPSHOT")
     implementation("net.yakclient:archive-mapper-transform:1.1-SNAPSHOT") {
         isChanging = true
     }
 
+    implementation("net.yakclient:launchermeta-handler:1.0-SNAPSHOT")
     implementation("io.arrow-kt:arrow-core:1.1.2")
-
-    api("net.yakclient:archives-mixin:1.1-SNAPSHOT") {
+    implementation("net.yakclient:object-container:1.0-SNAPSHOT")
+    implementation("net.yakclient:archives-mixin:1.1-SNAPSHOT") {
         isChanging = true
     }
     implementation("net.yakclient:boot:1.0-SNAPSHOT") {
-        exclude(group = "com.durganmcbroom", module = "artifact-resolver")
-        exclude(group = "com.durganmcbroom", module = "artifact-resolver-simple-maven")
-
-        exclude(group = "com.durganmcbroom", module = "artifact-resolver-jvm")
-        exclude(group = "com.durganmcbroom", module = "artifact-resolver-simple-maven-jvm")
         isChanging = true
     }
     implementation("com.durganmcbroom:artifact-resolver:1.0-SNAPSHOT") {
@@ -50,6 +47,8 @@ dependencies {
     implementation("net.yakclient.components:minecraft-bootstrapper:1.0-SNAPSHOT") {
         isChanging = true
     }
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+
 
     testImplementation(kotlin("test"))
     testImplementation("net.yakclient:boot-test:1.0-SNAPSHOT")

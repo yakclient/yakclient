@@ -1,4 +1,4 @@
-package net.yakclient.components.extloader.mixin
+package net.yakclient.client.api
 
 public object InjectionPriorities {
     public const val HIGHEST: Int = 2

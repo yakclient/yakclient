@@ -2,6 +2,7 @@ package net.yakclient.components.extloader.test.extension
 
 import net.yakclient.boot.component.artifact.SoftwareComponentDescriptor
 import net.yakclient.boot.test.testBootInstance
+import net.yakclient.common.util.resolve
 import net.yakclient.components.extloader.ExtensionLoaderFactory
 import net.yakclient.components.extloader.ExtLoaderConfiguration
 import net.yakclient.components.extloader.ExtLoaderExtConfiguration
@@ -9,13 +10,14 @@ import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 import net.yakclient.components.extloader.extension.artifact.ExtensionRepositorySettings
 import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapperFactory
 import java.nio.file.Files
+import java.nio.file.Path
 import java.util.*
 import kotlin.test.Test
 
 class TestExtensionComponent {
     @Test
     fun `Load extension`() {
-        val cache = Files.createTempDirectory("m2").resolve(UUID.randomUUID().toString()).toString()
+        val cache = Path.of(System.getProperty("user.dir")) resolve "src" resolve "test" resolve "resources" resolve "run-cache"
         println("THING IS HERE: $cache")
 
         val boot = testBootInstance(mapOf(
@@ -24,10 +26,10 @@ class TestExtensionComponent {
                         "minecraft-bootstrapper",
                         "1.0-SNAPSHOT",null
                 ) to MinecraftBootstrapperFactory::class.java
-        ))
+        ), cache)
 
         val instance = ExtensionLoaderFactory(boot).new(ExtLoaderConfiguration(
-                "1.20.1", listOf("--version", "1.19.2", "--accessToken", ""),
+                "1.20.1", listOf("--accessToken", ""),
                 listOf(
                         ExtLoaderExtConfiguration(
                                 ExtensionDescriptor.parseDescription("net.yakclient.extensions:example-extension:1.0-SNAPSHOT")!!,
@@ -36,6 +38,7 @@ class TestExtensionComponent {
                 )
 
         ))
+
 
         instance.start()
 //

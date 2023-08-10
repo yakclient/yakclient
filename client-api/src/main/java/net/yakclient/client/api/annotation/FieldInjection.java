@@ -1,5 +1,6 @@
 package net.yakclient.client.api.annotation;
 
+import net.yakclient.client.api.InjectionPriorities;
 import net.yakclient.client.api.annotation.processor.InjectionMetadata;
 import net.yakclient.client.api.annotation.processor.InjectionOption;
 import net.yakclient.client.api.annotation.processor.InjectionPriorityOption;
@@ -26,5 +27,5 @@ public @interface FieldInjection {
     String signature(); // The field signature
 
     @InjectionPriorityOption
-    int priority() default 0;
+    int priority() default InjectionPriorities.DEFAULT;
 }

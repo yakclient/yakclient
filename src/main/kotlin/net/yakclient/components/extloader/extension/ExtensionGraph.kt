@@ -8,7 +8,6 @@ import com.durganmcbroom.artifact.resolver.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
-import net.yakclient.archive.mapper.ArchiveMapping
 import net.yakclient.archives.ArchiveFinder
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.boot.archive.ArchiveGraph
@@ -18,13 +17,15 @@ import net.yakclient.boot.container.Container
 import net.yakclient.boot.container.ContainerLoader
 import net.yakclient.boot.container.volume.RootVolume
 import net.yakclient.boot.dependency.DependencyGraph
-import net.yakclient.boot.dependency.DependencyTypeProvider
+import net.yakclient.boot.dependency.DependencyTypeContainer
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.boot.store.CachingDataStore
 import net.yakclient.common.util.make
 import net.yakclient.common.util.resolve
-import net.yakclient.components.extloader.extension.versioning.VersionedExtErmArchiveReference
 import net.yakclient.components.extloader.extension.artifact.*
+import net.yakclient.components.extloader.extension.versioning.VersionedExtErmArchiveReference
+import net.yakclient.internal.api.extension.ExtensionRuntimeModel
+import net.yakclient.internal.api.extension.ExtensionVersionPartition
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.channels.Channels
@@ -38,8 +39,7 @@ public class ExtensionGraph(
     private val finder: ArchiveFinder<*>,
     private val privilegeManager: PrivilegeManager,
     parent: ClassLoader,
-    private val dependencyProviders: DependencyTypeProvider,
-    mappings: ArchiveMapping,
+    private val dependencyProviders: DependencyTypeContainer,
     minecraftRef: ArchiveReference,
     private val minecraftVersion: String,
 ) : ArchiveGraph<ExtensionDescriptor, ExtensionNode, ExtensionRepositorySettings>(
@@ -47,7 +47,7 @@ public class ExtensionGraph(
 ) {
     private val store: CachingDataStore<ExtensionDescriptor, ExtensionRuntimeModel> = CachingDataStore(ExtensionDataAccess(path))
     private val extProcessLoader = ExtensionProcessLoader(
-        privilegeManager, parent,  mappings, minecraftRef
+        privilegeManager, parent,  minecraftRef
     )
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
     private val mutableGraph: MutableMap<ExtensionDescriptor, ExtensionNode> = HashMap()
@@ -88,7 +88,7 @@ public class ExtensionGraph(
             }
 
             val children: List<ExtensionNode> = erm.extensions.map {
-                val extRequest = dependencyProviders["simple-maven"]!!.parseRequest(it)
+                val extRequest = dependencyProviders.get("simple-maven")!!.parseRequest(it)
                     ?: shift(ArchiveLoadException.IllegalState("Illegal extension request: '$it'"))
                 get((extRequest as ExtensionArtifactRequest).descriptor).bind()
             }
@@ -103,7 +103,7 @@ public class ExtensionGraph(
             val dependencies = allDependencies.map { dep ->
                 val find = allDependencyRepositories.firstNotNullOfOrNull find@{ repo ->
                     val provider =
-                        dependencyProviders[repo.type] ?: shift(ArchiveLoadException.DependencyTypeNotFound(repo.type))
+                        dependencyProviders.get(repo.type) ?: shift(ArchiveLoadException.DependencyTypeNotFound(repo.type))
                     val depReq = provider.parseRequest(dep) ?: return@find null
 
                     (provider.graph as DependencyGraph<ArtifactMetadata.Descriptor, *>).get(depReq.descriptor).orNull()
@@ -183,7 +183,7 @@ public class ExtensionGraph(
             allDependencies
                 .forEach { dependency ->
                     allDependencyRepositories.firstNotNullOfOrNull findRepo@{ settings ->
-                        val provider = dependencyProviders[settings.type] ?: return@findRepo null
+                        val provider = dependencyProviders.get(settings.type) ?: return@findRepo null
 
                         val depReq = provider.parseRequest(dependency) ?: return@findRepo null
 

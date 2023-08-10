@@ -9,18 +9,18 @@ import com.durganmcbroom.artifact.resolver.simple.maven.pom.PomRepository.Compan
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
-import net.yakclient.boot.dependency.DependencyTypeProvider
-import net.yakclient.components.extloader.extension.ExtensionRuntimeModel
+import net.yakclient.boot.dependency.DependencyTypeContainer
+import net.yakclient.internal.api.extension.ExtensionRuntimeModel
 
 
 public class ExtensionMetadataHandler(
     settings: SimpleMavenRepositorySettings,
-    private val providers: DependencyTypeProvider
+    private val providers: DependencyTypeContainer
 ) : SimpleMavenMetadataHandler(settings) {
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 
     override fun requestMetadata(desc: SimpleMavenDescriptor): Either<MetadataRequestException, ExtensionArtifactMetadata> {
-        val simpleMaven = providers["simple-maven"]
+        val simpleMaven = providers.get("simple-maven")
             ?: throw IllegalStateException("SimpleMaven not found in dependency providers!")
 
         return either.eager {
