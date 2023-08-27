@@ -26,6 +26,7 @@ public class ExtensionProcessLoader(
         private val privilegeManager: PrivilegeManager,
         private val parentClassloader: ClassLoader,
         private val minecraftRef: ArchiveReference,
+        private val mcVersion: String
 ) : ProcessLoader<ExtensionInfo, ExtensionProcess> {
     private val mcInheritanceTree = createFakeInheritanceTree(minecraftRef.reader)
 
@@ -49,13 +50,13 @@ public class ExtensionProcessLoader(
                 }
                 .groupBy { it.first.mappings }
                 .mapValues { (_, entries) -> entries.flatMap { it.second } }
-                .flatMap { (k, v) -> v.map { it to k } }
-                .filterNot { (entry, _) ->
-                    mixinClasses.contains(entry.name)
-                }.associate { (entry, mapping) ->
-                    entry to (InternalRegistry.extensionMappingContainer.get(mapping.type)?.forIdentifier(mapping.identifier)
+                .mapValues { (_, entries) ->
+                    entries.filterNot {mixinClasses.contains(it.name) }
+                }.flatMap { (mapping, entries) ->
+                    val mappings = (InternalRegistry.extensionMappingContainer.get(mapping.type)?.forIdentifier(mcVersion)
                             ?: throw IllegalArgumentException("Failed to find mapping type: '${mapping.type}', options are: '${InternalRegistry.extensionMappingContainer.objects().keys}"))
-                }
+                    entries.map { it to mappings }
+                }.toMap()
 
 
         fun inheritancePathFor(
@@ -98,11 +99,11 @@ public class ExtensionProcessLoader(
         entryToMapping.forEach { (entry, mappings) ->
             val config = mapperFor(mappings, tree)
 
-            val r=Archives.resolve(
+            Archives.resolve(
                     ClassReader(entry.resource.open()),
                     config,
-                    AwareClassWriter(listOf(), Archives.WRITER_FLAGS)
             )
+
             archiveReference.writer.put(entry.transform(
                     config, dependencies
             ))
@@ -121,7 +122,7 @@ public class ExtensionProcessLoader(
         val tree = transformEachEntry(erm, ref, archives + minecraftRef)
 
         return ExtensionProcess(
-                ExtensionReference(ref, tree) { minecraft ->
+                ExtensionReference(ref, tree, mcVersion) { minecraft ->
                     val result = Archives.resolve(
                             ref.delegate,
                             ExtensionClassLoader(

@@ -31,6 +31,7 @@ public data class ExtensionProcess(
 public data class ExtensionReference(
         private val archiveReference: ExtensionArchiveReference,
         private val inheritanceTree: ClassInheritanceTree,
+        private val mcVersion: String,
         private val lazyLoader: (minecraft: MinecraftLinker) -> Pair<Extension, ExtensionArchiveHandle>,
 ) {
     public var extension: Extension by immutableLateInit()
@@ -42,7 +43,7 @@ public data class ExtensionReference(
                 .flatMap { v -> v.mixins.map { v to it } }
                 .groupBy { it.first.mappings }
                 .flatMap { (ref, mixins: List<Pair<ExtensionVersionPartition, ExtensionMixin>>) ->
-                    val mapper = InternalRegistry.extensionMappingContainer.get(ref.type)?.forIdentifier(ref.identifier)
+                    val mapper = InternalRegistry.extensionMappingContainer.get(ref.type)?.forIdentifier(mcVersion)
                             ?: throw IllegalArgumentException("Failed to find mapping type: '${ref.type}', options are: '${InternalRegistry.extensionMappingContainer.objects().keys}")
 
                     mixins.map { it.second to mapper }

@@ -7,6 +7,7 @@ import net.yakclient.archives.transform.InstructionAdapter
 import net.yakclient.archives.transform.InstructionResolver
 import net.yakclient.archives.transform.MethodSignature
 import net.yakclient.archives.transform.ProvidedInstructionReader
+import net.yakclient.common.util.equalsAny
 import net.yakclient.components.extloader.ExtensionLoader
 import net.yakclient.components.extloader.util.withDots
 import net.yakclient.components.extloader.util.withSlashes
@@ -16,6 +17,7 @@ import net.yakclient.internal.api.mixin.MixinInjectionProvider
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Handle
 import org.objectweb.asm.Opcodes
+import org.objectweb.asm.Type
 import org.objectweb.asm.tree.*
 import java.util.logging.Level
 
@@ -78,25 +80,59 @@ private fun mappingInsnAdapterFor(
                     }
 
                     is InvokeDynamicInsnNode -> {
-                        val newOwner = if (insnNode.bsm.owner == from) to else insnNode.bsm.owner
 
-                        fun Handle.mapHandle(): Handle = Handle(
-                                tag,
-                                mapClassName(newOwner, direction) ?: newOwner,
-                                fromTree(newOwner) {
-                                    mapMethodName(
-                                            it,
-                                            name,
-                                            desc,
-                                            direction
-                                    )
-                                } ?: name,
-                                mapMethodDesc(desc, direction),
-                                isInterface
-                        )
+                        fun Handle.mapHandle(): Handle {
+                            val newOwner = if (owner == from) to else owner
+
+                            return if (
+                                    tag.equalsAny(Opcodes.H_INVOKEVIRTUAL, Opcodes.H_INVOKESTATIC, Opcodes.H_INVOKESPECIAL, Opcodes.H_NEWINVOKESPECIAL, Opcodes.H_INVOKEINTERFACE)
+                            ) Handle(
+                                    tag,
+                                    mapClassName(newOwner, direction) ?: newOwner,
+                                    fromTree(newOwner) {
+                                        mapMethodName(
+                                                it,
+                                                name,
+                                                desc,
+                                                direction
+                                        )
+                                    } ?: name,
+                                    mapMethodDesc(desc, direction),
+                                    isInterface
+                            ) else if (
+                                    tag.equalsAny(Opcodes.H_GETFIELD, Opcodes.H_GETSTATIC, Opcodes.H_PUTFIELD, Opcodes.H_PUTSTATIC)
+                            ) Handle(
+                                    tag,
+                                    mapClassName(newOwner, direction) ?: newOwner,
+                                    fromTree(newOwner) {
+                                        mapFieldName(
+                                                it,
+                                                name,
+                                                direction
+                                        )
+                                    } ?: name,
+                                    mapType(desc, direction),
+                                    isInterface
+                            ) else throw IllegalArgumentException("Unknown tag type : '$tag' for invoke dynamic instruction : '$insnNode' with handle: '$this'")
+                        }
 
                         // Type and Handle
                         insnNode.bsm = insnNode.bsm.mapHandle()
+
+                        insnNode.bsmArgs = insnNode.bsmArgs.map {
+                            when (it) {
+                                is Type -> {
+                                    when (it.sort) {
+                                        Type.ARRAY, Type.OBJECT -> Type.getType(mapType(it.internalName, direction))
+                                        Type.METHOD -> Type.getType(mapMethodDesc(it.internalName, direction))
+                                        else -> it
+                                    }
+                                }
+
+                                is Handle -> it.mapHandle()
+                                else -> it
+                            }
+                        }.toTypedArray()
 
 
                         // Can ignore name because only the name of the bootstrap method is known at compile time and that is held in the handle field
@@ -171,11 +207,11 @@ public class SourceInjectionProvider : MixinInjectionProvider<SourceInjectionDat
                             toWithSlashes,
                             ProvidedInstructionReader(
                                     node.methods.firstOrNull {
-                                        (it.name + it.desc) == mappingContext.mappings.justMapSignatureDescriptor(methodFrom)
+                                        (it.name + it.desc) == methodFrom // Method signature does not get mapped
                                     }?.instructions
                                             ?: throw IllegalArgumentException("Failed to find method: '$methodFrom'.")
                             )
-                    )
+                    ).also { it.get() }
                 },
                 run {
                     val signature = MethodSignature.of(methodTo)
@@ -226,7 +262,7 @@ public class MethodInjectionProvider : MixinInjectionProvider<MethodInjectionDat
                             to,
                             ProvidedInstructionReader(
                                     node.methods.firstOrNull {
-                                        (it.name + it.desc) == mappingContext.mappings.justMapSignatureDescriptor(methodFrom)
+                                        (it.name + it.desc) == methodFrom // Method signature does not get mapped
                                     }?.instructions
                                             ?: throw IllegalArgumentException("Failed to find method: '$methodFrom'.")
                             )

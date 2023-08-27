@@ -2,13 +2,13 @@ package net.yakclient.components.extloader
 
 import arrow.core.continuations.either
 import arrow.core.handleErrorWith
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
 import net.yakclient.archives.Archives
 import net.yakclient.boot.BootInstance
 import net.yakclient.boot.component.ComponentInstance
-import net.yakclient.boot.loader.ArchiveClassProvider
-import net.yakclient.boot.loader.ClassProvider
-import net.yakclient.boot.loader.DelegatingClassProvider
-import net.yakclient.boot.loader.IntegratedLoader
+import net.yakclient.boot.loader.*
 import net.yakclient.boot.security.PrivilegeAccess
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.client.api.*
@@ -26,13 +26,15 @@ import net.yakclient.components.extloader.mixin.InjectionPoints
 import net.yakclient.components.extloader.mixin.registerBasicProviders
 import net.yakclient.internal.api.InternalRegistry
 import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapper
+import java.net.URL
+import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.util.logging.Logger
 
 public class ExtensionLoader(
-    private val boot: BootInstance,
-    private val configuration: ExtLoaderConfiguration,
-    private val minecraft: MinecraftBootstrapper,
+        private val boot: BootInstance,
+        private val configuration: ExtLoaderConfiguration,
+        private val minecraft: MinecraftBootstrapper,
 ) : ComponentInstance<ExtLoaderConfiguration> {
     private lateinit var graph: ExtensionGraph
     private val extensions = ArrayList<ExtensionNode>()
@@ -40,6 +42,7 @@ public class ExtensionLoader(
     override fun start() {
         minecraft.start()
 
+        logger.log
         registerBasicProviders()
         InternalRegistry.extensionMappingContainer.register(
                 MOJANG_MAPPING_TYPE,
@@ -59,13 +62,13 @@ public class ExtensionLoader(
         ).forEach { InternalRegistry.injectionPointContainer.register(it.key, it.value) }
 
         graph = ExtensionGraph(
-            boot.location resolve EXTENSION_CACHE,
-            Archives.Finders.ZIP_FINDER,
-            PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
-            this::class.java.classLoader,
-            boot.dependencyTypes,
-            minecraft.minecraftHandler.minecraftReference.archive,
-            minecraft.minecraftHandler.version
+                boot.location resolve EXTENSION_CACHE,
+                Archives.Finders.ZIP_FINDER,
+                PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
+                this::class.java.classLoader,
+                boot.dependencyTypes,
+                minecraft.minecraftHandler.minecraftReference.archive,
+                minecraft.minecraftHandler.version
         )
 
         val either = either.eager {
@@ -101,33 +104,52 @@ public class ExtensionLoader(
         // but is the best way ive found of doing it.
 
         // Setup class providers and let them be initialized later
-        var mcProvider: ClassProvider by immutableLateInit()
-        var extProvider: ClassProvider by immutableLateInit()
+        var mcClassProvider: ClassProvider by immutableLateInit()
+        var extClassProvider: ClassProvider by immutableLateInit()
 
         // Create linker with delegating to the uninitialized class providers
         val linker = MinecraftLinker(
-            object : ClassProvider {
-                override val packages: Set<String>
-                    get() = extProvider.packages
+                extensions = object : ClassProvider {
+                    override val packages: Set<String>
+                        get() = extClassProvider.packages
 
-                override fun findClass(name: String): Class<*>? = extProvider.findClass(name)
+                    override fun findClass(name: String): Class<*>? = extClassProvider.findClass(name)
 
-                override fun findClass(name: String, module: String): Class<*>? = extProvider.findClass(name, module)
-            },
-            object : ClassProvider {
-                override val packages: Set<String>
-                    get() = mcProvider.packages
+                    override fun findClass(name: String, module: String): Class<*>? = extClassProvider.findClass(name, module)
+                },
+                minecraft = object : ClassProvider {
+                    override val packages: Set<String>
+                        get() = mcClassProvider.packages
 
-                override fun findClass(name: String): Class<*>? = mcProvider.findClass(name)
+                    override fun findClass(name: String): Class<*>? = mcClassProvider.findClass(name)
 
-                override fun findClass(name: String, module: String): Class<*>? = mcProvider.findClass(name, module)
-            }
+                    override fun findClass(name: String, module: String): Class<*>? = mcClassProvider.findClass(name, module)
+                },
+                extensionsSource = object : SourceProvider {
+                    override val packages: Set<String> = setOf()
+
+                    override fun getResource(name: String): URL? = extensions.firstNotNullOfOrNull { it.archive?.classloader?.getResource(name) }
+
+                    override fun getResource(name: String, module: String): URL? = getResource(name)
+
+                    override fun getSource(name: String): ByteBuffer? = null
+                },
+                minecraftSource = object : SourceProvider {
+                    override val packages: Set<String> = setOf()
+
+                    override fun getResource(name: String): URL? = minecraftHandler.archive.classloader.getResource(name)
+
+                    override fun getResource(name: String, module: String): URL? = getResource(name)
+
+                    override fun getSource(name: String): ByteBuffer? = null
+                },
         )
 
         // Create the minecraft parent classloader with the delegating linker
         val parentLoader = IntegratedLoader(
-            cp = linker.extensionClassProvider,
-            parent = this::class.java.classLoader
+                sp = linker.extensionSourceProvider,
+                cp = linker.extensionClassProvider,
+                parent = this::class.java.classLoader
         )
 
         // Init minecraft
@@ -135,7 +157,7 @@ public class ExtensionLoader(
         minecraftHandler.loadMinecraft(parentLoader)
 
         // Initialize the first clas provider to allow extensions access to minecraft
-        mcProvider = ArchiveClassProvider(minecraftHandler.archive)
+        mcClassProvider = ArchiveClassProvider(minecraftHandler.archive)
 
         // Setup extensions, dont init yet
         this.extensions.forEach {
@@ -145,8 +167,8 @@ public class ExtensionLoader(
 
         // Setup the extension class provider for minecraft
         // TODO this will not support loading new extensions at runtime.
-        extProvider =
-            DelegatingClassProvider(this.extensions.mapNotNull(ExtensionNode::archive).map(::ArchiveClassProvider))
+        extClassProvider =
+                DelegatingClassProvider(this.extensions.mapNotNull(ExtensionNode::archive).map(::ArchiveClassProvider))
 
         // Call init on all extensions
         // TODO this may initialize parent extensions before their dependencies

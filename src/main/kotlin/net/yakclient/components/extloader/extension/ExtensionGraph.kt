@@ -47,7 +47,7 @@ public class ExtensionGraph(
 ) {
     private val store: CachingDataStore<ExtensionDescriptor, ExtensionRuntimeModel> = CachingDataStore(ExtensionDataAccess(path))
     private val extProcessLoader = ExtensionProcessLoader(
-        privilegeManager, parent,  minecraftRef
+        privilegeManager, parent,  minecraftRef, minecraftVersion
     )
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
     private val mutableGraph: MutableMap<ExtensionDescriptor, ExtensionNode> = HashMap()

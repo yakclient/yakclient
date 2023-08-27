@@ -51,6 +51,5 @@ public data class ExtensionVersionPartition(
 )
 
 public data class ExtensionPartitionMappingReference(
-        val identifier: String,
-        val type: String
+        val type: String,
 )
