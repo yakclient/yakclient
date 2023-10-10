@@ -7,7 +7,7 @@ import net.yakclient.boot.store.DataAccess
 import net.yakclient.common.util.make
 import net.yakclient.common.util.resolve
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
-import net.yakclient.internal.api.extension.ExtensionRuntimeModel
+import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
