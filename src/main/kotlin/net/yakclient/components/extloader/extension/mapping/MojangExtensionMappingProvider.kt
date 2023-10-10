@@ -8,7 +8,7 @@ import net.yakclient.archives.transform.TransformerConfig
 import net.yakclient.boot.store.CachingDataStore
 import net.yakclient.boot.store.DataStore
 import net.yakclient.common.util.resource.SafeResource
-import net.yakclient.internal.api.mapping.MappingsProvider
+import net.yakclient.components.extloader.api.mapping.MappingsProvider
 import net.yakclient.launchermeta.handler.clientMappings
 import net.yakclient.launchermeta.handler.loadVersionManifest
 import net.yakclient.launchermeta.handler.metadata
@@ -20,13 +20,15 @@ import java.nio.file.Path
 public class MojangExtensionMappingProvider(
         private val mappingStore: DataStore<String, SafeResource>
 ) : MappingsProvider {
-    override val type: String = MOJANG_MAPPING_TYPE
-
     public companion object {
-        public const val MOJANG_MAPPING_TYPE: String = "mojang"
+        public const val REAL_TYPE: String =  "mojang/deobfuscated"
+        public const val FAKE_TYPE: String =  "mojang/obfuscated"
     }
 
     public constructor(path: Path) : this(CachingDataStore(MojangMappingAccess(path)))
+
+    override val realType: String = REAL_TYPE
+    override val fakeType: String = FAKE_TYPE
 
     override fun forIdentifier(identifier: String): ArchiveMapping {
         val mappingData = mappingStore[identifier] ?: run {

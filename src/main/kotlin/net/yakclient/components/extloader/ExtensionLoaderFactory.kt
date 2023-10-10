@@ -5,77 +5,67 @@ import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySet
 import net.yakclient.boot.BootInstance
 import net.yakclient.boot.component.ComponentFactory
 import net.yakclient.boot.component.artifact.SoftwareComponentDescriptor
-import net.yakclient.boot.component.context.ContextNodeTree
 import net.yakclient.boot.component.context.ContextNodeTypes
 import net.yakclient.boot.component.context.ContextNodeValue
 import net.yakclient.boot.new
-import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
-import net.yakclient.components.extloader.extension.artifact.ExtensionRepositorySettings
+import net.yakclient.components.extloader.workflow.check
+import net.yakclient.components.extloader.workflow.getCoerceCheckString
 import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapperConfiguration
+import java.lang.IllegalArgumentException
 
-public class ExtensionLoaderFactory(boot: BootInstance) : ComponentFactory<ExtLoaderConfiguration, ExtensionLoader>(boot) {
+public class ExtensionLoaderFactory(boot: BootInstance) :
+    ComponentFactory<ExtLoaderConfiguration, ExtensionLoader>(boot) {
     override fun parseConfiguration(value: ContextNodeValue): ExtLoaderConfiguration {
         val tree = value.coerceTree()
-
-        fun <T : Any> T?.check(name: () -> String): T {
-            return checkNotNull(this) { "Error while trying to parse configuration for component: 'Yak'. Could not find property $name'." }
-        }
-
-        fun ContextNodeTree.getCoerceCheck(key: String): String {
-            return get(key)?.coerceType(ContextNodeTypes.String).check { key }
-        }
-
-        fun parseExt(contextNodeValue: ContextNodeValue): ExtLoaderExtConfiguration {
-            val extTree = contextNodeValue.coerceTree()
-
-            fun parseDescriptor(tree: ContextNodeTree): ExtensionDescriptor = ExtensionDescriptor(
-                    tree.getCoerceCheck("groupId"),
-                    tree.getCoerceCheck("artifactId"),
-                    tree.getCoerceCheck("version"),
-                    null
-            )
-
-            fun parseSettings(tree: ContextNodeTree): ExtensionRepositorySettings {
-                val repoType = tree.getCoerceCheck("type")
-                val repo = tree.getCoerceCheck("location")
-
-                return when (repoType.lowercase()) {
-                    "local" -> ExtensionRepositorySettings.local(repo)
-                    "default" -> ExtensionRepositorySettings.local(repo)
-                    else -> throw IllegalArgumentException("Unknown repository type: '$repoType' for repository : '$repo' ")
-                }
-            }
-
-            return ExtLoaderExtConfiguration(
-                    parseDescriptor(extTree["descriptor"].check { "descriptor" }.coerceTree()),
-                    parseSettings(extTree["repository"].check { "descriptor" }.coerceTree())
-            )
-        }
+        val environment = tree["environment"].check { "environment" }.coerceTree()
 
         return ExtLoaderConfiguration(
-                tree.getCoerceCheck("mcVersion"),
-                tree["mcArgs"]?.coerceArray()?.list()?.map { it.coerceType(ContextNodeTypes.String) }.check { "mcArgs" },
-                tree["extensions"]?.coerceArray()?.list()?.map(::parseExt).check { "extensions" }
+            tree.getCoerceCheckString("minecraft-version"),
+            tree["minecraft-args"]?.coerceArray().check { "minecraft-args" }.list()
+                .map { it.coerceType(ContextNodeTypes.String) },
+            ExtLoaderEnvironmentConfiguration(
+                when (environment.getCoerceCheckString("type")) {
+                    "extension-dev" -> ExtLoaderEnvironmentType.EXT_DEV
+                    else -> throw IllegalArgumentException(
+                        "Unknown environment type: '${
+                            environment.getCoerceCheckString("type")
+                        }'"
+                    )
+                },
+                environment["context"].check { "environment.context" }
+            )
         )
     }
 
     override fun new(configuration: ExtLoaderConfiguration): ExtensionLoader {
-        return ExtensionLoader(
-                boot,
-                configuration,
-                boot.new(SoftwareComponentDescriptor(
-                        "net.yakclient.components",
-                        "minecraft-bootstrapper",
-                        "1.0-SNAPSHOT", null
-                ), MinecraftBootstrapperConfiguration(
-                        configuration.mcVersion,
-                        SimpleMavenRepositorySettings.default("http://maven.yakclient.net/snapshots", preferredHash = HashType.SHA1),
-                        boot.location.resolve("mc").toString(),
-                        "http://maven.yakclient.net/public/mc-version-mappings.json",
-                        configuration.mcArgs,
-                    true
-                ))
+        val isInternalDev = true // TODO configuration.environment.type == ExtLoaderEnvironmentType.INTERNAL_DEV
+
+        val repo = if (isInternalDev)
+            SimpleMavenRepositorySettings.local(preferredHash = HashType.SHA1) else
+            SimpleMavenRepositorySettings.default(
+                "http://maven.yakclient.net/snapshots",
+                preferredHash = HashType.SHA1
+            )
+
+        val mcConfig = MinecraftBootstrapperConfiguration(
+            configuration.mcVersion,
+            repo,
+            boot.location.resolve("mc").toString(),
+            "http://maven.yakclient.net/public/mc-version-mappings.json",
+            configuration.mcArgs,
+            true
         )
 
+        return ExtensionLoader(
+            boot,
+            configuration,
+            boot.new(
+                SoftwareComponentDescriptor(
+                    "net.yakclient.components",
+                    "minecraft-bootstrapper",
+                    "1.0-SNAPSHOT", null
+                ), mcConfig
+            )
+        )
     }
 }

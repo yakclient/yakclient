@@ -1,63 +1,108 @@
 package net.yakclient.components.extloader.extension.versioning
 
 import net.yakclient.archives.ArchiveReference
-import net.yakclient.internal.api.extension.ExtensionRuntimeModel
-import net.yakclient.internal.api.extension.ExtensionVersionPartition
-import net.yakclient.internal.api.extension.archive.ExtensionArchiveReference
+import net.yakclient.components.extloader.api.extension.*
+import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
 import java.net.URI
+import java.util.*
+import kotlin.collections.HashSet
 
 internal class VersionedExtErmArchiveReference(
-        override val delegate: ArchiveReference,
-        val mcVersion: String,
-        override val erm: ExtensionRuntimeModel,
+    override val delegate: ArchiveReference,
+    private val mcVersion: String,
+    override val erm: ExtensionRuntimeModel,
 ) : ExtensionArchiveReference {
     override val isClosed: Boolean by delegate::isClosed
     override val location: URI by delegate::location
     override val modified: Boolean by delegate::modified
     override val name: String? by delegate::name
     override val writer: ArchiveReference.Writer by delegate::writer
-    override val enabledPartitions: Set<ExtensionVersionPartition> = erm.versionPartitions.filterTo(HashSet()) { it.supportedVersions.contains(mcVersion) && it.name != erm.mainPartition }
-    override val mainPartition = erm.versionPartitions.find { it.name == erm.mainPartition } ?: throw IllegalArgumentException("Failed to find main partition: '${erm.mainPartition}' in extension: '${erm.groupId}:${erm.name}:${erm.version}'")
+    override val enabledPartitions: Set<ExtensionVersionPartition> =
+        erm.versionPartitions.filterTo(HashSet()) { it.supportedVersions.contains(mcVersion) }
+    override val mainPartition: MainVersionPartition = erm.mainPartition
     override val reader: ExtensionArchiveReference.ExtensionArchiveReader = VersioningAwareReader(delegate.reader)
+
+    private val writablePartition = WriteablePartition()
+    private val allEnabledPartitions: Set<ExtensionPartition> =
+        enabledPartitions + mainPartition + WriteablePartition() //+ (erm.tweaker?.let { listOf() } ?: listOf<ExtensionPartition>())
+
+//    private val entryToPartition = HashMap<String, ExtensionPartition>()
 
     override fun close() {
         delegate.close()
     }
 
+    private inner class VersioningAwareWriter(
+        private val delegate: ArchiveReference.Writer
+    ) : ArchiveReference.Writer {
+        override fun put(entry: ArchiveReference.Entry) {
+            delegate.put(entry.copy(name = "${writablePartition.path}/${entry.name}"))
+        }
+
+        override fun remove(name: String) {
+            val realName = allEnabledPartitions.firstNotNullOfOrNull { p ->
+                val prefix = p.path.takeIf { it.isNotBlank() }
+                    ?.removeSuffix("/")?.plus("/") ?: ""
+                this@VersionedExtErmArchiveReference.delegate.reader["$prefix$name"]
+            }?.name ?: return
+
+            delegate.remove(realName)
+        }
+    }
+
+    private class WriteablePartition : ExtensionPartition {
+        override val name: String = "writeable"
+        override val path: String = UUID.randomUUID().toString()
+        override val repositories: List<ExtensionRepository> = listOf()
+        override val dependencies: List<Map<String, String>> = listOf()
+    }
+
     private inner class VersioningAwareReader(
-        private val delegate: ArchiveReference.Reader
+        val delegate: ArchiveReference.Reader
     ) : ExtensionArchiveReference.ExtensionArchiveReader {
-        // Move main partition to back of the list
-        private val partitions = enabledPartitions + mainPartition
+        private val allPartitions = erm.versionPartitions + erm.mainPartition
+        // Move main partition to back of the list and dont want to access the tweaker partition
 
-        override fun determinePartition(entry: ArchiveReference.Entry): ExtensionVersionPartition? {
-            check(entry.handle == this@VersionedExtErmArchiveReference) {"This entry does not belong to this archive!"}
-
-            return partitions.find {
-                entry.name.startsWith(it.path)
-            }
-        }
-
-        override fun entriesIn(partition: String) : Sequence<ArchiveReference.Entry> {
-            val path = partitions.find { it.name == partition }?.path ?: return emptySequence()
-
-            return delegate.entries()
-                    .filter { it.name.startsWith(path) }
-        }
+//        override fun determinePartition(entry: ArchiveReference.Entry): ExtensionPartition? {
+//            check(entry.handle == this@VersionedExtErmArchiveReference) { "This entry does not belong to this archive!" }
+//
+//            return entryToPartition[entry.name]
+////            return partitions.find {
+////                entry.name.startsWith(it.path)
+////            }
+//        }
+//
+//        override fun entriesIn(partition: String): Sequence<ArchiveReference.Entry> {
+//            val path = partitions.find { it.name == partition }?.path ?: return emptySequence()
+//
+//            return delegate.entries()
+//                .filter { it.name.startsWith(path) }
+//        }
 
         override fun entries(): Sequence<ArchiveReference.Entry> {
             return delegate.entries()
-                    .filter {
-                        partitions.any { p -> it.name.contains(p.path) }
-                    }
+                .mapNotNull { e ->
+                    val splitPath = e.name.split("/")
+                    val partition = allPartitions.maxByOrNull {
+                        it.path.split("/").zip(splitPath)
+                            .takeWhile { (f, s) -> f == s }
+                            .count()
+                    } ?: return@mapNotNull null
+
+                    if (!enabledPartitions.contains(partition)) return@mapNotNull null
+
+                    e.copy(
+                        name = e.name.removePrefix(partition.path).removePrefix("/")
+                    )
+                }
         }
 
         override fun of(name: String): ArchiveReference.Entry? {
-            return partitions.firstNotNullOfOrNull {
-                delegate["${it.path.removeSuffix("/")}/$name"]
-            }
+            return allEnabledPartitions.firstNotNullOfOrNull { p ->
+                val prefix = p.path.takeIf { it.isNotBlank() }
+                    ?.removeSuffix("/")?.plus("/") ?: ""
+                delegate["$prefix$name"]
+            }?.copy(name = name)
         }
-
-        override operator fun get(name: String): ArchiveReference.Entry? = of(name)
     }
 }

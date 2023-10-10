@@ -3,13 +3,13 @@ package net.yakclient.components.extloader.extension.versioning
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.boot.loader.SourceProvider
 import net.yakclient.common.util.readInputStream
-import net.yakclient.internal.api.extension.archive.ExtensionArchiveReference
+import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
 import net.yakclient.components.extloader.util.withSlashes
 import java.net.URL
 import java.nio.ByteBuffer
 
 public class ExtensionSourceProvider(
-        private val archive: ExtensionArchiveReference,
+    private val archive: ExtensionArchiveReference,
 ) : SourceProvider {
     override val packages: Set<String> = archive.reader.entries()
         .map(ArchiveReference.Entry::name)

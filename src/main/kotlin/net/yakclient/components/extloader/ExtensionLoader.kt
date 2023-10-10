@@ -1,95 +1,152 @@
 package net.yakclient.components.extloader
 
-import arrow.core.continuations.either
-import arrow.core.handleErrorWith
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
+import bootFactories
+import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
+import com.durganmcbroom.jobs.JobResult
 import kotlinx.coroutines.runBlocking
-import net.yakclient.archives.Archives
+import net.yakclient.archives.ArchiveHandle
+import net.yakclient.archives.ArchiveReference
+import net.yakclient.archives.ArchiveTree
+import net.yakclient.archives.mixin.MixinInjection
 import net.yakclient.boot.BootInstance
 import net.yakclient.boot.component.ComponentInstance
-import net.yakclient.boot.loader.*
-import net.yakclient.boot.security.PrivilegeAccess
-import net.yakclient.boot.security.PrivilegeManager
-import net.yakclient.client.api.*
-import net.yakclient.common.util.immutableLateInit
+import net.yakclient.boot.component.context.ContextNodeValue
 import net.yakclient.common.util.resolve
-import net.yakclient.components.extloader.extension.ExtensionGraph
-import net.yakclient.components.extloader.extension.ExtensionNode
-import net.yakclient.components.extloader.extension.MinecraftLinker
-import net.yakclient.components.extloader.extension.artifact.ExtensionArtifactRequest
-import net.yakclient.components.extloader.extension.mapping.EmptyExtensionMappingProvider
-import net.yakclient.components.extloader.extension.mapping.EmptyExtensionMappingProvider.Companion.EMPTY_MAPPING_TYPE
-import net.yakclient.components.extloader.extension.mapping.MojangExtensionMappingProvider
-import net.yakclient.components.extloader.extension.mapping.MojangExtensionMappingProvider.Companion.MOJANG_MAPPING_TYPE
-import net.yakclient.components.extloader.mixin.InjectionPoints
-import net.yakclient.components.extloader.mixin.registerBasicProviders
-import net.yakclient.internal.api.InternalRegistry
+import net.yakclient.components.extloader.api.environment.*
+import net.yakclient.components.extloader.api.target.AppArchiveReference
+import net.yakclient.components.extloader.api.target.ApplicationTarget
+import net.yakclient.components.extloader.api.target.MixinTransaction
+import net.yakclient.components.extloader.workflow.ExtDevWorkflow
+import net.yakclient.components.extloader.workflow.ExtLoaderWorkflow
+import net.yakclient.components.extloader.workflow.ExtLoaderWorkflowContext
 import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapper
-import java.net.URL
-import java.nio.ByteBuffer
+import net.yakclient.minecraft.bootstrapper.MinecraftHandler
+import net.yakclient.minecraft.bootstrapper.MixinMetadata
+import orThrow
 import java.nio.file.Path
-import java.util.logging.Logger
 
 public class ExtensionLoader(
-        private val boot: BootInstance,
-        private val configuration: ExtLoaderConfiguration,
-        private val minecraft: MinecraftBootstrapper,
+    private val boot: BootInstance,
+    private val configuration: ExtLoaderConfiguration,
+    private val minecraft: MinecraftBootstrapper,
 ) : ComponentInstance<ExtLoaderConfiguration> {
-    private lateinit var graph: ExtensionGraph
-    private val extensions = ArrayList<ExtensionNode>()
+    private fun createMinecraftApp(
+        minecraftHandler: MinecraftHandler<*>,
+        shutdown: () -> Unit
+    ) = object : ApplicationTarget {
+        override val reference: AppArchiveReference = object : AppArchiveReference {
+            override val reference: ArchiveReference by minecraftHandler.minecraftReference::archive
+            override val dependencyReferences: List<ArchiveReference> by minecraftHandler.minecraftReference::libraries
+            override val descriptor: SimpleMavenDescriptor =
+                SimpleMavenDescriptor("net.minecraft", "minecraft", minecraftHandler.version, null)
+            override val handle: ArchiveHandle by minecraftHandler::archive
+            override val dependencyHandles: List<ArchiveHandle> by minecraftHandler::archiveDependencies
+            override val handleLoaded: Boolean by minecraftHandler::isLoaded
+
+            override fun load(parent: ClassLoader) {
+                minecraftHandler.loadMinecraft(parent)
+            }
+        }
+
+        override fun newMixinTransaction(): MixinTransaction = object : MixinTransaction {
+            override var finished: Boolean = false
+
+            override fun register(destination: String, metadata: MixinTransaction.Metadata<*>) {
+                check(!finished) { "This transaction has ended! Create new one to inject more mixins." }
+
+                minecraftHandler.registerMixin(
+                    destination, MixinMetadata(
+                        metadata.data,
+                        metadata.injection as MixinInjection<MixinInjection.InjectionData>
+                    )
+                )
+            }
+
+            override fun writeAll() {
+                minecraftHandler.writeAll()
+            }
+        }
+
+        override fun start() {
+            minecraftHandler.startMinecraft()
+        }
+
+        override fun end() = shutdown()
+    }
 
     override fun start() {
         minecraft.start()
 
-        logger.log
-        registerBasicProviders()
-        InternalRegistry.extensionMappingContainer.register(
-                MOJANG_MAPPING_TYPE,
-                MojangExtensionMappingProvider(boot.location resolve MOJANG_MAPPING_CACHE)
-        )
-        InternalRegistry.extensionMappingContainer.register(
-                EMPTY_MAPPING_TYPE,
-                EmptyExtensionMappingProvider()
-        )
-        InternalRegistry.dependencyTypeContainer = boot.dependencyTypes
-        mapOf(
-                AFTER_BEGIN to InjectionPoints.AfterBegin(),
-                BEFORE_END to InjectionPoints.BeforeEnd(),
-                BEFORE_INVOKE to InjectionPoints.BeforeInvoke(),
-                BEFORE_RETURN to InjectionPoints.BeforeReturn(),
-                OVERWRITE to InjectionPoints.Overwrite(),
-        ).forEach { InternalRegistry.injectionPointContainer.register(it.key, it.value) }
-
-        graph = ExtensionGraph(
-                boot.location resolve EXTENSION_CACHE,
-                Archives.Finders.ZIP_FINDER,
-                PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
-                this::class.java.classLoader,
-                boot.dependencyTypes,
-                minecraft.minecraftHandler.minecraftReference.archive,
-                minecraft.minecraftHandler.version
-        )
-
-        val either = either.eager {
-            configuration.extension.map { (request, settings) ->
-                graph.get(request).handleErrorWith {
-                    graph.cacherOf(settings).cache(ExtensionArtifactRequest(request))
-
-                    graph.get(request)
-                }
-            }.map { it.bind() }
+        val workflow = when (configuration.environment.type) {
+            ExtLoaderEnvironmentType.PROD -> TODO()
+            ExtLoaderEnvironmentType.EXT_DEV -> ExtDevWorkflow()
+            ExtLoaderEnvironmentType.INTERNAL_DEV -> TODO()
         }
 
-        val nodes = checkNotNull(either.orNull()) { "Failed to load extensions due to exception '$either'" }
-
-        this.extensions.addAll(nodes)
-
-        val minecraftHandler = minecraft.minecraftHandler
-
-        this.extensions.forEach {
-            it.extension?.process?.ref?.injectMixins(minecraftHandler::registerMixin)
+        suspend fun <T : ExtLoaderWorkflowContext> ExtLoaderWorkflow<T>.parseAndRun(
+            node: ContextNodeValue,
+            environment: ExtLoaderEnvironment
+        ): JobResult<Unit, Throwable> {
+            return work(parse(node), environment)
         }
+
+        runBlocking(bootFactories()) {
+            val env = MutableObjectContainerAttribute(
+                dependencyTypesAttrKey,
+                boot.dependencyTypes
+            ) + createMinecraftApp(minecraft.minecraftHandler, minecraft::end) + WorkingDirectoryAttribute(
+                boot.location
+            ) + ParentClassloaderAttribute(ExtensionLoader::class.java.classLoader)
+
+            workflow.parseAndRun(configuration.environment.configuration, env).orThrow()
+        }
+//        registerBasicProviders()
+//        InternalRegistry.extensionMappingContainer.register(
+//            MOJANG_MAPPING_TYPE,
+//            MojangExtensionMappingProvider(boot.location resolve MOJANG_MAPPING_CACHE)
+//        )
+//        InternalRegistry.extensionMappingContainer.register(
+//            EMPTY_MAPPING_TYPE,
+//            EmptyExtensionMappingProvider()
+//        )
+//        InternalRegistry.dependencyTypeContainer = boot.dependencyTypes
+//        mapOf(
+//            AFTER_BEGIN to InjectionPoints.AfterBegin(),
+//            BEFORE_END to InjectionPoints.BeforeEnd(),
+//            BEFORE_INVOKE to InjectionPoints.BeforeInvoke(),
+//            BEFORE_RETURN to InjectionPoints.BeforeReturn(),
+//            OVERWRITE to InjectionPoints.Overwrite(),
+//        ).forEach { InternalRegistry.injectionPointContainer.register(it.key, it.value) }
+
+//        graph = ExtensionGraph(
+//            boot.location resolve EXTENSION_CACHE,
+//            Archives.Finders.ZIP_FINDER,
+//            PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
+//            this::class.java.classLoader,
+//            boot.dependencyTypes,
+//            minecraft.minecraftHandler.minecraftReference.archive,
+//            minecraft.minecraftHandler.version
+//        )
+//
+//        val localExtensions = runBlocking(bootFactories()) {
+//            configuration.extension.map { (request, settings) ->
+//                async {
+//                    graph.get(request).fix {
+//                        graph.cacherOf(settings).cache(ExtensionArtifactRequest(request)).orThrow()
+//
+//                        graph.get(request).orThrow()
+//                    }
+//                }
+//            }.awaitAll()
+//        }
+
+//        this.extensions.addAll(localExtensions)
+
+//        val minecraftHandler = minecraft.minecraftHandler
+//
+//        this.extensions.forEach {
+//            it.extension?.process?.ref?.injectMixins(minecraftHandler::registerMixin)
+//        }
 
         // This part has some black magic that i while try to explain here. The main
         // issue is that minecraft needs to be able to load classes from extensions,
@@ -104,94 +161,19 @@ public class ExtensionLoader(
         // but is the best way ive found of doing it.
 
         // Setup class providers and let them be initialized later
-        var mcClassProvider: ClassProvider by immutableLateInit()
-        var extClassProvider: ClassProvider by immutableLateInit()
 
-        // Create linker with delegating to the uninitialized class providers
-        val linker = MinecraftLinker(
-                extensions = object : ClassProvider {
-                    override val packages: Set<String>
-                        get() = extClassProvider.packages
-
-                    override fun findClass(name: String): Class<*>? = extClassProvider.findClass(name)
-
-                    override fun findClass(name: String, module: String): Class<*>? = extClassProvider.findClass(name, module)
-                },
-                minecraft = object : ClassProvider {
-                    override val packages: Set<String>
-                        get() = mcClassProvider.packages
-
-                    override fun findClass(name: String): Class<*>? = mcClassProvider.findClass(name)
-
-                    override fun findClass(name: String, module: String): Class<*>? = mcClassProvider.findClass(name, module)
-                },
-                extensionsSource = object : SourceProvider {
-                    override val packages: Set<String> = setOf()
-
-                    override fun getResource(name: String): URL? = extensions.firstNotNullOfOrNull { it.archive?.classloader?.getResource(name) }
-
-                    override fun getResource(name: String, module: String): URL? = getResource(name)
-
-                    override fun getSource(name: String): ByteBuffer? = null
-                },
-                minecraftSource = object : SourceProvider {
-                    override val packages: Set<String> = setOf()
-
-                    override fun getResource(name: String): URL? = minecraftHandler.archive.classloader.getResource(name)
-
-                    override fun getResource(name: String, module: String): URL? = getResource(name)
-
-                    override fun getSource(name: String): ByteBuffer? = null
-                },
-        )
-
-        // Create the minecraft parent classloader with the delegating linker
-        val parentLoader = IntegratedLoader(
-                sp = linker.extensionSourceProvider,
-                cp = linker.extensionClassProvider,
-                parent = this::class.java.classLoader
-        )
-
-        // Init minecraft
-        minecraftHandler.writeAll()
-        minecraftHandler.loadMinecraft(parentLoader)
-
-        // Initialize the first clas provider to allow extensions access to minecraft
-        mcClassProvider = ArchiveClassProvider(minecraftHandler.archive)
-
-        // Setup extensions, dont init yet
-        this.extensions.forEach {
-            val ref = it.extension?.process?.ref
-            ref?.setup(linker)
-        }
-
-        // Setup the extension class provider for minecraft
-        // TODO this will not support loading new extensions at runtime.
-        extClassProvider =
-                DelegatingClassProvider(this.extensions.mapNotNull(ExtensionNode::archive).map(::ArchiveClassProvider))
-
-        // Call init on all extensions
-        // TODO this may initialize parent extensions before their dependencies
-        this.extensions.forEach {
-            val extension = it.extension?.process?.ref?.extension
-
-            extension?.init()
-        }
-
-        // Start minecraft
-        minecraftHandler.startMinecraft()
     }
 
+    // Shutdown of minecraft will trigger extension shutdown
     override fun end() {
-        extensions.forEach {
-            it.extension?.process?.ref?.extension?.cleanup()
-        }
+//        extensions.forEach {
+//            it.extension?.process?.ref?.extension?.cleanup()
+//        }
 
         minecraft.end()
     }
 
     internal companion object {
-        internal val logger = Logger.getLogger(this::class.simpleName)
         private const val EXTENSION_CACHE = "extensions"
         private val MOJANG_MAPPING_CACHE = Path.of("mappings") resolve "mojang"
     }
