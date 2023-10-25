@@ -5,7 +5,12 @@ import arrow.core.continuations.either
 import com.durganmcbroom.artifact.resolver.MetadataRequestException
 import com.durganmcbroom.artifact.resolver.open
 import com.durganmcbroom.artifact.resolver.simple.maven.*
+import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenDefaultLayout
+import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenLocalLayout
+import com.durganmcbroom.artifact.resolver.simple.maven.layout.mavenLocal
+import com.durganmcbroom.artifact.resolver.simple.maven.pom.PomRepository
 import com.durganmcbroom.artifact.resolver.simple.maven.pom.PomRepository.Companion.toPomRepository
+import com.durganmcbroom.artifact.resolver.simple.maven.pom.PomRepositoryPolicy
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -49,7 +54,7 @@ public class ExtensionMetadataHandler(
                         req.descriptor,
                         erm.extensionRepositories.map { settings ->
                             SimpleMavenRepositoryStub(
-                                (simpleMaven.parseSettings(settings) as? SimpleMavenRepositorySettings)?.toPomRepository()
+                                (simpleMaven.parseSettings(settings) as? SimpleMavenRepositorySettings)?.toPomOrLocalRepository()
                                     ?: throw IllegalArgumentException("Unknown repository declaration: '$settings' in extension runtime model: '$desc' at '${ermOr.location}'. Cannot parse.")
                             )
                         },
@@ -57,6 +62,25 @@ public class ExtensionMetadataHandler(
                     )
                 },
                 erm
+            )
+        }
+    }
+
+    private fun SimpleMavenRepositorySettings.toPomOrLocalRepository() : PomRepository? {
+        return toPomRepository() ?: run {
+            val layout = layout as? SimpleMavenLocalLayout ?: return@run null
+
+            return PomRepository(
+                null,
+                layout.name,
+                mavenLocal,
+                "ext-local",
+                PomRepositoryPolicy(
+                    true
+                ),
+                PomRepositoryPolicy(
+                    true
+                )
             )
         }
     }

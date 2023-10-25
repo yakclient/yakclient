@@ -16,9 +16,14 @@ public data class ExtensionNode(
     public val dependencies: Set<DependencyNode>,
     public val extension: Container<ExtensionProcess>?,
     public val erm: ExtensionRuntimeModel,
-    public val tweaker: EnvironmentTweaker?
+    public val tweakerHandle: EnvironmentTweakerHandle?
 //        public val environmentTweakers: List<EnvironmentTweakerNode>
 ) : ArchiveNode {
     override val archive: ArchiveHandle?
         get() = extension?.process?.archive
 }
+
+public data class EnvironmentTweakerHandle(
+    val tweaker: EnvironmentTweaker,
+    val handle: ArchiveHandle
+)

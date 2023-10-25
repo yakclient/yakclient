@@ -80,16 +80,17 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         val extensionNode = graph.get(context.extension).attempt()
 
         /*
-TODO Make extension graph not load tweakers, there should be seperate tweaker graph that does that
+TODO Make extension graph not load tweakers, there should be separate tweaker graph that does that
  so tweakers can make modifications to their own extensions
 */
-        suspend fun applyTweakers(environment: ExtLoaderEnvironment): ExtLoaderEnvironment {
-            return environment[ExtensionGraph]!!.get(context.extension).attempt().tweaker?.tweak(environment)
+        fun ExtensionNode.applyTweakers(environment: ExtLoaderEnvironment): ExtLoaderEnvironment {
+            val afterChildren = children.fold(environment) { acc, it -> it.applyTweakers(acc) }
+            return tweakerHandle?.tweaker?.tweak(afterChildren)
                 ?: environment
         }
 
         // Apply all tweakers to the environment
-        environment = applyTweakers(environment)
+        environment = extensionNode.applyTweakers(environment)
 
         fun allExtensions(node: ExtensionNode): Set<ExtensionNode> {
             return node.children.flatMapTo(HashSet(), ::allExtensions) + node

@@ -22,7 +22,6 @@ import net.yakclient.boot.container.Container
 import net.yakclient.boot.container.ContainerLoader
 import net.yakclient.boot.container.volume.RootVolume
 import net.yakclient.boot.dependency.DependencyGraph
-import net.yakclient.boot.loader.ArchiveSourceProvider
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.boot.store.CachingDataStore
 import net.yakclient.common.util.make
@@ -141,6 +140,8 @@ public open class ExtensionGraph(
                     ?: fail(ArchiveLoadException.IllegalState("Couldn't load dependency: '${dep}' for extension: '${descriptor}'"))
             }
 
+            val awaitedChildren = children.awaitAll()
+
             val tweaker = erm.tweakerPartition?.let { partition ->
                 async {
                     val dependencies = partition.dependencies.map { dep ->
@@ -164,7 +165,8 @@ public open class ExtensionGraph(
                     )
 
                     val archiveDependencies: Set<ArchiveHandle> =
-                        dependencies.awaitAll().flatMapTo(HashSet()) { it.handleOrChildren() }
+                        dependencies.awaitAll().flatMapTo(HashSet()) { it.handleOrChildren() } +
+                                awaitedChildren.mapNotNull { it.tweakerHandle?.handle }
 
                     val archive = TweakerArchiveHandle(
                         erm.name + "-tweaker",
@@ -202,18 +204,16 @@ public open class ExtensionGraph(
             fun containerOrChildren(node: ExtensionNode): List<Container<ExtensionProcess>> =
                 node.extension?.let(::listOf) ?: node.children.flatMap { containerOrChildren(it) }
 
-            val awaitedChildren = children.awaitAll()
             val awaitedDependencies = dependencies.awaitAll()
-            val (awaitedTweaker, awaitedTweakerHandle) = tweaker?.await() ?: (null to null)
+            val awaitedTweakerPair = tweaker?.await()
 //            val awaitedTweakers = environmentTweakers.awaitAll()
-
 
             val container = if (reference != null) {
                 ContainerLoader.load(
                     ExtensionInfo(
                         reference,
                         awaitedChildren.flatMap(::containerOrChildren),
-                        awaitedDependencies.flatMap { it.handleOrChildren() } + listOfNotNull(awaitedTweakerHandle),
+                        awaitedDependencies.flatMap { it.handleOrChildren() } + listOfNotNull(awaitedTweakerPair?.second),
                         erm,
                         containerHandle
                     ),
@@ -231,7 +231,13 @@ public open class ExtensionGraph(
                 awaitedDependencies.toSet(),
                 container,
                 erm,
-                awaitedTweaker
+                awaitedTweakerPair?.let { (t, h) ->
+                    EnvironmentTweakerHandle(
+                        t,
+                        h
+                    )
+                }
+
             ).also {
                 mutableGraph[descriptor] = it
             }

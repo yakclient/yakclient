@@ -137,15 +137,15 @@ public class ExtensionProcessLoader(
     override fun load(info: ExtensionInfo): ExtensionProcess {
         val (ref, children, dependencies, erm, containerHandle) = info
 
-        val archives: List<ArchiveHandle> =
-            children.map { it.process.archive } + dependencies
+//        val archives: List<ArchiveHandle> =
+//            children.map { it.process.archive } + dependencies
 
         val mappingGraph = newMappingsGraph(environment[mappingProvidersAttrKey]!!)
 
         val mappings = mappingGraph.findShortest(erm.mappingType, environment[ApplicationMappingType]!!.type)
             .forIdentifier(mcVersion)
 
-        val tree = transformEachEntry(erm, ref, archives + minecraftRef, mappings)
+        val tree = transformEachEntry(erm, ref, dependencies + minecraftRef, mappings)
 
         return ExtensionProcess(
             ExtensionReference(
@@ -154,6 +154,9 @@ public class ExtensionProcessLoader(
                 tree,
                 mappings
             ) { minecraft ->
+                val archives: List<ArchiveHandle> =
+                    children.map { it.process.archive } + dependencies
+
                 val handle = VersionedExtArchiveHandle(
                     ref,
                     ExtensionClassLoader(
