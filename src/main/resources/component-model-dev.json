@@ -74,18 +74,6 @@
     },
     {
       "request": {
-        "descriptor": "net.yakclient.extloader:internal-api:1.0-SNAPSHOT"
-      },
-      "repository": {
-        "type": "simple-maven",
-        "settings": {
-          "location" : "<MAVEN_LOCAL>",
-          "type": "local"
-        }
-      }
-    },
-    {
-      "request": {
         "descriptor": "net.yakclient:launchermeta-handler:1.0-SNAPSHOT"
       },
       "repository": {
