@@ -38,7 +38,7 @@ public class ExtensionLoaderFactory(boot: BootInstance) :
     }
 
     override fun new(configuration: ExtLoaderConfiguration): ExtensionLoader {
-        val isInternalDev = true // TODO configuration.environment.type == ExtLoaderEnvironmentType.INTERNAL_DEV
+        val isInternalDev =  configuration.environment.type == ExtLoaderEnvironmentType.INTERNAL_DEV
 
         val repo = if (isInternalDev)
             SimpleMavenRepositorySettings.local(preferredHash = HashType.SHA1) else
