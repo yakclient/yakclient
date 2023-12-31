@@ -22,8 +22,6 @@ public data class ExtensionRuntimeModel(
 //        val environmentTweakerRepositories: List<ExtensionRepository>,
 //        val environmentTweakers: List<Map<String, String>>,
     val tweakerPartition: ExtensionTweakerPartition?,
-
-    val mappingType: String
 )
 
 public data class ExtensionRepository(
@@ -61,12 +59,13 @@ public data class ExtensionVersionPartition(
     override val name: String,
     override val path: String,
 
+    val mappingNamespace: String,
     val supportedVersions: Set<String>,
 
     override val repositories: List<ExtensionRepository>,
     override val dependencies: List<Map<String, String>>,
 
-    val mixins: List<ExtensionMixin>,
+//    val mixins: List<ExtensionMixin>,
 ) : ExtensionPartition
 
 public data class ExtensionTweakerPartition(

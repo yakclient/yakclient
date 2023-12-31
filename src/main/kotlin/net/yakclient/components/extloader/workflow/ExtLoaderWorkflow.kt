@@ -11,6 +11,6 @@ public interface ExtLoaderWorkflow<T: ExtLoaderWorkflowContext> {
 
     public fun parse(node: ContextNodeValue) : T
 
-    public suspend fun work(context: T, env: ExtLoaderEnvironment) : JobResult<Unit, Throwable>
+    public suspend fun work(context: T, environment: ExtLoaderEnvironment, args: Array<String>) : JobResult<Unit, Throwable>
 }
 

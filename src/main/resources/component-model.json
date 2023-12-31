@@ -40,7 +40,7 @@
     },
     {
       "request": {
-        "descriptor": "net.yakclient:archive-mapper:1.1-SNAPSHOT"
+        "descriptor": "net.yakclient:archive-mapper:1.2-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",
@@ -51,7 +51,18 @@
     },
     {
       "request": {
-        "descriptor": "net.yakclient:archive-mapper-transform:1.1-SNAPSHOT"
+        "descriptor": "net.yakclient:archive-mapper-proguard:1.2-SNAPSHOT"
+      },
+      "repository": {
+        "type": "simple-maven",
+        "settings": {
+          "location": "http://maven.yakclient.net/snapshots"
+        }
+      }
+    },
+    {
+      "request": {
+        "descriptor": "net.yakclient:archive-mapper-transform:1.2-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",

@@ -13,7 +13,7 @@ public interface ExtensionNodeObserver : EnvironmentAttribute {
     public companion object : EnvironmentAttributeKey<ExtensionNodeObserver>
 }
 
-public fun ExtLoaderEnvironment.observeNodes(observer: (ExtensionNode) -> Unit) : ExtLoaderEnvironment {
+public fun ExtLoaderEnvironment.observeNodes(observer: (ExtensionNode) -> Unit) {
     val realObserver = get(ExtensionNodeObserver)?.let {
         object: ExtensionNodeObserver {
             override fun observe(node: ExtensionNode) {
@@ -27,5 +27,5 @@ public fun ExtLoaderEnvironment.observeNodes(observer: (ExtensionNode) -> Unit) 
         }
     }
 
-    return realObserver + this
+    this += realObserver
 }

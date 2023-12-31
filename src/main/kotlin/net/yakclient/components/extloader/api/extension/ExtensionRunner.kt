@@ -10,7 +10,5 @@ public interface ExtensionRunner : EnvironmentAttribute {
 
     public fun init(node: ExtensionNode)
 
-    public companion object : EnvironmentAttributeKey<ExtensionRunner> {
-
-    }
+    public companion object : EnvironmentAttributeKey<ExtensionRunner>
 }

@@ -7,8 +7,10 @@ import net.yakclient.archives.transform.InstructionAdapter
 import net.yakclient.archives.transform.InstructionResolver
 import net.yakclient.archives.transform.MethodSignature
 import net.yakclient.archives.transform.ProvidedInstructionReader
+import net.yakclient.client.api.annotation.FieldInjection
+import net.yakclient.client.api.annotation.InjectionDefaults.SELF_REF
+import net.yakclient.client.api.annotation.InjectionDefaults.SELF_REF_ACCESS
 import net.yakclient.common.util.equalsAny
-import net.yakclient.components.extloader.ExtensionLoader
 import net.yakclient.components.extloader.util.withDots
 import net.yakclient.components.extloader.util.withSlashes
 import net.yakclient.components.extloader.api.environment.injectionPointsAttrKey
@@ -19,18 +21,9 @@ import org.objectweb.asm.Handle
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree.*
-import java.util.logging.Level
+import net.yakclient.client.api.annotation.MethodInjection
+import net.yakclient.client.api.annotation.SourceInjection
 
-
-private fun Map<String, String>.notNull(name: String): String =
-    checkNotNull(this[name]) { "Invalid Mixin options, no '$name' value provided in '$this'." }
-
-private fun ArchiveMapping.justMapSignatureDescriptor(signature: String): String {
-    val (name, desc, ret) = MethodSignature.of(signature)
-
-    val retOrBlank = ret ?: ""
-    return name + mapMethodDesc("($desc)$retOrBlank", MappingDirection.TO_FAKE)
-}
 
 private fun mappingInsnAdapterFor(
     tree: ClassInheritanceTree,
@@ -43,33 +36,32 @@ private fun mappingInsnAdapterFor(
         val insn = parent.get()
 
         fun <R> ClassInheritancePath.fromTreeInternal(transform: (String) -> R?): R? {
-            val mappedName = mappings.mapClassName(name, MappingDirection.TO_REAL) ?: name
+            val mappedName = mappings.mapClassName(name, from, to) ?: name
             return transform(mappedName)
                 ?: (interfaces + (listOfNotNull(superClass))).firstNotNullOfOrNull { it.fromTreeInternal(transform) }
         }
 
         fun <R> fromTree(start: String, transform: (String) -> R?): R? {
-            return tree[mappings.mapClassName(start, MappingDirection.TO_FAKE)]?.fromTreeInternal(transform)
+            return tree[mappings.mapClassName(start, from, to)]?.fromTreeInternal(transform)
         }
 
-        val direction = MappingDirection.TO_FAKE
         mappings.run {
             insn.forEach { insnNode ->
                 when (insnNode) {
                     is FieldInsnNode -> {
                         val newOwner =
-                            if (insnNode.owner == from && insnNode.opcode != Opcodes.GETSTATIC) to else insnNode.owner
+                            if (insnNode.owner == from /*&& insnNode.opcode != Opcodes.GETSTATIC */) to else insnNode.owner
 
                         insnNode.name = fromTree(newOwner) {
                             mapFieldName(
                                 it,
                                 insnNode.name,
-                                direction
+                                from, to
                             )
                         } ?: insnNode.name
 
-                        insnNode.owner = mapClassName(newOwner, direction) ?: newOwner
-                        insnNode.desc = mapType(insnNode.desc, direction)
+                        insnNode.owner = mapClassName(newOwner, from, to) ?: newOwner
+                        insnNode.desc = mapType(insnNode.desc, from, to)
                     }
 
                     is InvokeDynamicInsnNode -> {
@@ -87,16 +79,16 @@ private fun mappingInsnAdapterFor(
                                 )
                             ) Handle(
                                 tag,
-                                mapClassName(newOwner, direction) ?: newOwner,
+                                mapClassName(newOwner, from, to) ?: newOwner,
                                 fromTree(newOwner) {
                                     mapMethodName(
                                         it,
                                         name,
                                         desc,
-                                        direction
+                                        from, to
                                     )
                                 } ?: name,
-                                mapMethodDesc(desc, direction),
+                                mapMethodDesc(desc, from, to),
                                 isInterface
                             ) else if (
                                 tag.equalsAny(
@@ -107,15 +99,15 @@ private fun mappingInsnAdapterFor(
                                 )
                             ) Handle(
                                 tag,
-                                mapClassName(newOwner, direction) ?: newOwner,
+                                mapClassName(newOwner, from, to) ?: newOwner,
                                 fromTree(newOwner) {
                                     mapFieldName(
                                         it,
                                         name,
-                                        direction
+                                        from, to
                                     )
                                 } ?: name,
-                                mapType(desc, direction),
+                                mapType(desc, from, to),
                                 isInterface
                             ) else throw IllegalArgumentException("Unknown tag type : '$tag' for invoke dynamic instruction : '$insnNode' with handle: '$this'")
                         }
@@ -127,8 +119,8 @@ private fun mappingInsnAdapterFor(
                             when (it) {
                                 is Type -> {
                                     when (it.sort) {
-                                        Type.ARRAY, Type.OBJECT -> Type.getType(mapType(it.internalName, direction))
-                                        Type.METHOD -> Type.getType(mapMethodDesc(it.internalName, direction))
+                                        Type.ARRAY, Type.OBJECT -> Type.getType(mapType(it.internalName, from, to))
+                                        Type.METHOD -> Type.getType(mapMethodDesc(it.internalName, from, to))
                                         else -> it
                                     }
                                 }
@@ -143,33 +135,33 @@ private fun mappingInsnAdapterFor(
                         insnNode.desc =
                             mapMethodDesc(
                                 insnNode.desc,
-                                direction
+                                from, to
                             ) // Expected descriptor type of the generated call site
                     }
 
                     is MethodInsnNode -> {
                         val newOwner =
-                            if (insnNode.owner == from && insnNode.opcode != Opcodes.INVOKESTATIC) to else insnNode.owner
+                            if (insnNode.owner == from /*&& insnNode.opcode != Opcodes.INVOKESTATICf */) to else insnNode.owner
 
                         insnNode.name = fromTree(newOwner) {
                             mapMethodName(
                                 it,
                                 insnNode.name,
                                 insnNode.desc,
-                                direction
+                                from, to
                             )
                         } ?: insnNode.name
 
-                        insnNode.owner = mapClassName(newOwner, direction) ?: newOwner
-                        insnNode.desc = mapMethodDesc(insnNode.desc, direction)
+                        insnNode.owner = mapClassName(newOwner, from, to) ?: newOwner
+                        insnNode.desc = mapMethodDesc(insnNode.desc, from, to)
                     }
 
                     is MultiANewArrayInsnNode -> {
-                        insnNode.desc = mapType(insnNode.desc, direction)
+                        insnNode.desc = mapType(insnNode.desc, from, to)
                     }
 
                     is TypeInsnNode -> {
-                        insnNode.desc = mapClassName(insnNode.desc, direction) ?: insnNode.desc
+                        insnNode.desc = mapClassName(insnNode.desc, from, to) ?: insnNode.desc
                     }
                 }
             }
@@ -179,30 +171,31 @@ private fun mappingInsnAdapterFor(
     }
 }
 
-public class SourceInjectionProvider : MixinInjectionProvider<SourceInjectionData> {
+public class SourceInjectionProvider : MixinInjectionProvider<SourceInjection, SourceInjectionData> {
     override val type: String = "source"
+    override val annotationType: Class<SourceInjection> = SourceInjection::class.java
 
     override fun parseData(
-        options: Map<String, String>,
+        context: MixinInjectionProvider.InjectionContext<SourceInjection>,
         mappingContext: MixinInjectionProvider.MappingContext,
         ref: ExtensionArchiveReference
     ): SourceInjectionData {
-        val self = options.notNull("self")
-        val point = options.notNull("point")
+        val self = context.classNode.name.replace('/', '.')
+        val point = context.element.annotation.point
 
         val clsSelf = ref.reader["${self.withSlashes()}.class"]
             ?: throw IllegalArgumentException("Failed to find class: '$self' in extension when loading source injection.")
 
         val node = ClassNode().also { ClassReader(clsSelf.resource.open()).accept(it, 0) }
 
-        val toWithSlashes = options.notNull("to").withSlashes()
-        val methodTo = options.notNull("methodTo")
+        val toWithSlashes = context.target.name
+        val methodTo = context.element.annotation.methodTo.takeUnless { it == SELF_REF } ?: (context.element.methodNode.name + context.element.methodNode.desc)
         val data = SourceInjectionData(
-            mappingContext.mappings.mapClassName(toWithSlashes, MappingDirection.TO_FAKE)?.withDots()
+            mappingContext.mappings.mapClassName(toWithSlashes, mappingContext.fromNS, mappingContext.toNS)?.withDots()
                 ?: toWithSlashes,
-            self,
+            self.withSlashes(),
             run {
-                val methodFrom = options.notNull("methodFrom")
+                val methodFrom = context.element.methodNode.name + context.element.methodNode.desc
                 mappingInsnAdapterFor(
                     mappingContext.tree,
                     mappingContext.mappings,
@@ -224,13 +217,17 @@ public class SourceInjectionProvider : MixinInjectionProvider<SourceInjectionDat
                     toWithSlashes,
                     signature.name,
                     fullDesc,
-                    MappingDirection.TO_FAKE
+                    mappingContext.fromNS,
+                    mappingContext.toNS
                 ) ?: signature.name
-                val desc = mappingContext.mappings.mapMethodDesc(fullDesc, MappingDirection.TO_FAKE)
+                val desc = mappingContext.mappings.mapMethodDesc(
+                    fullDesc, mappingContext.fromNS,
+                    mappingContext.toNS
+                )
                 name + desc
             },
-            checkNotNull(mappingContext.environment[injectionPointsAttrKey]?.get(point)) {
-                "Illegal injection point: '$point', current registered options are: '${mappingContext.environment[injectionPointsAttrKey]?.objects()?.keys ?: listOf()}'"
+            checkNotNull(mappingContext.environment[injectionPointsAttrKey]?.container?.get(point)) {
+                "Illegal injection point: '$point', current registered options are: '${mappingContext.environment[injectionPointsAttrKey]?.container?.objects()?.keys ?: listOf()}'"
             }
         )
 
@@ -240,26 +237,34 @@ public class SourceInjectionProvider : MixinInjectionProvider<SourceInjectionDat
     override fun get(): MixinInjection<SourceInjectionData> = SourceInjection
 }
 
-public class MethodInjectionProvider : MixinInjectionProvider<MethodInjectionData> {
+public class MethodInjectionProvider : MixinInjectionProvider<MethodInjection, MethodInjectionData> {
     override val type: String = "method"
+    override val annotationType: Class<MethodInjection> = MethodInjection::class.java
 
     override fun parseData(
-        options: Map<String, String>,
+        context: MixinInjectionProvider.InjectionContext<MethodInjection>,
         mappingContext: MixinInjectionProvider.MappingContext,
         ref: ExtensionArchiveReference
     ): MethodInjectionData {
-        val self = options.notNull("self")
+        val self = context.classNode.name.replace('/', '.')
         val classSelf = ref.reader["${self.withSlashes()}.class"] ?: throw IllegalArgumentException(
             "Failed to find class: '$self' when loading method injections."
         )
         val node = ClassNode().also { ClassReader(classSelf.resource.open()).accept(it, 0) }
 
-        val to = options.notNull("to").withSlashes()
+        val to = context.target.name
+        val annotation: MethodInjection = context.element.annotation
+
+        val methodSelf = context.element.methodNode
+
         return MethodInjectionData(
-            mappingContext.mappings.mapClassName(to, MappingDirection.TO_FAKE)?.withDots() ?: to,
+            mappingContext.mappings.mapClassName(
+                to, mappingContext.fromNS,
+                mappingContext.toNS
+            )?.withDots() ?: to,
             self,
             run {
-                val methodFrom = options.notNull("methodFrom")
+                val methodFrom = methodSelf.name + methodSelf.desc
                 mappingInsnAdapterFor(
                     mappingContext.tree,
                     mappingContext.mappings,
@@ -274,37 +279,33 @@ public class MethodInjectionProvider : MixinInjectionProvider<MethodInjectionDat
                 )
             },
 
-            options.notNull("access").toInt(),
-            options.notNull("name"),
-            options.notNull("description"),
-            options["signature"],
-            options.notNull("exceptions").split(',')
+            annotation.access.takeUnless { it == SELF_REF_ACCESS } ?: methodSelf.access,
+            annotation.name.takeUnless { it == SELF_REF } ?: methodSelf.name,
+            annotation.descriptor.takeUnless {it == SELF_REF} ?: methodSelf.desc,
+            annotation.signature.takeUnless { it == SELF_REF } ?: methodSelf.signature,
+            annotation.exceptions.takeUnless { it == SELF_REF }?.split(",") ?: methodSelf.exceptions
         )
     }
 
     override fun get(): MixinInjection<MethodInjectionData> = MethodInjection
 }
 
-public class FieldInjectionProvider : MixinInjectionProvider<FieldInjectionData> {
+public class FieldInjectionProvider : MixinInjectionProvider<FieldInjection, FieldInjectionData> {
     override val type: String = "field"
+    override val annotationType: Class<FieldInjection> = FieldInjection::class.java
 
     override fun parseData(
-        options: Map<String, String>,
+        context: MixinInjectionProvider.InjectionContext<FieldInjection>,
         mappingContext: MixinInjectionProvider.MappingContext,
         ref: ExtensionArchiveReference
     ): FieldInjectionData {
+        val annotation = context.element.annotation
+        val fieldNode = context.element.fieldNode
         return FieldInjectionData(
-            options.notNull("access").toInt(),
-            options.notNull("name"),
-            options.notNull("type"),
-            options["signature"],
-            run {
-//                    if (options["value"] != null) ExtensionLoader.logger.log(
-//                            Level.WARNING,
-//                            "Cannot set initial values in mixins at this time, this will eventually be a feature."
-//                    )
-                null
-            }
+            annotation.access.takeUnless { it == SELF_REF_ACCESS } ?: fieldNode.access,
+            annotation.name.takeUnless { it == SELF_REF } ?: fieldNode.name,
+            annotation.type.takeUnless { it == SELF_REF } ?: fieldNode.desc,
+            annotation.signature.takeUnless { it == SELF_REF } ?: fieldNode.signature,
         )
     }
 

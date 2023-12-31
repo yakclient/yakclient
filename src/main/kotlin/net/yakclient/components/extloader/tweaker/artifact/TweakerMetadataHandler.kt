@@ -11,24 +11,17 @@ import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySet
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
+import net.yakclient.boot.dependency.DependencyTypeContainer
 import net.yakclient.components.extloader.api.tweaker.TweakerRuntimeModel
+import net.yakclient.components.extloader.extension.artifact.ExtensionArtifactMetadata
+import net.yakclient.components.extloader.extension.artifact.ExtensionMetadataHandler
 
 internal class TweakerMetadataHandler(
-    settings: SimpleMavenRepositorySettings
-) : SimpleMavenMetadataHandler(settings) {
-    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
+    settings: SimpleMavenRepositorySettings, providers: DependencyTypeContainer
+) : ExtensionMetadataHandler(settings, providers) {
+    override fun requestMetadata(desc: SimpleMavenDescriptor): Either<MetadataRequestException, ExtensionArtifactMetadata> = either.eager {
+        ensure(desc.classifier == "tweaker") {MetadataRequestException.MetadataNotFound}
 
-    override fun requestMetadata(
-        desc: SimpleMavenDescriptor
-    ): Either<MetadataRequestException, SimpleMavenArtifactMetadata> = either.eager {
-        val metadata = super.requestMetadata(desc).bind()
-        val trm = layout.resourceOf(desc.group, desc.artifact, desc.version, "trm", "json").bind()
-
-        TweakerArtifactMetadata(
-            metadata.descriptor,
-            metadata.resource,
-            metadata.children,
-//            mapper.readValue<TweakerRuntimeModel>(trm.open())
-        )
+        super.requestMetadata(desc.copy(classifier = null)).bind()
     }
 }

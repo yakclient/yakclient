@@ -1,42 +1,29 @@
 package net.yakclient.client.api.annotation;
 
 import net.yakclient.client.api.InjectionPriorities;
-import net.yakclient.client.api.annotation.processor.InjectionMetadata;
-import net.yakclient.client.api.annotation.processor.InjectionOption;
-import net.yakclient.client.api.annotation.processor.InjectionPriorityOption;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import static net.yakclient.client.api.annotation.InjectionDefaults.SELF_REF;
+import static net.yakclient.client.api.annotation.InjectionDefaults.SELF_REF_ACCESS;
+
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface MethodInjection {
-    @InjectionOption("self")
-    public String from();
+    public String methodFrom() default SELF_REF;
 
-    @InjectionOption("to")
-    public String to();
+    public int access() default SELF_REF_ACCESS;
 
-    @InjectionOption("methodFrom")
-    public String methodFrom();
+    public String name() default SELF_REF;
 
-    @InjectionOption("access")
-    public int access();
+    public String descriptor() default SELF_REF;
 
-    @InjectionOption("name")
-    public String name();
+    public String signature() default SELF_REF;
 
-    @InjectionOption("description")
-    public String description();
+    public String exceptions() default SELF_REF;
 
-    @InjectionOption("signature")
-    public String signature();
-
-    @InjectionOption("exceptions")
-    public String exceptions();
-
-    @InjectionPriorityOption
     public int priority() default InjectionPriorities.DEFAULT;
 }

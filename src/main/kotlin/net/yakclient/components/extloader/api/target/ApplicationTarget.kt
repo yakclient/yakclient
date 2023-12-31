@@ -6,6 +6,7 @@ import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.mixin.MixinInjection
 import net.yakclient.components.extloader.api.environment.EnvironmentAttribute
 import net.yakclient.components.extloader.api.environment.EnvironmentAttributeKey
+import net.yakclient.minecraft.bootstrapper.MinecraftClassTransformer
 
 public interface ApplicationTarget : EnvironmentAttribute {
     override val key: EnvironmentAttributeKey<*>
@@ -13,9 +14,10 @@ public interface ApplicationTarget : EnvironmentAttribute {
 
     public val reference: AppArchiveReference
 
-    public fun newMixinTransaction() : MixinTransaction
+//    public fun newMixinTransaction() : MixinTransaction
+    public fun mixin(destination: String, transformer: MinecraftClassTransformer)
 
-    public fun start()
+    public fun start(args: Array<String>)
 
     public fun end()
 
@@ -37,14 +39,14 @@ public interface AppArchiveReference {
 }
 
 public interface MixinTransaction {
-    public val finished: Boolean
-
+//    public val finished: Boolean
+//
     public data class Metadata<T: MixinInjection.InjectionData>(
         val data: T,
         val injection: MixinInjection<T>
     )
-
-    public fun register(destination: String, metadata: Metadata<*>)
-
-    public fun writeAll()
+//
+//    public fun register(destination: String, metadata: Metadata<*>)
+//
+//    public fun writeAll()
 }

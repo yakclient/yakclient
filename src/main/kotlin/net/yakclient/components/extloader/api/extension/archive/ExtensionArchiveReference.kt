@@ -14,8 +14,10 @@ public interface ExtensionArchiveReference : ArchiveReference {
     override val reader: ExtensionArchiveReader
 
     public interface ExtensionArchiveReader : ArchiveReference.Reader {
-//        public fun determinePartition(entry: ArchiveReference.Entry) : ExtensionPartition?
+
+
+        public fun determinePartition(entry: ArchiveReference.Entry) : List<ExtensionPartition>
 //
-//        public fun entriesIn(partition: String) : Sequence<ArchiveReference.Entry>
+        public fun entriesIn(partition: ExtensionPartition) : Sequence<ArchiveReference.Entry>
     }
 }

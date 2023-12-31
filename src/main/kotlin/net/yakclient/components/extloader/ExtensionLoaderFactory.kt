@@ -26,6 +26,8 @@ public class ExtensionLoaderFactory(boot: BootInstance) :
             ExtLoaderEnvironmentConfiguration(
                 when (environment.getCoerceCheckString("type")) {
                     "extension-dev" -> ExtLoaderEnvironmentType.EXT_DEV
+                    "production" -> ExtLoaderEnvironmentType.PROD
+                    "internal-dev" -> ExtLoaderEnvironmentType.INTERNAL_DEV
                     else -> throw IllegalArgumentException(
                         "Unknown environment type: '${
                             environment.getCoerceCheckString("type")
@@ -52,8 +54,6 @@ public class ExtensionLoaderFactory(boot: BootInstance) :
             repo,
             boot.location.resolve("mc").toString(),
             "http://maven.yakclient.net/public/mc-version-mappings.json",
-            configuration.mcArgs,
-            true
         )
 
         return ExtensionLoader(

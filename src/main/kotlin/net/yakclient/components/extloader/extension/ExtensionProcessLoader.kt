@@ -1,6 +1,6 @@
 package net.yakclient.components.extloader.extension
 
-import net.yakclient.archive.mapper.ArchiveMapping
+import net.yakclient.archive.mapper.*
 import net.yakclient.archive.mapper.transform.*
 import net.yakclient.archives.ArchiveHandle
 import net.yakclient.archives.ArchiveReference
@@ -8,7 +8,6 @@ import net.yakclient.archives.ArchiveTree
 import net.yakclient.archives.Archives
 import net.yakclient.archives.transform.TransformerConfig
 import net.yakclient.boot.container.ProcessLoader
-import net.yakclient.boot.loader.ArchiveClassProvider
 import net.yakclient.boot.loader.ArchiveSourceProvider
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.client.api.Extension
@@ -16,107 +15,104 @@ import net.yakclient.client.api.ExtensionContext
 import net.yakclient.common.util.LazyMap
 import net.yakclient.common.util.runCatching
 import net.yakclient.components.extloader.api.environment.*
+import net.yakclient.components.extloader.api.extension.ExtensionClassLoaderProvider
 import net.yakclient.components.extloader.extension.versioning.VersionedExtArchiveHandle
 import net.yakclient.components.extloader.mapping.findShortest
 import net.yakclient.components.extloader.mapping.newMappingsGraph
 import net.yakclient.components.extloader.api.target.ApplicationTarget
 import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
+import net.yakclient.components.extloader.api.extension.ExtensionVersionPartition
 import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
+import net.yakclient.components.extloader.util.parseNode
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
 
 public class ExtensionProcessLoader(
     private val privilegeManager: PrivilegeManager,
     private val parentClassloader: ClassLoader,
-//        private val minecraftRef: ArchiveReference,
-//        private val mcVersion: String
     private val environment: ExtLoaderEnvironment
 ) : ProcessLoader<ExtensionInfo, ExtensionProcess>, EnvironmentAttribute {
     private val minecraftRef = environment[ApplicationTarget]!!.reference.reference
     private val mcVersion = environment[ApplicationTarget]!!.reference.descriptor.version
-    private val mcInheritanceTree = createFakeInheritanceTree(minecraftRef.reader)
+    private val appInheritanceTree = createFakeInheritanceTree(minecraftRef.reader)
     override val key: EnvironmentAttributeKey<*> = ExtensionProcessLoader
 
     public companion object : EnvironmentAttributeKey<ExtensionProcessLoader>
 
+
+
+
     private fun transformEachEntry(
-        erm: ExtensionRuntimeModel,
         archiveReference: ExtensionArchiveReference,
+        // Dependencies should already be mapped
         dependencies: List<ArchiveTree>,
-        mappings: ArchiveMapping
+
+        mappings: (ExtensionVersionPartition) -> ArchiveMapping
     ): ClassInheritanceTree {
         // Gets all the loaded mixins and map them to their actual location in the archive reference.
-        val mixinClasses = erm.versionPartitions
-            .flatMapTo(HashSet()) { v ->
-                v.mixins.map { ("${v.path.removeSuffix("/")}/${it.classname.replace('.', '/')}.class") }
-            }
-
-        // Goes through the enabled partitions and main, and group them by same mapping types. Then load that specific mapper
-//        val entryToMapping = (archiveReference.enabledPartitions + archiveReference.mainPartition)
-//                .map {
-//                    it to archiveReference.reader.entriesIn(it.name)
-//                            .filterNot(ArchiveReference.Entry::isDirectory)
-//                            .filter { entry -> entry.name.endsWith(".class") }
-//                }
-//                .groupBy { it.first.mappings }
-//                .mapValues { (_, entries) -> entries.flatMap { it.second } }
-//                .mapValues { (_, entries) ->
-//                    entries.filterNot {mixinClasses.contains(it.name) }
-//                }.flatMap { (mapping, entries) ->
-//                    val mappings = TODO()
-////                        (InternalRegistry.extensionMappingContainer.get(mapping.type)?.forIdentifier(mcVersion)
-////                            ?: throw IllegalArgumentException("Failed to find mapping type: '${mapping.type}', options are: '${InternalRegistry.extensionMappingContainer.objects().keys}"))
-//                    entries.map { it to mappings }
-//                }.toMap()
-
 
         fun inheritancePathFor(
-            entry: ArchiveReference.Entry
+            node: ClassNode
         ): ClassInheritancePath {
-            val reader = ClassReader(entry.resource.open())
-            val node = ClassNode()
-            reader.accept(node, 0)
 
-//            val mappings = entryToMapping[entry] ?: throw IllegalArgumentException(
-//                    "Unknown class: '${entry.name}' encountered when trying to create inheritance path " +
-//                            "for extension archive mapping. This might signify that you either have a illegal " +
-//                            "dependency on a partition that is not active when partition: '${archiveReference.reader.determinePartition(entry)}' " +
-//                            "is, or this class is a subtype of a mixin class (also illegal).")
-
-            fun getParent(name: String?): ClassInheritancePath? {
+            fun ClassNode.getParent(name: String?): ClassInheritancePath? {
                 if (name == null) return null
-                return mcInheritanceTree[mappings.mapClassName(node.superName, MappingDirection.TO_FAKE)]
-                    ?: node.superName?.let { entry.handle.reader["$it.class"] }?.let { inheritancePathFor(it) }
+
+                val appTree = run {
+                    val entry = archiveReference.reader["${this.name}.class"] ?: return@run null
+
+                    val part = archiveReference.reader.determinePartition(entry).first()
+
+                    if (part is ExtensionVersionPartition) {
+                        appInheritanceTree[mappings(part).mapClassName(
+                            name,
+                            part.mappingNamespace,
+                            environment[ApplicationMappingTarget]!!.namespace
+                        ) ?: name]
+                    } else null
+                }
+
+                return appTree
+                    ?: archiveReference.reader["$name.class"]?.let {
+                        inheritancePathFor(it.resource.open().parseNode())
+                    } ?: dependencies.firstNotNullOfOrNull {
+                        it.getResource("$name.class")?.parseNode()?.let(::inheritancePathFor)
+                    }
             }
 
             return ClassInheritancePath(
                 node.name,
-                getParent(node.superName),
-                node.interfaces.mapNotNull(::getParent)
+                node.getParent(node.superName),
+                node.interfaces.mapNotNull { node.getParent(it) }
             )
         }
 
-        // Load an inheritance tree based on the mappings of each partition
-//        val treeInternal = entryToMapping.map { (e, _) ->
-//            inheritancePathFor(e)
-//        }.associateBy { it.name }
         val treeInternal = (archiveReference.reader.entries())
             .filterNot(ArchiveReference.Entry::isDirectory)
             .filter { it.name.endsWith(".class") }
             .associate {
-                val path = inheritancePathFor(it)
+                val path = inheritancePathFor(it.resource.open().parseNode())
                 path.name to path
             }
 
         val tree = object : Map<String, ClassInheritancePath> by treeInternal {
             override fun get(key: String): ClassInheritancePath? {
-                return treeInternal[key] ?: mcInheritanceTree[key]
+                return treeInternal[key] ?: appInheritanceTree[key]
             }
         }
 
         // Map each entry based on its respective mapper
         archiveReference.reader.entries().map { entry ->
-            val config = mapperFor(mappings, tree)
+            val part = archiveReference.reader.determinePartition(entry).first()
+            val config = mapperFor(
+                if (part is ExtensionVersionPartition) mappings(part) else ArchiveMapping(
+                    setOf(), MappingValueContainerImpl(
+                        mapOf()
+                    ), MappingNodeContainerImpl(setOf())
+                ),
+                tree,
+                if (part is ExtensionVersionPartition) part.mappingNamespace else environment[ApplicationMappingTarget]!!.namespace
+            )
 
             Archives.resolve(
                 ClassReader(entry.resource.open()),
@@ -130,42 +126,49 @@ public class ExtensionProcessLoader(
             )
         }
 
-        // Not particularly good design here, but its all internal class stuff that can be very easily moved around without disrupting public apis so its good enough for now
         return tree
     }
 
     override fun load(info: ExtensionInfo): ExtensionProcess {
         val (ref, children, dependencies, erm, containerHandle) = info
 
-//        val archives: List<ArchiveHandle> =
-//            children.map { it.process.archive } + dependencies
-
         val mappingGraph = newMappingsGraph(environment[mappingProvidersAttrKey]!!)
 
-        val mappings = mappingGraph.findShortest(erm.mappingType, environment[ApplicationMappingType]!!.type)
-            .forIdentifier(mcVersion)
+        // From, (to is implicitly the application target), and identifier (version)
+        val mappings = LazyMap<Pair<String, String>, ArchiveMapping> { (fromNS, identifier) ->
+            mappingGraph.findShortest(fromNS, environment[ApplicationMappingTarget]!!.namespace)
+                .forIdentifier(identifier)
+        }
 
-        val tree = transformEachEntry(erm, ref, dependencies + minecraftRef, mappings)
+        val partitionsToMappings = info.archive.enabledPartitions.associateWith {
+            mappings[it.mappingNamespace to mcVersion]
+        }
+
+        val tree = transformEachEntry(ref, dependencies + minecraftRef) {
+            partitionsToMappings[it]!!
+        }
 
         return ExtensionProcess(
             ExtensionReference(
                 environment,
                 ref,
                 tree,
-                mappings
+                {
+                    partitionsToMappings[it]!!
+                }
             ) { minecraft ->
                 val archives: List<ArchiveHandle> =
                     children.map { it.process.archive } + dependencies
 
                 val handle = VersionedExtArchiveHandle(
                     ref,
-                    ExtensionClassLoader(
+                    environment[ExtensionClassLoaderProvider]!!.createFor(
                         ref,
                         archives,
                         privilegeManager,
-                        parentClassloader,
                         containerHandle,
-                        minecraft
+                        minecraft,
+                        parentClassloader,
                     ),
                     info.erm.name,
                     archives.toSet(),
@@ -192,11 +195,12 @@ public class ExtensionProcessLoader(
     private fun mapperFor(
         mappings: ArchiveMapping,
         tree: ClassInheritanceTree,
+        fromNS: String,
     ): TransformerConfig {
-        val direction = MappingDirection.TO_FAKE
+        val toNamespace = environment[ApplicationMappingTarget]!!.namespace
 
         fun ClassInheritancePath.fromTreeInternal(): ClassInheritancePath {
-            val mappedName = mappings.mapClassName(name, MappingDirection.TO_REAL) ?: name
+            val mappedName = mappings.mapClassName(name, fromNS, toNamespace) ?: name
 
             return ClassInheritancePath(
                 mappedName,
@@ -206,13 +210,14 @@ public class ExtensionProcessLoader(
         }
 
         val lazilyMappedTree = LazyMap<String, ClassInheritancePath> {
-            tree[mappings.mapClassName(it, MappingDirection.TO_FAKE)]?.fromTreeInternal()
+            tree[mappings.mapClassName(it, fromNS, toNamespace)]?.fromTreeInternal()
         }
 
         return mappingTransformConfigFor(
             mappings,
-            direction,
-            lazilyMappedTree
+            fromNS,
+            toNamespace,
+            lazilyMappedTree,
         )
     }
 }

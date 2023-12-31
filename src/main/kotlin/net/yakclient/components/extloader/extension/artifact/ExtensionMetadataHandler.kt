@@ -18,7 +18,7 @@ import net.yakclient.boot.dependency.DependencyTypeContainer
 import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
 
 
-public class ExtensionMetadataHandler(
+public open class ExtensionMetadataHandler(
     settings: SimpleMavenRepositorySettings,
     private val providers: DependencyTypeContainer
 ) : SimpleMavenMetadataHandler(settings) {

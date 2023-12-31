@@ -17,8 +17,8 @@ class TestMojangMappingProvider {
         val one = provider.forIdentifier("1.20.1")
         val two = provider.forIdentifier("1.16.4")
 
-        assert(one.classes.size >= 500)
-        assert(two.classes.size >= 500)
+        assert(one.classes.values.size >= 500)
+        assert(two.classes.values.size >= 500)
     }
 
     @Test

@@ -4,8 +4,10 @@ package net.yakclient.components.extloader.environment
 
 import net.yakclient.archives.mixin.SourceInjectionPoint
 import net.yakclient.archives.mixin.SourceInjectors
+import net.yakclient.boot.loader.IntegratedLoader
 import net.yakclient.common.util.resolve
 import net.yakclient.components.extloader.api.environment.*
+import net.yakclient.components.extloader.api.extension.ExtensionClassLoaderProvider
 import net.yakclient.components.extloader.extension.ExtensionNode
 import net.yakclient.components.extloader.api.extension.ExtensionRunner
 import net.yakclient.components.extloader.extension.mapping.MojangExtensionMappingProvider
@@ -14,6 +16,8 @@ import net.yakclient.components.extloader.mixin.MethodInjectionProvider
 import net.yakclient.components.extloader.mixin.SourceInjectionProvider
 import net.yakclient.components.extloader.api.mapping.MappingsProvider
 import net.yakclient.components.extloader.api.mixin.MixinInjectionProvider
+import net.yakclient.components.extloader.api.target.ApplicationParentClProvider
+import net.yakclient.components.extloader.target.TargetLinker
 import java.nio.file.Path
 
 //public class EnvironmentBuilder(
@@ -103,36 +107,50 @@ import java.nio.file.Path
 // go to bed. All in all, i think this idea of running mapped minecraft (de-obfuscated) is just kindof bad,
 // there must be some other way to get all this good debugging functionallity??
 
-private fun MutableObjectContainerAttribute<MixinInjectionProvider<*>>.registerMixins() {
-    register("source", SourceInjectionProvider())
-    register("method", MethodInjectionProvider())
-    register("field", FieldInjectionProvider())
+private fun MutableObjectContainerAttribute<MixinInjectionProvider<*,*>>.registerMixins() {
+    container.register("source", SourceInjectionProvider())
+    container.register("method", MethodInjectionProvider())
+    container.register("field", FieldInjectionProvider())
 }
 
 private fun MutableObjectContainerAttribute<SourceInjectionPoint>.registerMixinPoints() {
-    register("after-begin", SourceInjectors.AFTER_BEGIN)
-    register("before-end", SourceInjectors.BEFORE_END)
-    register("before-invoke", SourceInjectors.BEFORE_INVOKE)
-    register("before-return", SourceInjectors.BEFORE_RETURN)
-    register("overwrite", SourceInjectors.OVERWRITE)
+    container.register("after-begin", SourceInjectors.AFTER_BEGIN)
+    container.register("before-end", SourceInjectors.BEFORE_END)
+    container.register("before-invoke", SourceInjectors.BEFORE_INVOKE)
+    container.register("before-return", SourceInjectors.BEFORE_RETURN)
+    container.register("overwrite", SourceInjectors.OVERWRITE)
 
 }
 
 internal fun ExtensionDevEnvironment(
     path: Path
 ): ExtLoaderEnvironment {
-    val env = MutableObjectSetAttribute<MappingsProvider>(mappingProvidersAttrKey).also {
+    val env = ExtLoaderEnvironment()
+
+    env += MutableObjectSetAttribute<MappingsProvider>(mappingProvidersAttrKey).also {
         it.add(
             MojangExtensionMappingProvider(
                 path resolve "mapping" resolve "mojang"
             )
         )
-    } + MutableObjectContainerAttribute<MixinInjectionProvider<*>>(mixinTypesAttrKey) +
-            MutableObjectContainerAttribute<SourceInjectionPoint>(injectionPointsAttrKey) + object : ExtensionRunner {
-
+    }
+    env += MutableObjectContainerAttribute<MixinInjectionProvider<*,*>>(mixinTypesAttrKey)
+    env += MutableObjectContainerAttribute<SourceInjectionPoint>(injectionPointsAttrKey)
+    env += object : ExtensionRunner {
         override fun init(node: ExtensionNode) {
             node.extension?.process?.ref?.extension?.init()
         }
+    }
+    env += object : ExtensionClassLoaderProvider {}
+    env += object : ApplicationParentClProvider {
+        override fun getParent(linker: TargetLinker, environment: ExtLoaderEnvironment): ClassLoader {
+            return IntegratedLoader(
+                sp = linker.miscSourceProvider,
+                cp = linker.miscClassProvider,
+                parent = environment[ParentClassloaderAttribute]!!.cl
+            )
+        }
+
     }
 
     env[mixinTypesAttrKey]!!.registerMixins()

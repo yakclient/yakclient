@@ -1,5 +1,6 @@
 package net.yakclient.components.extloader.extension.artifact
 
+import com.durganmcbroom.artifact.resolver.ArtifactReference
 import com.durganmcbroom.artifact.resolver.CheckedResource
 import com.durganmcbroom.artifact.resolver.simple.maven.*
 import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
@@ -10,7 +11,7 @@ public typealias ExtensionRepositorySettings = SimpleMavenRepositorySettings
 
 public typealias ExtensionStub = SimpleMavenArtifactStub
 
-public typealias ExtensionArtifactReference = SimpleMavenArtifactReference
+public typealias ExtensionArtifactReference = ArtifactReference<ExtensionArtifactMetadata, SimpleMavenArtifactStub>
 
 public typealias ExtensionDescriptor = SimpleMavenDescriptor
 

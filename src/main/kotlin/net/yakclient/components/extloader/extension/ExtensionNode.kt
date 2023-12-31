@@ -10,20 +10,13 @@ import net.yakclient.components.extloader.api.tweaker.EnvironmentTweaker
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 
 public data class ExtensionNode(
-    public val descriptor: ExtensionDescriptor,
+    override val descriptor: ExtensionDescriptor,
     public val archiveReference: ExtensionArchiveReference?,
     override val children: Set<ExtensionNode>,
     public val dependencies: Set<DependencyNode>,
     public val extension: Container<ExtensionProcess>?,
     public val erm: ExtensionRuntimeModel,
-    public val tweakerHandle: EnvironmentTweakerHandle?
-//        public val environmentTweakers: List<EnvironmentTweakerNode>
-) : ArchiveNode {
+) : ArchiveNode<ExtensionNode> {
     override val archive: ArchiveHandle?
         get() = extension?.process?.archive
 }
-
-public data class EnvironmentTweakerHandle(
-    val tweaker: EnvironmentTweaker,
-    val handle: ArchiveHandle
-)

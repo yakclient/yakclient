@@ -17,15 +17,6 @@ public @interface SourceInjection {
     @InjectionOption("point")
     String point();
 
-    @InjectionOption("self")
-    String from();
-
-    @InjectionOption("to")
-    String to();
-
-    @InjectionOption("methodFrom")
-    String methodFrom();
-
     @InjectionOption("methodTo")
     String methodTo();
 

@@ -1,10 +1,9 @@
 package net.yakclient.components.extloader.test.extension
 
 import net.yakclient.boot.loader.ClassProvider
-import net.yakclient.boot.loader.DelegatingSourceProvider
 import net.yakclient.boot.loader.SourceProvider
 import net.yakclient.common.util.immutableLateInit
-import net.yakclient.components.extloader.extension.MinecraftLinker
+import net.yakclient.components.extloader.target.TargetLinker
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.tree.ClassNode
@@ -71,34 +70,30 @@ class TestMinecraftLinker {
             mcClasses: List<Class<*>> = listOf(),
             extResources: Map<String, URL> = mapOf(),
             mcResources: Map<String, URL> = mapOf(),
-    ): MinecraftLinker {
+    ): TargetLinker {
         var mcProvider: ClassProvider by immutableLateInit()
         var extProvider: ClassProvider by immutableLateInit()
 
         var extSource: SourceProvider by immutableLateInit()
         var mcSource: SourceProvider by immutableLateInit()
 
-        val linker = MinecraftLinker(
-                setupClassProvider { n ->
-                    extClasses.find { it.name == n } ?: mcProvider.findClass(n)
-                },
+        val linker = TargetLinker(
                 setupClassProvider { n ->
                     mcClasses.find { it.name == n } ?: extProvider.findClass(n)
                 },
                 setupSourceProvider {
-                    extResources[it] ?: mcSource.getResource(it)
-                },
-                setupSourceProvider {
                     mcResources[it] ?: extSource.getResource(it)
                 }
-
         )
 
-        mcProvider = linker.minecraftClassProvider
-        extProvider = linker.extensionClassProvider
+        linker.addMiscClasses(extProvider)
+        linker.addMiscSources(extSource)
 
-        extSource = linker.extensionSourceProvider
-        mcSource = linker.minecraftSourceProvider
+        mcProvider = linker.targetClassProvider
+        extProvider = linker.miscClassProvider
+
+        extSource = linker.miscSourceProvider
+        mcSource = linker.targetSourceProvider
 
         return linker
     }
@@ -114,9 +109,9 @@ class TestMinecraftLinker {
                 )
         )
 
-        assertNotNull(linker.extensionClassProvider.findClass("a")) { "Failed to find class 'a' in extensions" }
+        assertNotNull(linker.miscClassProvider.findClass("a")) { "Failed to find class 'a' in extensions" }
 
-        assertNotNull(linker.minecraftClassProvider.findClass("b")) { "In minecraft!" }
+        assertNotNull(linker.targetClassProvider.findClass("b")) { "In minecraft!" }
     }
 
     @Test
@@ -131,13 +126,13 @@ class TestMinecraftLinker {
         )
 
         runCatching {
-            linker.extensionClassProvider.findClass("c")
+            linker.miscClassProvider.findClass("c")
         }.also {
             assert(it.isFailure && it.exceptionOrNull() is ClassNotFoundException) { "Extensions Should have thrown class not found!" }
         }
 
         runCatching {
-            linker.minecraftClassProvider.findClass("e")
+            linker.targetClassProvider.findClass("e")
         }.also {
             assert(it.isFailure && it.exceptionOrNull() is ClassNotFoundException) { "Minecraft Should have thrown class not found!" }
         }
@@ -154,8 +149,8 @@ class TestMinecraftLinker {
                 )
         )
 
-        assertNotNull(linker.extensionSourceProvider.getResource("first.json")) {"Couldn't find resource: 'first.json' in extensions "}
-        assertNotNull(linker.minecraftSourceProvider.getResource("second.json")) {"Couldn't find resource: 'second.json' in minecraft "}
+        assertNotNull(linker.miscSourceProvider.getResource("first.json")) {"Couldn't find resource: 'first.json' in extensions "}
+        assertNotNull(linker.targetSourceProvider.getResource("second.json")) {"Couldn't find resource: 'second.json' in minecraft "}
     }
 
     @Test
@@ -169,7 +164,7 @@ class TestMinecraftLinker {
                 )
         )
 
-        assert(linker.extensionSourceProvider.getResource("third.json") == null) { "This should never happen"}
-        assert(linker.minecraftSourceProvider.getResource("third.json") == null) { "This should never happen"}
+        assert(linker.miscSourceProvider.getResource("third.json") == null) { "This should never happen"}
+        assert(linker.targetSourceProvider.getResource("third.json") == null) { "This should never happen"}
     }
 }

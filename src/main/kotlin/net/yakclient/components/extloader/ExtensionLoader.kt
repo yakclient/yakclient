@@ -6,8 +6,6 @@ import com.durganmcbroom.jobs.JobResult
 import kotlinx.coroutines.runBlocking
 import net.yakclient.archives.ArchiveHandle
 import net.yakclient.archives.ArchiveReference
-import net.yakclient.archives.ArchiveTree
-import net.yakclient.archives.mixin.MixinInjection
 import net.yakclient.boot.BootInstance
 import net.yakclient.boot.component.ComponentInstance
 import net.yakclient.boot.component.context.ContextNodeValue
@@ -15,13 +13,12 @@ import net.yakclient.common.util.resolve
 import net.yakclient.components.extloader.api.environment.*
 import net.yakclient.components.extloader.api.target.AppArchiveReference
 import net.yakclient.components.extloader.api.target.ApplicationTarget
-import net.yakclient.components.extloader.api.target.MixinTransaction
 import net.yakclient.components.extloader.workflow.ExtDevWorkflow
 import net.yakclient.components.extloader.workflow.ExtLoaderWorkflow
 import net.yakclient.components.extloader.workflow.ExtLoaderWorkflowContext
 import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapper
+import net.yakclient.minecraft.bootstrapper.MinecraftClassTransformer
 import net.yakclient.minecraft.bootstrapper.MinecraftHandler
-import net.yakclient.minecraft.bootstrapper.MixinMetadata
 import orThrow
 import java.nio.file.Path
 
@@ -39,8 +36,8 @@ public class ExtensionLoader(
             override val dependencyReferences: List<ArchiveReference> by minecraftHandler.minecraftReference::libraries
             override val descriptor: SimpleMavenDescriptor =
                 SimpleMavenDescriptor("net.minecraft", "minecraft", minecraftHandler.version, null)
-            override val handle: ArchiveHandle by minecraftHandler::archive
-            override val dependencyHandles: List<ArchiveHandle> by minecraftHandler::archiveDependencies
+            override val handle: ArchiveHandle by lazy { minecraftHandler.handle.archive }
+            override val dependencyHandles: List<ArchiveHandle> by lazy { minecraftHandler.handle.libraries }
             override val handleLoaded: Boolean by minecraftHandler::isLoaded
 
             override fun load(parent: ClassLoader) {
@@ -48,27 +45,31 @@ public class ExtensionLoader(
             }
         }
 
-        override fun newMixinTransaction(): MixinTransaction = object : MixinTransaction {
-            override var finished: Boolean = false
-
-            override fun register(destination: String, metadata: MixinTransaction.Metadata<*>) {
-                check(!finished) { "This transaction has ended! Create new one to inject more mixins." }
-
-                minecraftHandler.registerMixin(
-                    destination, MixinMetadata(
-                        metadata.data,
-                        metadata.injection as MixinInjection<MixinInjection.InjectionData>
-                    )
-                )
-            }
-
-            override fun writeAll() {
-                minecraftHandler.writeAll()
-            }
+        override fun mixin(destination: String, transformer: MinecraftClassTransformer) {
+            minecraftHandler.registerMixin(destination, transformer)
         }
 
-        override fun start() {
-            minecraftHandler.startMinecraft()
+//        override fun newMixinTransaction(): MixinTransaction = object : MixinTransaction {
+//            override var finished: Boolean = false
+//
+//            override fun register(destination: String, metadata: MixinTransaction.Metadata<*>) {
+//                check(!finished) { "This transaction has ended! Create new one to inject more mixins." }
+//
+//                minecraftHandler.registerMixin(
+//                    destination, MixinMetadata(
+//                        metadata.data,
+//                        metadata.injection as MixinInjection<MixinInjection.InjectionData>
+//                    )
+//                )
+//            }
+//
+//            override fun writeAll() {
+//                minecraftHandler.writeAll()
+//            }
+//        }
+
+        override fun start(args: Array<String>) {
+            minecraftHandler.startMinecraft(args)
         }
 
         override fun end() = shutdown()
@@ -80,24 +81,38 @@ public class ExtensionLoader(
         val workflow = when (configuration.environment.type) {
             ExtLoaderEnvironmentType.PROD -> TODO()
             ExtLoaderEnvironmentType.EXT_DEV -> ExtDevWorkflow()
-            ExtLoaderEnvironmentType.INTERNAL_DEV -> TODO()
+            ExtLoaderEnvironmentType.INTERNAL_DEV -> ExtDevWorkflow() //todo
         }
 
         suspend fun <T : ExtLoaderWorkflowContext> ExtLoaderWorkflow<T>.parseAndRun(
             node: ContextNodeValue,
             environment: ExtLoaderEnvironment
         ): JobResult<Unit, Throwable> {
-            return work(parse(node), environment)
+            val runtimeInfo = minecraft.minecraftHandler.minecraftReference.runtimeInfo
+
+            return work(
+                parse(node), environment, configuration.mcArgs.toTypedArray() + arrayOf(
+                    "--assetsDir",
+                    runtimeInfo.assetsPath.toString(),
+                    "--assetIndex",
+                    runtimeInfo.assetsName,
+                    "--gameDir",
+                    runtimeInfo.gameDir.toString(),
+                    "--version", minecraft.minecraftHandler.version
+                )
+            )
         }
 
         runBlocking(bootFactories()) {
-            val env = MutableObjectContainerAttribute(
-                dependencyTypesAttrKey,
-                boot.dependencyTypes
-            ) + createMinecraftApp(minecraft.minecraftHandler, minecraft::end) + WorkingDirectoryAttribute(
-                boot.location
-            ) + ParentClassloaderAttribute(ExtensionLoader::class.java.classLoader)
+            val env = ExtLoaderEnvironment()
 
+            env += ArchiveGraphAttribute(boot.archiveGraph)
+            env += DependencyTypeContainerAttribute(
+                boot.dependencyTypes
+            )
+            env += createMinecraftApp(minecraft.minecraftHandler, minecraft::end)
+            env += WorkingDirectoryAttribute(boot.location)
+            env += ParentClassloaderAttribute(ExtensionLoader::class.java.classLoader)
             workflow.parseAndRun(configuration.environment.configuration, env).orThrow()
         }
 //        registerBasicProviders()
@@ -148,17 +163,6 @@ public class ExtensionLoader(
 //            it.extension?.process?.ref?.injectMixins(minecraftHandler::registerMixin)
 //        }
 
-        // This part has some black magic that i while try to explain here. The main
-        // issue is that minecraft needs to be able to load classes from extensions,
-        // and extensions need to be able to load classes from minecraft. Other modding
-        // systems achieve this by loading everything with one classloader, with our more
-        // modular design we opted to not do this, however the drawback is that we now have
-        // to deal with circularly dependent classloaders. The first issue is one of infinite
-        // recursion (stackoverflow) if extensions are trying to access a class in minecraft,
-        // it doesn't have it, so tries to get it from the extensions, which throw it back to
-        // minecraft etc. This is fixed with our MinecraftLinker, which you can go check out.
-        // This next bit of code then addresses instantiating. Unfortunately, this is a bit messy
-        // but is the best way ive found of doing it.
 
         // Setup class providers and let them be initialized later
 

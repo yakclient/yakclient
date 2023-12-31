@@ -15,7 +15,7 @@ internal class VersionedExtErmArchiveReference(
     override val isClosed: Boolean by delegate::isClosed
     override val location: URI by delegate::location
     override val modified: Boolean by delegate::modified
-    override val name: String? by delegate::name
+    override val name: String = erm.name
     override val writer: ArchiveReference.Writer by delegate::writer
     override val enabledPartitions: Set<ExtensionVersionPartition> =
         erm.versionPartitions.filterTo(HashSet()) { it.supportedVersions.contains(mcVersion) }
@@ -61,6 +61,26 @@ internal class VersionedExtErmArchiveReference(
         val delegate: ArchiveReference.Reader
     ) : ExtensionArchiveReference.ExtensionArchiveReader {
         private val allPartitions = erm.versionPartitions + erm.mainPartition
+
+
+        override fun determinePartition(entry: ArchiveReference.Entry): List<ExtensionPartition> {
+            return allEnabledPartitions.filter {
+                delegate.contains((it.path.takeUnless(String::isBlank)?.removeSuffix("/")?.plus("/") ?: "") + entry.name)
+            }
+        }
+
+        override fun entriesIn(partition: ExtensionPartition): Sequence<ArchiveReference.Entry> {
+            if (!enabledPartitions.contains(partition)) return emptySequence()
+
+            return delegate.entries()
+                .mapNotNull { e ->
+                    if (!e.name.startsWith(partition.path)) return@mapNotNull null
+
+                    e.copy(
+                        name = e.name.removePrefix(partition.path).removePrefix("/")
+                    )
+                }
+        }
         // Move main partition to back of the list and dont want to access the tweaker partition
 
 //        override fun determinePartition(entry: ArchiveReference.Entry): ExtensionPartition? {
@@ -83,14 +103,18 @@ internal class VersionedExtErmArchiveReference(
             return delegate.entries()
                 .mapNotNull { e ->
                     val splitPath = e.name.split("/")
+                    // Find the partition which path has longest match with the name of this
+                    // entry
                     val partition = allPartitions.maxByOrNull {
                         it.path.split("/").zip(splitPath)
                             .takeWhile { (f, s) -> f == s }
                             .count()
                     } ?: return@mapNotNull null
 
-                    if (!enabledPartitions.contains(partition)) return@mapNotNull null
+                    // Make sure that partition is enabled, and that the match is a full one.
+                    if (!enabledPartitions.contains(partition) || !e.name.startsWith(partition.path)) return@mapNotNull null
 
+                    // Copy and return
                     e.copy(
                         name = e.name.removePrefix(partition.path).removePrefix("/")
                     )

@@ -1,69 +1,19 @@
 package net.yakclient.components.extloader.test.extension
 
-import com.durganmcbroom.artifact.resolver.simple.maven.HashType
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
-import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
 import com.durganmcbroom.artifact.resolver.simple.maven.layout.mavenLocal
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.KotlinModule
-import com.fasterxml.jackson.module.kotlin.readValue
 import net.yakclient.boot.component.artifact.SoftwareComponentDescriptor
 import net.yakclient.boot.component.context.ContextNodeTypes
-import net.yakclient.boot.component.context.ContextNodeValue
 import net.yakclient.boot.test.testBootInstance
 import net.yakclient.common.util.resolve
-import net.yakclient.components.extloader.*
-import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
-import net.yakclient.components.extloader.extension.artifact.ExtensionRepositorySettings
-import net.yakclient.components.extloader.workflow.ExtDevWorkflowContext
+import net.yakclient.components.extloader.ExtLoaderConfiguration
+import net.yakclient.components.extloader.ExtLoaderEnvironmentConfiguration
+import net.yakclient.components.extloader.ExtLoaderEnvironmentType
+import net.yakclient.components.extloader.ExtensionLoaderFactory
 import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapperFactory
-import java.nio.file.Files
 import java.nio.file.Path
-import java.util.*
 import kotlin.test.Test
 
-fun main() {
-    val cache =
-        Path.of(System.getProperty("user.dir")) resolve "src" resolve "test" resolve "resources" resolve "run-cache"
-    println("THING IS HERE: $cache")
-
-    val boot = testBootInstance(
-        mapOf(
-            SoftwareComponentDescriptor(
-                "net.yakclient.components",
-                "minecraft-bootstrapper",
-                "1.0-SNAPSHOT", null
-            ) to MinecraftBootstrapperFactory::class.java
-        ), cache
-    )
-
-    val value = mapOf(
-        "extension" to mapOf(
-            "descriptor" to mapOf(
-                "groupId" to "net.yakclient.extensions",
-                "artifactId" to "yakgradle-ext-test",
-                "version" to "1.0-SNAPSHOT"
-            ),
-            "repository" to mapOf(
-                "type" to "local",
-                "location" to mavenLocal
-            )
-        ),
-        "mappingType" to "mojang/deobfuscated"
-    )
-
-    val instance = ExtensionLoaderFactory(boot).new(
-        ExtLoaderConfiguration(
-            "1.20.1", listOf("--accessToken", ""),
-            ExtLoaderEnvironmentConfiguration(
-                ExtLoaderEnvironmentType.EXT_DEV,
-                ContextNodeTypes.newValueType(value)
-            )
-        )
-    )
-
-    instance.start()
-}
 
 class TestExtensionComponent {
     @Test
@@ -72,6 +22,26 @@ class TestExtensionComponent {
             Path.of(System.getProperty("user.dir")) resolve "src" resolve "test" resolve "resources" resolve "run-cache"
         println("THING IS HERE: $cache")
 
+        val dependencies = setOf(
+            "net.yakclient:archive-mapper:1.2-SNAPSHOT",
+            "net.yakclient:archive-mapper-transform:1.2-SNAPSHOT",
+            "net.yakclient:archive-mapper-proguard:1.2-SNAPSHOT",
+            "net.yakclient:launchermeta-handler:1.0-SNAPSHOT",
+            "io.arrow-kt:arrow-core:1.1.2",
+            "net.yakclient:object-container:1.0-SNAPSHOT",
+            "net.yakclient:archives-mixin:1.1-SNAPSHOT",
+            "net.yakclient:boot:1.1-SNAPSHOT",
+            "com.durganmcbroom:artifact-resolver:1.0-SNAPSHOT",
+            "com.durganmcbroom:artifact-resolver-simple-maven:1.0-SNAPSHOT",
+            "net.yakclient:common-util:1.0-SNAPSHOT",
+            "com.fasterxml.jackson.module:jackson-module-kotlin:2.13.4",
+            "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3",
+            "com.durganmcbroom:jobs:1.0-SNAPSHOT",
+            "com.durganmcbroom:jobs-logging:1.0-SNAPSHOT",
+            "com.durganmcbroom:jobs-progress:1.0-SNAPSHOT",
+            "com.durganmcbroom:jobs-progress-simple:1.0-SNAPSHOT"
+        ).mapTo(HashSet()) { SimpleMavenDescriptor.parseDescription(it)!! }
+
         val boot = testBootInstance(
             mapOf(
                 SoftwareComponentDescriptor(
@@ -79,14 +49,15 @@ class TestExtensionComponent {
                     "minecraft-bootstrapper",
                     "1.0-SNAPSHOT", null
                 ) to MinecraftBootstrapperFactory::class.java
-            ), cache
+            ), cache,
+            dependencies = dependencies
         )
 
         val value = mapOf(
             "extension" to mapOf(
                 "descriptor" to mapOf(
                     "groupId" to "net.yakclient.extensions",
-                    "artifactId" to "yakgradle-ext-test",
+                    "artifactId" to "example-extension",
                     "version" to "1.0-SNAPSHOT"
                 ),
                 "repository" to mapOf(
@@ -94,7 +65,7 @@ class TestExtensionComponent {
                     "location" to mavenLocal
                 )
             ),
-            "mappingType" to "mojang/deobfuscated"
+            "mappingType" to "mojang:deobfuscated"
         )
 
         val instance = ExtensionLoaderFactory(boot).new(
@@ -102,7 +73,7 @@ class TestExtensionComponent {
                 "1.20.1",
                 listOf("--accessToken", ""),
                 ExtLoaderEnvironmentConfiguration(
-                    ExtLoaderEnvironmentType.EXT_DEV,
+                    ExtLoaderEnvironmentType.INTERNAL_DEV,
                     ContextNodeTypes.newValueType(value)
                 )
             )

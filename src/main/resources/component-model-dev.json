@@ -40,23 +40,37 @@
     },
     {
       "request": {
-        "descriptor": "net.yakclient:archive-mapper:1.1-SNAPSHOT"
+        "descriptor": "net.yakclient:archive-mapper:1.2-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",
         "settings": {
-          "location": "http://maven.yakclient.net/snapshots"
+          "type": "local",
+          "location": "/Users/durganmcbroom/.m2/repository"
         }
       }
     },
     {
       "request": {
-        "descriptor": "net.yakclient:archive-mapper-transform:1.1-SNAPSHOT"
+        "descriptor": "net.yakclient:archive-mapper-proguard:1.2-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",
         "settings": {
-          "location": "http://maven.yakclient.net/snapshots"
+          "type": "local",
+          "location": "/Users/durganmcbroom/.m2/repository"
+        }
+      }
+    },
+    {
+      "request": {
+        "descriptor": "net.yakclient:archive-mapper-transform:1.2-SNAPSHOT"
+      },
+      "repository": {
+        "type": "simple-maven",
+        "settings": {
+          "type": "local",
+          "location": "/Users/durganmcbroom/.m2/repository"
         }
       }
     },
@@ -67,8 +81,7 @@
       "repository": {
         "type": "simple-maven",
         "settings": {
-          "location" : "http://maven.yakclient.net/snapshots",
-          "type": "default"
+          "location" : "http://maven.yakclient.net/snapshots"
         }
       }
     },
@@ -79,8 +92,7 @@
       "repository": {
         "type": "simple-maven",
         "settings": {
-          "location" : "http://maven.yakclient.net/snapshots",
-          "type": "default"
+          "location" : "http://maven.yakclient.net/snapshots"
         }
       }
     }

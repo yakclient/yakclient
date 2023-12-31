@@ -1,28 +1,36 @@
-import org.gradle.api.publish.maven.internal.publisher.MavenLocalPublisher
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
-
 plugins {
-    kotlin("jvm") version "1.7.10"
-    id("org.javamodularity.moduleplugin") version "1.8.12"
+    kotlin("jvm") version "1.9.21"
 
     id("maven-publish")
-    id("org.jetbrains.dokka") version "1.6.0"
+    id("org.jetbrains.dokka") version "1.9.10"
 }
 
 group = "net.yakclient.components"
 version = "1.0-SNAPSHOT"
 
+sourceSets {
+    val main by getting
+    val test by getting {
+        compileClasspath += main.output
+        runtimeClasspath += main.output
+    }
+}
+
 configurations.all {
     resolutionStrategy.cacheChangingModulesFor(0, "seconds")
 }
 
+tasks.wrapper {
+    gradleVersion = "8.3"
+}
+
 dependencies {
+    testImplementation(project(":"))
     implementation(project(":client-api"))
-    implementation("net.yakclient:archive-mapper:1.1-SNAPSHOT")
-    implementation("net.yakclient:archive-mapper-transform:1.1-SNAPSHOT") {
-        isChanging = true
-    }
+
+    implementation("net.yakclient:archive-mapper:1.2-SNAPSHOT")
+    implementation("net.yakclient:archive-mapper-transform:1.2-SNAPSHOT")
+    implementation("net.yakclient:archive-mapper-proguard:1.2-SNAPSHOT")
 
     implementation("net.yakclient:launchermeta-handler:1.0-SNAPSHOT")
     implementation("io.arrow-kt:arrow-core:1.1.2")
@@ -30,7 +38,7 @@ dependencies {
     implementation("net.yakclient:archives-mixin:1.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("net.yakclient:boot:1.0-SNAPSHOT") {
+    implementation("net.yakclient:boot:1.1-SNAPSHOT") {
         isChanging = true
     }
     implementation("com.durganmcbroom:artifact-resolver:1.0-SNAPSHOT") {
@@ -49,7 +57,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
     testImplementation(kotlin("test"))
-    testImplementation("net.yakclient:boot-test:1.0-SNAPSHOT")
+    testImplementation("net.yakclient:boot-test:1.1-SNAPSHOT")
     implementation("com.durganmcbroom:jobs:1.0-SNAPSHOT") {
         isChanging = true
     }
@@ -61,6 +69,14 @@ dependencies {
     }
     implementation("com.durganmcbroom:jobs-progress-simple:1.0-SNAPSHOT") {
         isChanging = true
+    }
+
+    testImplementation("net.yakclient:archive-mapper-tiny:1.2-SNAPSHOT")
+}
+
+val printDependencies by tasks.creating {
+    configurations.implementation.get().dependencies.forEach {
+        println("${it.group}:${it.name}:${it.version}")
     }
 }
 
@@ -82,7 +98,7 @@ tasks.withType<AbstractPublishToMaven> {
 }
 
 val createDevModel by tasks.creating {
-    val out = File(project.buildDir, "tmp/component-model-dev.json")
+    val out = File(project.layout.buildDirectory.asFile.get(), "tmp/component-model-dev.json")
     outputs.file(out)
 
     File(out.parent).mkdirs()
@@ -154,6 +170,9 @@ allprojects {
         mavenCentral()
         mavenLocal()
         maven {
+            url = uri("https://maven.fabricmc.net/")
+        }
+        maven {
             isAllowInsecureProtocol = true
             url = uri("http://maven.yakclient.net/snapshots")
         }
@@ -205,13 +224,11 @@ allprojects {
         }
     }
 
-    tasks.compileTestJava {
-        destinationDirectory.set(destinationDirectory.asFile.get().resolve("test"))
-    }
+//    tasks.compileTestJava {
+//        destinationDirectory.set(destinationDirectory.asFile.get().resolve("test"))
+//    }
 
     tasks.compileTestKotlin {
-        destinationDirectory.set(tasks.compileTestJava.get().destinationDirectory.asFile.get())
-
         kotlinOptions {
             jvmTarget = "17"
         }
