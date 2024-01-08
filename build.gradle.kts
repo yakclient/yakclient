@@ -56,8 +56,7 @@ dependencies {
     }
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
-    testImplementation(kotlin("test"))
-    testImplementation("net.yakclient:boot-test:1.1-SNAPSHOT")
+
     implementation("com.durganmcbroom:jobs:1.0-SNAPSHOT") {
         isChanging = true
     }
@@ -71,6 +70,8 @@ dependencies {
         isChanging = true
     }
 
+    testImplementation(kotlin("test"))
+    implementation("net.yakclient:boot-test:1.1-SNAPSHOT")
     testImplementation("net.yakclient:archive-mapper-tiny:1.2-SNAPSHOT")
 }
 

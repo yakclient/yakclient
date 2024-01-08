@@ -5,6 +5,7 @@ import com.durganmcbroom.jobs.JobResult
 import com.durganmcbroom.jobs.job
 import net.yakclient.archive.mapper.transform.transformArchive
 import net.yakclient.archives.ArchiveFinder
+import net.yakclient.archives.ArchiveTree
 import net.yakclient.archives.Archives
 import net.yakclient.archives.mixin.MixinInjection
 import net.yakclient.boot.component.context.ContextNodeValue
@@ -30,6 +31,8 @@ import net.yakclient.components.extloader.api.target.ApplicationParentClProvider
 import net.yakclient.components.extloader.target.TargetLinker
 import net.yakclient.components.extloader.tweaker.EnvironmentTweakerResolver
 import net.yakclient.components.extloader.tweaker.EnvironmentTweakerNode
+import net.yakclient.minecraft.bootstrapper.MinecraftClassTransformer
+import org.objectweb.asm.tree.ClassNode
 import java.io.File
 import java.net.URL
 import java.nio.ByteBuffer
@@ -190,16 +193,20 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
 
         extensions.forEach {
             it.extension?.process?.ref?.injectMixins { to, metadata ->
-                appTarget.mixin(to) { classNode ->
-                    val transformer =
-                        (metadata.injection as MixinInjection<MixinInjection.InjectionData>).apply(metadata.data)
+                appTarget.mixin(to, object : MinecraftClassTransformer {
+                    override val trees: List<ArchiveTree> = listOf()
 
-                    transformer.ct(classNode)
-                    classNode.methods.forEach(transformer.mt::invoke)
-                    classNode.fields.forEach(transformer.ft::invoke)
+                    override fun transform(node: ClassNode): ClassNode {
+                        val transformer =
+                            (metadata.injection as MixinInjection<MixinInjection.InjectionData>).apply(metadata.data)
 
-                    classNode
-                }
+                        transformer.ct(node)
+                        node.methods.forEach(transformer.mt::invoke)
+                        node.fields.forEach(transformer.ft::invoke)
+
+                        return node
+                    }
+                })
             }
         }
 

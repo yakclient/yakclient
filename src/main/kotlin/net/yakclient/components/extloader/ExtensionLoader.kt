@@ -2,25 +2,30 @@ package net.yakclient.components.extloader
 
 import bootFactories
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
+import com.durganmcbroom.artifact.resolver.simple.maven.layout.mavenLocal
 import com.durganmcbroom.jobs.JobResult
 import kotlinx.coroutines.runBlocking
 import net.yakclient.archives.ArchiveHandle
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.boot.BootInstance
 import net.yakclient.boot.component.ComponentInstance
+import net.yakclient.boot.component.artifact.SoftwareComponentDescriptor
+import net.yakclient.boot.component.context.ContextNodeTypes
 import net.yakclient.boot.component.context.ContextNodeValue
+import net.yakclient.boot.test.testBootInstance
 import net.yakclient.common.util.resolve
 import net.yakclient.components.extloader.api.environment.*
 import net.yakclient.components.extloader.api.target.AppArchiveReference
 import net.yakclient.components.extloader.api.target.ApplicationTarget
+import net.yakclient.components.extloader.api.target.ExtraClassProviderAttribute
 import net.yakclient.components.extloader.workflow.ExtDevWorkflow
 import net.yakclient.components.extloader.workflow.ExtLoaderWorkflow
 import net.yakclient.components.extloader.workflow.ExtLoaderWorkflowContext
-import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapper
-import net.yakclient.minecraft.bootstrapper.MinecraftClassTransformer
-import net.yakclient.minecraft.bootstrapper.MinecraftHandler
+import net.yakclient.minecraft.bootstrapper.*
 import orThrow
 import java.nio.file.Path
+
+
 
 public class ExtensionLoader(
     private val boot: BootInstance,
@@ -28,6 +33,7 @@ public class ExtensionLoader(
     private val minecraft: MinecraftBootstrapper,
 ) : ComponentInstance<ExtLoaderConfiguration> {
     private fun createMinecraftApp(
+        environment: ExtLoaderEnvironment,
         minecraftHandler: MinecraftHandler<*>,
         shutdown: () -> Unit
     ) = object : ApplicationTarget {
@@ -41,7 +47,9 @@ public class ExtensionLoader(
             override val handleLoaded: Boolean by minecraftHandler::isLoaded
 
             override fun load(parent: ClassLoader) {
-                minecraftHandler.loadMinecraft(parent)
+                minecraftHandler.loadMinecraft(parent, environment[ExtraClassProviderAttribute] ?: object : ExtraClassProvider {
+                    override fun getByteArray(name: String): ByteArray? = null
+                })
             }
         }
 
@@ -110,7 +118,7 @@ public class ExtensionLoader(
             env += DependencyTypeContainerAttribute(
                 boot.dependencyTypes
             )
-            env += createMinecraftApp(minecraft.minecraftHandler, minecraft::end)
+            env += createMinecraftApp(env, minecraft.minecraftHandler, minecraft::end)
             env += WorkingDirectoryAttribute(boot.location)
             env += ParentClassloaderAttribute(ExtensionLoader::class.java.classLoader)
             workflow.parseAndRun(configuration.environment.configuration, env).orThrow()

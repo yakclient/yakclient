@@ -40,8 +40,6 @@ public class ExtensionProcessLoader(
     public companion object : EnvironmentAttributeKey<ExtensionProcessLoader>
 
 
-
-
     private fun transformEachEntry(
         archiveReference: ExtensionArchiveReference,
         // Dependencies should already be mapped
@@ -105,6 +103,8 @@ public class ExtensionProcessLoader(
         archiveReference.reader.entries().map { entry ->
             val part = archiveReference.reader.determinePartition(entry).first()
             val config = mapperFor(
+                archiveReference,
+                dependencies,
                 if (part is ExtensionVersionPartition) mappings(part) else ArchiveMapping(
                     setOf(), MappingValueContainerImpl(
                         mapOf()
@@ -114,6 +114,7 @@ public class ExtensionProcessLoader(
                 if (part is ExtensionVersionPartition) part.mappingNamespace else environment[ApplicationMappingTarget]!!.namespace
             )
 
+            // TODO, this will recompute frames, see if we need to do that or not.
             Archives.resolve(
                 ClassReader(entry.resource.open()),
                 config,
@@ -193,6 +194,8 @@ public class ExtensionProcessLoader(
     }
 
     private fun mapperFor(
+        archive: ArchiveReference,
+        dependencies: List<ArchiveTree>,
         mappings: ArchiveMapping,
         tree: ClassInheritanceTree,
         fromNS: String,
@@ -214,10 +217,14 @@ public class ExtensionProcessLoader(
         }
 
         return mappingTransformConfigFor(
-            mappings,
-            fromNS,
-            toNamespace,
-            lazilyMappedTree,
+            ArchiveTransformerContext(
+                archive,
+                dependencies,
+                mappings,
+                fromNS,
+                toNamespace,
+                lazilyMappedTree,
+            )
         )
     }
 }

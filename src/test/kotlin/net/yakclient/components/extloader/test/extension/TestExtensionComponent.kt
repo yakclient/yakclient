@@ -14,6 +14,9 @@ import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapperFactory
 import java.nio.file.Path
 import kotlin.test.Test
 
+fun main() {
+    TestExtensionComponent().`Load extension`()
+}
 
 class TestExtensionComponent {
     @Test
