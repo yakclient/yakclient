@@ -11,6 +11,7 @@ import net.yakclient.components.extloader.ExtLoaderEnvironmentConfiguration
 import net.yakclient.components.extloader.ExtLoaderEnvironmentType
 import net.yakclient.components.extloader.ExtensionLoaderFactory
 import net.yakclient.minecraft.bootstrapper.MinecraftBootstrapperFactory
+import java.io.InputStreamReader
 import java.nio.file.Path
 import kotlin.test.Test
 
@@ -19,31 +20,22 @@ fun main() {
 }
 
 class TestExtensionComponent {
+    private fun readDependenciesList(): Set<String> {
+        val ins = this::class.java.getResourceAsStream("/dependencies.txt")!!
+        return InputStreamReader(ins).use {
+            it.readLines().toSet()
+        }
+    }
+
     @Test
     fun `Load extension`() {
         val cache =
             Path.of(System.getProperty("user.dir")) resolve "src" resolve "test" resolve "resources" resolve "run-cache"
         println("THING IS HERE: $cache")
 
-        val dependencies = setOf(
-            "net.yakclient:archive-mapper:1.2-SNAPSHOT",
-            "net.yakclient:archive-mapper-transform:1.2-SNAPSHOT",
-            "net.yakclient:archive-mapper-proguard:1.2-SNAPSHOT",
-            "net.yakclient:launchermeta-handler:1.0-SNAPSHOT",
-            "io.arrow-kt:arrow-core:1.1.2",
-            "net.yakclient:object-container:1.0-SNAPSHOT",
-            "net.yakclient:archives-mixin:1.1-SNAPSHOT",
-            "net.yakclient:boot:1.1-SNAPSHOT",
-            "com.durganmcbroom:artifact-resolver:1.0-SNAPSHOT",
-            "com.durganmcbroom:artifact-resolver-simple-maven:1.0-SNAPSHOT",
-            "net.yakclient:common-util:1.0-SNAPSHOT",
-            "com.fasterxml.jackson.module:jackson-module-kotlin:2.13.4",
-            "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3",
-            "com.durganmcbroom:jobs:1.0-SNAPSHOT",
-            "com.durganmcbroom:jobs-logging:1.0-SNAPSHOT",
-            "com.durganmcbroom:jobs-progress:1.0-SNAPSHOT",
-            "com.durganmcbroom:jobs-progress-simple:1.0-SNAPSHOT"
-        ).mapTo(HashSet()) { SimpleMavenDescriptor.parseDescription(it)!! }
+
+        val dependencies = readDependenciesList().mapTo(HashSet()) { SimpleMavenDescriptor.parseDescription(it)!! }
+            .filterNotTo(HashSet()) { it.artifact == "minecraft-bootstrapper" }
 
         val boot = testBootInstance(
             mapOf(
@@ -59,8 +51,8 @@ class TestExtensionComponent {
         val value = mapOf(
             "extension" to mapOf(
                 "descriptor" to mapOf(
-                    "groupId" to "net.yakclient.extensions",
-                    "artifactId" to "example-extension",
+                    "groupId" to "net.yakclient.integrations",
+                    "artifactId" to "fabric-ext",
                     "version" to "1.0-SNAPSHOT"
                 ),
                 "repository" to mapOf(

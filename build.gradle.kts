@@ -38,7 +38,7 @@ dependencies {
     implementation("net.yakclient:archives-mixin:1.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("net.yakclient:boot:1.1-SNAPSHOT") {
+    implementation("net.yakclient:boot:2.0-SNAPSHOT") {
         isChanging = true
     }
     implementation("com.durganmcbroom:artifact-resolver:1.0-SNAPSHOT") {
@@ -71,14 +71,62 @@ dependencies {
     }
 
     testImplementation(kotlin("test"))
-    implementation("net.yakclient:boot-test:1.1-SNAPSHOT")
+    implementation("net.yakclient:boot-test:2.0-SNAPSHOT")
     testImplementation("net.yakclient:archive-mapper-tiny:1.2-SNAPSHOT")
 }
 
-val printDependencies by tasks.creating {
-    configurations.implementation.get().dependencies.forEach {
-        println("${it.group}:${it.name}:${it.version}")
+
+open class ListAllDependencies : DefaultTask() {
+    init {
+        // Define the output file within the build directory
+//        val outputFile = project.file("src/test/resources/dependencies.txt")
+//        outputs.file(outputFile)
     }
+
+    @TaskAction
+    fun listDependencies() {
+        val outputFile = project.file("build/resources/test/dependencies.txt")
+        // Ensure the directory for the output file exists
+        outputFile.parentFile.mkdirs()
+        // Clear or create the output file
+        outputFile.writeText("")
+
+        val set = HashSet<String>()
+
+        // Process each configuration that can be resolved
+        project.configurations.filter { it.isCanBeResolved }.forEach { configuration ->
+            println("Processing configuration: ${configuration.name}")
+            try {
+                configuration.resolvedConfiguration.firstLevelModuleDependencies.forEach { dependency ->
+                    collectDependencies(dependency, set)
+                }
+            } catch (e: Exception) {
+                println("Skipping configuration '${configuration.name}' due to resolution errors.")
+            }
+        }
+
+        set.forEach {
+            outputFile.appendText(it)
+        }
+    }
+
+    private fun collectDependencies(dependency: ResolvedDependency, set: MutableSet<String>) {
+        set.add("${dependency.moduleGroup}:${dependency.moduleName}:${dependency.moduleVersion}\n")
+        dependency.children.forEach { childDependency ->
+            collectDependencies(childDependency, set)
+        }
+    }
+}
+
+// Register the custom task in the project
+tasks.register<ListAllDependencies>("writeDependencyMetadata")// tasks.register<ListAllDependencies>("writeDependencyMetadata")
+
+tasks.test {
+    dependsOn(tasks.named("writeDependencyMetadata"))
+}
+
+tasks.named("processTestResources") {
+    dependsOn("writeDependencyMetadata")
 }
 
 task<Jar>("sourcesJar") {
@@ -89,6 +137,10 @@ task<Jar>("sourcesJar") {
 task<Jar>("javadocJar") {
     archiveClassifier.set("javadoc")
     from(tasks.dokkaJavadoc)
+}
+
+tasks.jar {
+
 }
 
 tasks.withType<AbstractPublishToMaven> {

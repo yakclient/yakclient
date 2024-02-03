@@ -35,7 +35,6 @@ import net.yakclient.minecraft.bootstrapper.MinecraftClassTransformer
 import org.objectweb.asm.tree.ClassNode
 import java.io.File
 import java.net.URL
-import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -81,27 +80,24 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         val appTarget = environment[ApplicationTarget]!!
         val appReference = appTarget.reference
 
-        var mcClassProvider: ClassProvider by immutableLateInit()
+        var targetClassProvider: ClassProvider by immutableLateInit()
+        var targetResourceProvider: ResourceProvider by immutableLateInit()
 
         // Create linker with delegating to the uninitialized class providers
         val linker = TargetLinker(
+//            environment
+            targetDescriptor = appReference.descriptor,
             target = object : ClassProvider {
                 override val packages: Set<String>
-                    get() = mcClassProvider.packages
 
-                override fun findClass(name: String): Class<*>? = mcClassProvider.findClass(name)
+                by lazy { targetClassProvider.packages }
 
-                override fun findClass(name: String, module: String): Class<*>? =
-                    mcClassProvider.findClass(name, module)
+                override fun findClass(name: String): Class<*>? = targetClassProvider.findClass(name)
             },
-            targetSource = object : SourceProvider {
-                override val packages: Set<String> = setOf()
-
-                override fun getResource(name: String): URL? = appReference.handle.classloader.getResource(name)
-
-                override fun getResource(name: String, module: String): URL? = getResource(name)
-
-                override fun getSource(name: String): ByteBuffer? = null
+            targetResources = object : ResourceProvider {
+                override fun findResources(name: String): Sequence<URL> {
+                    return targetResourceProvider.findResources(name)
+                }
             },
         )
         environment += linker
@@ -125,7 +121,7 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         )
 
         fun EnvironmentTweakerNode.applyTweakers(env: ExtLoaderEnvironment) {
-            children.forEach { it.applyTweakers(env) }
+            parents.forEach { it.applyTweakers(env) }
             tweaker?.tweak(env)
         }
 
@@ -146,8 +142,8 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         } else null
         tweaker?.applyTweakers(environment)
 
-        fun allTweakers(node: EnvironmentTweakerNode) : List<EnvironmentTweakerNode> {
-           return listOf(node) + node.children.flatMap { allTweakers(it) }
+        fun allTweakers(node: EnvironmentTweakerNode): List<EnvironmentTweakerNode> {
+            return listOf(node) + node.parents.flatMap { allTweakers(it) }
         }
 
         val allTweakers = tweaker?.let(::allTweakers) ?: listOf()
@@ -165,7 +161,7 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         )
 
         fun allExtensions(node: ExtensionNode): Set<ExtensionNode> {
-            return node.children.flatMapTo(HashSet(), ::allExtensions) + node
+            return node.parents.flatMapTo(HashSet(), ::allExtensions) + node
         }
 
         // Get extension resolver
@@ -192,7 +188,7 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         environment[ExtensionNodeObserver]?.let { extensions.forEach(it::observe) }
 
         extensions.forEach {
-            it.extension?.process?.ref?.injectMixins { to, metadata ->
+            it.container?.injectMixins { to, metadata ->
                 appTarget.mixin(to, object : MinecraftClassTransformer {
                     override val trees: List<ArchiveTree> = listOf()
 
@@ -217,23 +213,21 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         appTarget.reference.load(parentLoader)
 
         // Initialize the first clas provider to allow extensions access to minecraft
-        mcClassProvider =
+        targetClassProvider =
             DelegatingClassProvider((appReference.dependencyHandles + appReference.handle).map(::ArchiveClassProvider))
+        targetResourceProvider =
+            DelegatingResourceProvider((appReference.dependencyHandles + appReference.handle).map(::ArchiveResourceProvider))
 
         // Setup extensions, dont init yet
         extensions.forEach {
-            val ref = it.extension?.process?.ref
-            ref?.setup(linker)
+            val container = it.container
+            container?.setup(linker)
 
             it.archive?.let { a -> linker.addMiscClasses(ArchiveClassProvider(a)) }
-            linker.addMiscSources(object : SourceProvider {
-                override val packages: Set<String> = setOf()
-
-                override fun getResource(name: String): URL? = it.archive?.classloader?.getResource(name)
-
-                override fun getResource(name: String, module: String): URL? = getResource(name)
-
-                override fun getSource(name: String): ByteBuffer? = null
+            linker.addMiscResources(object : ResourceProvider {
+                override fun findResources(name: String): Sequence<URL> {
+                    return it.archive?.classloader?.getResource(name)?.let { sequenceOf(it) } ?: emptySequence()
+                }
             })
         }
 
@@ -253,5 +247,5 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
 private class DevExtensionResolver(
     finder: ArchiveFinder<*>, privilegeManager: PrivilegeManager, parent: ClassLoader, environment: ExtLoaderEnvironment
 ) : ExtensionResolver(
-    Files.createTempDirectory("yakclient-ext"), finder, privilegeManager, parent, environment
+     finder, privilegeManager, parent, environment
 )

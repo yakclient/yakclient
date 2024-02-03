@@ -1,7 +1,6 @@
 package net.yakclient.components.extloader.extension
 
 import com.durganmcbroom.artifact.resolver.*
-import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositoryStub
 import com.durganmcbroom.jobs.JobResult
 import com.durganmcbroom.jobs.jobScope
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -10,64 +9,64 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import net.yakclient.archives.ArchiveFinder
+import net.yakclient.archives.ArchiveHandle
 import net.yakclient.boot.archive.*
-import net.yakclient.boot.container.Container
-import net.yakclient.boot.container.ContainerLoader
-import net.yakclient.boot.container.volume.RootVolume
 import net.yakclient.boot.dependency.DependencyNode
 import net.yakclient.boot.dependency.DependencyResolver
 import net.yakclient.boot.dependency.DependencyResolverProvider
+import net.yakclient.boot.loader.ArchiveClassProvider
+import net.yakclient.boot.loader.ArchiveResourceProvider
+import net.yakclient.boot.loader.ClassProvider
+import net.yakclient.boot.loader.ResourceProvider
 import net.yakclient.boot.maven.MavenLikeResolver
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.boot.util.*
-import net.yakclient.common.util.resolve
 import net.yakclient.common.util.resource.ProvidedResource
 import net.yakclient.components.extloader.api.environment.*
-import net.yakclient.components.extloader.api.extension.ExtensionPartition
 import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
 import net.yakclient.components.extloader.api.target.ApplicationTarget
 import net.yakclient.components.extloader.extension.artifact.*
 import net.yakclient.components.extloader.extension.versioning.VersionedExtErmArchiveReference
-import net.yakclient.components.extloader.tweaker.EnvironmentTweakerResolver
-import java.io.File
+import net.yakclient.components.extloader.target.TargetLinker
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.reflect.KClass
 
 public open class ExtensionResolver(
-    private val path: Path,
     private val finder: ArchiveFinder<*>,
-    private val privilegeManager: PrivilegeManager,
+    privilegeManager: PrivilegeManager,
     parent: ClassLoader,
-    environment: ExtLoaderEnvironment,
-) : MavenLikeResolver<ExtensionArtifactRequest, ExtensionNode, ExtensionRepositorySettings, SimpleMavenRepositoryStub, ExtensionArtifactMetadata>,
+    private val environment: ExtLoaderEnvironment,
+) : MavenLikeResolver<ExtensionArtifactRequest, ExtensionNode, ExtensionRepositorySettings, ExtensionArtifactMetadata>,
     EnvironmentAttribute {
-
     override val key: EnvironmentAttributeKey<*> = ExtensionResolver
     override val factory: RepositoryFactory<ExtensionRepositorySettings, ExtensionArtifactRequest, *, ArtifactReference<ExtensionArtifactMetadata, *>, *> =
         ExtensionRepositoryFactory(environment[dependencyTypesAttrKey]!!.container)
-    override val metadataType: KClass<ExtensionArtifactMetadata> = ExtensionArtifactMetadata::class
-    override val nodeType: KClass<ExtensionNode> = ExtensionNode::class
+    override val metadataType: Class<ExtensionArtifactMetadata> = ExtensionArtifactMetadata::class.java
+    override val nodeType: Class<ExtensionNode> = ExtensionNode::class.java
     override val name: String = "extension"
 
     private val applicationReference = environment[ApplicationTarget]!!.reference
     private val dependencyProviders = environment[dependencyTypesAttrKey]!!.container
-    private val extProcessLoader = ExtensionProcessLoader(privilegeManager, parent, environment)
+    private val referenceLoader = ExtensionContainerLoader(privilegeManager, parent, environment)
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
     private val archiveGraph = environment.archiveGraph
+    private val target by lazy {environment[TargetLinker]!! }
 
     public companion object : EnvironmentAttributeKey<ExtensionResolver>
 
-    private fun getBasePathFor(desc: ExtensionDescriptor): Path = path resolve desc.group.replace(
-        '.', File.separatorChar
-    ) resolve desc.artifact resolve desc.version
+    private data class ExtraDependencyInfo(
+        val descriptor: Map<String, String>,
+        val resolver: String,
+        val partition: String,
+    )
 
     override suspend fun load(
         data: ArchiveData<ExtensionDescriptor, CachedArchiveResource>,
-        resolver: ChildResolver
+        helper: ResolutionHelper
     ): JobResult<ExtensionNode, ArchiveException> = jobScope {
-        val erm = data.resources.requireKeyInDescriptor("erm.json").path.let { mapper.readValue<ExtensionRuntimeModel>(it.toFile()) }
+        val erm =
+            data.resources.requireKeyInDescriptor("erm.json").path.let { mapper.readValue<ExtensionRuntimeModel>(it.toFile()) }
 
         val reference = data.resources["jar.jar"]
             ?.path
@@ -79,23 +78,43 @@ public open class ExtensionResolver(
                 )
             }
 
-        val (extensions, dependencies) = data.children.map {
-            val localResolver =
-                if (it.resolver == name) this@ExtensionResolver else dependencyProviders.get(it.resolver)?.resolver
-                    ?: fail(ArchiveException.ArchiveTypeNotFound(it.resolver, trace()))
+        val extraDependencyInfo =
+            mapper.readValue<List<ExtraDependencyInfo>>(data.resources["extra-dep-info.json"]!!.path.toFile())
 
-            async {
-                resolver.load(
-                    it.descriptor,
-                    localResolver as ArchiveNodeResolver<ArtifactMetadata.Descriptor, *, *, *, *, *>
-                )
-            }
-        }.awaitAll().partition { it is ExtensionNode } as Pair<List<ExtensionNode>, List<DependencyNode>>
+        val dependencies = extraDependencyInfo
+            .filter { (_, _, partitionName) ->
+                if (partitionName == "main" || partitionName == "tweaker") true
+                else {
+                    erm.versionPartitions.find {
+                        it.name == partitionName
+                    }?.supportedVersions?.contains(environment[ApplicationTarget]!!.reference.descriptor.version)
+                        ?: false
+                }
+            }.map { (dependency, resolver) ->
+                val dependencyResolver = helper.getResolver(
+                    resolver,
+                    ArtifactMetadata.Descriptor::class.java,
+                    DependencyNode::class.java as Class<out DependencyNode<*>>
+                ).attempt()
+                val desc = dependencyResolver.deserializeDescriptor(dependency).attempt()
 
-        val containerHandle = ContainerLoader.createHandle<ExtensionProcess>()
+                async {
+                    helper.load(
+                        desc,
+                        dependencyResolver
+                    )
+                }
+            }.awaitAll()
 
-        fun containerOrChildren(node: ExtensionNode): List<Container<ExtensionProcess>> =
-            node.extension?.let(::listOf) ?: node.children.flatMap { containerOrChildren(it) }
+        val parents = data.parents.map {
+            helper.load(
+                it.descriptor,
+                this@ExtensionResolver
+            )
+        }
+
+        fun handleOrParents(node: ArchiveNode<*>): List<ArchiveHandle> =
+            node.archive?.let(::listOf) ?: node.parents.flatMap { handleOrParents(it) }
 
         val tweakerDescriptor = data.descriptor.copy(
             classifier = "tweaker"
@@ -103,66 +122,67 @@ public open class ExtensionResolver(
 
         val tweakerNode =
             archiveGraph[tweakerDescriptor]
-//            environment[EnvironmentTweakerResolver]?.let {
-//                archiveGraph.get(
-//                    tweakerDescriptor, it
-//                )
-//            }?.attempt()
 
-        val container = if (reference != null) {
-            ContainerLoader.load(
-                ExtensionInfo(
-                    reference,
-                    extensions.flatMap(::containerOrChildren),
-                    dependencies.flatMap { it.handleOrChildren() } + listOfNotNull(tweakerNode?.archive),
-                    erm,
-                    containerHandle
-                ),
-                containerHandle,
-                extProcessLoader,
-                RootVolume.derive(erm.name, getBasePathFor(data.descriptor)),
-                privilegeManager
+        val access = helper.newAccessTree {
+            allDirect(dependencies)
+            if (tweakerNode != null) direct(tweakerNode)
+
+            rawTarget(
+                target.targetTarget
             )
-        } else null
+            parents.forEach {
+                rawTarget(ArchiveTarget(
+                    it.descriptor,
+                    object : ArchiveRelationship {
+                        override val name: String = "Lazy Direct"
+                        override val classes: ClassProvider by lazy {
+                            ArchiveClassProvider(it.archive)
+                        }
+
+                        override val resources: ResourceProvider by lazy {
+                            ArchiveResourceProvider(it.archive)
+                        }
+                    }
+                ))
+            }
+        }
+
+        val extRef = if (reference != null) referenceLoader.load(
+            reference,
+            parents,
+            dependencies.mapNotNull { it.archive },
+            erm,
+            access,
+        ).attempt() else null
 
         ExtensionNode(
             data.descriptor,
             reference,
-            extensions.toSet(),
+            parents.toSet(),
             dependencies.toSet(),
-            container,
+            extRef,
             erm,
+            access,
+            this@ExtensionResolver
         )
     }
 
     override suspend fun cache(
-        ref: ArtifactReference<ExtensionArtifactMetadata, ArtifactStub<ExtensionArtifactRequest, SimpleMavenRepositoryStub>>,
-        helper: ArchiveCacheHelper<SimpleMavenRepositoryStub, ExtensionRepositorySettings>
+        metadata: ExtensionArtifactMetadata,
+        helper: ArchiveCacheHelper<ExtensionDescriptor>
     ): JobResult<ArchiveData<ExtensionDescriptor, CacheableArchiveResource>, ArchiveException> = jobScope {
-        val children = ref.children.map { stub ->
-            async {
-                stub.candidates.firstNotFailureOf {
-                    helper.cache(
-                        stub.request,
-                        helper.resolve(it).attempt(),
-                        this@ExtensionResolver
-                    )
-                }.attempt()
-            }
-        }.awaitAll()
-
-        val metadata: ExtensionArtifactMetadata = ref.metadata
         val erm = metadata.erm
 
-        val allPartitions = erm.versionPartitions + listOfNotNull(erm.mainPartition, erm.tweakerPartition)
-
-        val dependencies =
-            allPartitions
+        val allDependencies =
+            ((erm.versionPartitions + listOfNotNull(erm.mainPartition, erm.tweakerPartition))
                 .flatMap { p -> p.dependencies.map { it to p } }
                 .map { (dependency, p) ->
                     val trace = trace()
 
-                    p.repositories.firstNotFailureOf  findRepo@{ settings ->
+                    var dependencyDescriptor: ArtifactMetadata.Descriptor? = null
+                    var dependencyResolver: ArchiveNodeResolver<*, *, *, *, *>? = null
+
+                    p.repositories.firstNotFailureOf findRepo@{ settings ->
                         val provider: DependencyResolverProvider<*, *, *> =
                             dependencyProviders.get(settings.type) ?: fail(
                                 ArchiveException.ArchiveTypeNotFound(settings.type, trace)
@@ -176,28 +196,50 @@ public open class ExtensionResolver(
                             ArchiveException.DependencyInfoParseFailed("Failed to parse settings: '$settings'", trace)
                         )
 
+                        dependencyDescriptor = depReq.descriptor
+                        dependencyResolver = provider.resolver
+
                         helper.cache(
                             depReq as ArtifactRequest<ArtifactMetadata.Descriptor>,
                             repoSettings,
-                            provider.resolver as DependencyResolver<ArtifactMetadata.Descriptor, ArtifactRequest<ArtifactMetadata.Descriptor>, RepositorySettings, RepositoryStub, *>
+                            provider.resolver as DependencyResolver<ArtifactMetadata.Descriptor, ArtifactRequest<ArtifactMetadata.Descriptor>, *, RepositorySettings, *>
                         )
                     }.mapFailure {
-                        ArchiveException.IllegalState("Failed to load dependency: '$dependency' from repositories '${p.repositories}'. Error was: '$it'.",
+                        ArchiveException.IllegalState(
+                            "Failed to load dependency: '$dependency' from repositories '${p.repositories}'. Error was: '$it'.",
                             trace
                         )
                     }.attempt()
-                }
 
-        ArchiveData(
-            ref.metadata.descriptor,
-            mapOfNonNullValues(
-                "jar.jar" to ref.metadata.resource?.toSafeResource()?.let(::CacheableArchiveResource),
-                "erm.json" to CacheableArchiveResource(
-                    ProvidedResource(URI.create("http://nothing")) { mapper.writeValueAsBytes(ref.metadata.erm) }
-                )
-            ),
-            children + dependencies
+                    Triple(dependencyDescriptor!!, dependencyResolver!!, p)
+                })
+
+        helper.withResource("jar.jar", metadata.resource?.toSafeResource())
+        helper.withResource(
+            "erm.json",
+            ProvidedResource(URI.create("http://nothing")) { mapper.writeValueAsBytes(metadata.erm) }
         )
+        helper.withResource(
+            "extra-dep-info.json",
+            ProvidedResource(URI.create("http://nothing")) {
+                mapper.writeValueAsBytes(
+                    allDependencies.map { (descriptor, resolver, partition) ->
+                        val serializedDescriptor =
+                            (resolver as ArchiveNodeResolver<ArtifactMetadata.Descriptor, *, *, *, *>).serializeDescriptor(
+                                descriptor
+                            )
+
+                        ExtraDependencyInfo(
+                            serializedDescriptor,
+                            resolver.name,
+                            partition.name
+                        )
+                    }
+                )
+            }
+        )
+
+        helper.newData(metadata.descriptor)
     }
 
 //    override suspend fun load(

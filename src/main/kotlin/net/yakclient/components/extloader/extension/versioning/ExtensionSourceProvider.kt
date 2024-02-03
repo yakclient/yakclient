@@ -26,15 +26,15 @@ public class ExtensionSourceProvider(
                 .joinToString(separator = ".")
         }
 
-    override fun getSource(name: String): ByteBuffer? =
+    override fun findSource(name: String): ByteBuffer? =
         archive.reader[name.withSlashes() + ".class"]
             ?.resource
             ?.open()
             ?.readInputStream()
             ?.let(ByteBuffer::wrap)
 
-    override fun getResource(name: String): URL? =
-        archive.reader[name]?.resource?.uri?.toURL()
-
-    override fun getResource(name: String, module: String): URL? = getResource(name)
+//    override fun getResource(name: String): URL? =
+//        archive.reader[name]?.resource?.uri?.toURL()
+//
+//    override fun getResource(name: String, module: String): URL? = getResource(name)
 }

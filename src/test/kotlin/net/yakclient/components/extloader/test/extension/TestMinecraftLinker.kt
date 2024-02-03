@@ -1,7 +1,7 @@
 package net.yakclient.components.extloader.test.extension
 
-import net.yakclient.boot.loader.ClassProvider
-import net.yakclient.boot.loader.SourceProvider
+import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
+import net.yakclient.boot.loader.*
 import net.yakclient.common.util.immutableLateInit
 import net.yakclient.components.extloader.target.TargetLinker
 import org.objectweb.asm.ClassWriter
@@ -14,40 +14,31 @@ import kotlin.test.Test
 import kotlin.test.assertNotNull
 
 class TestMinecraftLinker {
-    private fun setupClassProvider(delegate: (n: String) -> Class<*>?): ClassProvider = object : ClassProvider {
-        override val packages: Set<String> = HashSet()
+    private fun setupClassProvider(packages: Set<String>, delegate: (n: String) -> Class<*>?): ClassProvider = object : ClassProvider {
+        override val packages: Set<String> = packages
 
         override fun findClass(name: String): Class<*>? {
             return delegate(name)
         }
 
-        override fun findClass(name: String, module: String): Class<*>? {
-            return findClass(name)
-        }
     }
 
-    private fun setupSourceProvider(delegate: (n: String) -> URL?): SourceProvider = object : SourceProvider {
-        override val packages: Set<String> = HashSet()
-
-        override fun getResource(name: String): URL? {
-            return delegate(name)
+    private fun setupResourceProvider(delegate: (n: String) -> URL?): ResourceProvider = object : ResourceProvider {
+        override fun findResources(name: String): Sequence<URL> {
+            return delegate(name)?.let { sequenceOf(it) } ?: emptySequence()
         }
-
-        override fun getResource(name: String, module: String): URL? = getResource(name)
-
-        override fun getSource(name: String): ByteBuffer? = null
     }
 
     private fun newClass(
-            name: String
+        name: String
     ): Class<*> {
         val classNode = ClassNode()
         classNode.visit(
-                61, Opcodes.ACC_PUBLIC,
-                name,
-                null,
-                "java/lang/Object",
-                arrayOf()
+            61, Opcodes.ACC_PUBLIC,
+            name,
+            null,
+            "java/lang/Object",
+            arrayOf()
         )
 
         val writer = ClassWriter(0)
@@ -56,8 +47,8 @@ class TestMinecraftLinker {
 
         val loader = object : ClassLoader() {
             val theClass: Class<*> = defineClass(
-                    name,
-                    ByteBuffer.wrap(writer.toByteArray()), ProtectionDomain(null, null)
+                name,
+                ByteBuffer.wrap(writer.toByteArray()), ProtectionDomain(null, null)
             )
         }
 
@@ -66,34 +57,41 @@ class TestMinecraftLinker {
 
 
     private fun setupLinker(
-            extClasses: List<Class<*>> = listOf(),
-            mcClasses: List<Class<*>> = listOf(),
-            extResources: Map<String, URL> = mapOf(),
-            mcResources: Map<String, URL> = mapOf(),
+        extClasses: List<Class<*>> = listOf(),
+        mcClasses: List<Class<*>> = listOf(),
+        extResources: Map<String, URL> = mapOf(),
+        mcResources: Map<String, URL> = mapOf(),
     ): TargetLinker {
-        var mcProvider: ClassProvider by immutableLateInit()
-        var extProvider: ClassProvider by immutableLateInit()
 
-        var extSource: SourceProvider by immutableLateInit()
-        var mcSource: SourceProvider by immutableLateInit()
+        var mcClassProvider : ClassProvider by immutableLateInit()
+        var mcResourceProvider : ResourceProvider by immutableLateInit()
+
+        val extProvider: ClassProvider = setupClassProvider(setOf("")) { name ->
+            extClasses.find { it.name == name } ?: mcClassProvider.findClass(name)
+        }
+
+        val extSource: ResourceProvider =setupResourceProvider {
+            extResources[it]
+        }
 
         val linker = TargetLinker(
-                setupClassProvider { n ->
-                    mcClasses.find { it.name == n } ?: extProvider.findClass(n)
-                },
-                setupSourceProvider {
-                    mcResources[it] ?: extSource.getResource(it)
-                }
+            SimpleMavenDescriptor.parseDescription("net.minecraft:minecraft:nan")!!,
+
+            setupClassProvider(setOf("")) { n ->
+                mcClasses.find { it.name == n } ?: extProvider.findClass(n)
+            },
+            setupResourceProvider {
+                mcResources[it] //?: extSource.findResources(it).firstOrNull()
+            },
+            MutableClassProvider(ArrayList()),
+            MutableResourceProvider(ArrayList())
         )
 
+        mcClassProvider = linker.targetTarget.relationship.classes
+        mcResourceProvider = linker.targetTarget.relationship.resources
+
         linker.addMiscClasses(extProvider)
-        linker.addMiscSources(extSource)
-
-        mcProvider = linker.targetClassProvider
-        extProvider = linker.miscClassProvider
-
-        extSource = linker.miscSourceProvider
-        mcSource = linker.targetSourceProvider
+        linker.addMiscResources(extSource)
 
         return linker
     }
@@ -101,38 +99,38 @@ class TestMinecraftLinker {
     @Test
     fun `Test will load each others classes`() {
         val linker = setupLinker(
-                listOf(
-                        newClass("a")
-                ),
-                listOf(
-                        newClass("b")
-                )
+            listOf(
+                newClass("a")
+            ),
+            listOf(
+                newClass("b")
+            )
         )
 
-        assertNotNull(linker.miscClassProvider.findClass("a")) { "Failed to find class 'a' in extensions" }
+        assertNotNull(linker.miscTarget.relationship.classes.findClass("a")) { "Failed to find class 'a' in extensions" }
 
-        assertNotNull(linker.targetClassProvider.findClass("b")) { "In minecraft!" }
+        assertNotNull(linker.targetTarget.relationship.classes.findClass("b")) { "In minecraft!" }
     }
 
     @Test
     fun `Test will throw class not found when no class can be found`() {
         val linker = setupLinker(
-                listOf(
-                        newClass("a")
-                ),
-                listOf(
-                        newClass("b")
-                )
+            listOf(
+                newClass("a")
+            ),
+            listOf(
+                newClass("b")
+            )
         )
 
         runCatching {
-            linker.miscClassProvider.findClass("c")
+            linker.miscTarget.relationship.classes.findClass("c")
         }.also {
             assert(it.isFailure && it.exceptionOrNull() is ClassNotFoundException) { "Extensions Should have thrown class not found!" }
         }
 
         runCatching {
-            linker.targetClassProvider.findClass("e")
+            linker.targetTarget.relationship.classes.findClass("e")
         }.also {
             assert(it.isFailure && it.exceptionOrNull() is ClassNotFoundException) { "Minecraft Should have thrown class not found!" }
         }
@@ -141,30 +139,30 @@ class TestMinecraftLinker {
     @Test
     fun `Test will load each others resources`() {
         val linker = setupLinker(
-                extResources = mapOf(
-                        "first.json" to URL("file:///first.json"),
-                ),
-                mcResources = mapOf(
-                        "second.json" to URL("file:///second.json")
-                )
+            extResources = mapOf(
+                "first.json" to URL("file:///first.json"),
+            ),
+            mcResources = mapOf(
+                "second.json" to URL("file:///second.json")
+            )
         )
 
-        assertNotNull(linker.miscSourceProvider.getResource("first.json")) {"Couldn't find resource: 'first.json' in extensions "}
-        assertNotNull(linker.targetSourceProvider.getResource("second.json")) {"Couldn't find resource: 'second.json' in minecraft "}
+        assertNotNull(linker.miscTarget.relationship.resources.findResources("first.json").firstOrNull()) { "Couldn't find resource: 'first.json' in extensions " }
+        assertNotNull(linker.targetTarget.relationship.resources.findResources("second.json").firstOrNull()) { "Couldn't find resource: 'second.json' in minecraft " }
     }
 
     @Test
     fun `Test will throw when resources are not found`() {
         val linker = setupLinker(
-                extResources = mapOf(
-                        "first.json" to URL("file:///first.json"),
-                ),
-                mcResources = mapOf(
-                        "second.json" to URL("file:///second.json")
-                )
+            extResources = mapOf(
+                "first.json" to URL("file:///first.json"),
+            ),
+            mcResources = mapOf(
+                "second.json" to URL("file:///second.json")
+            )
         )
 
-        assert(linker.miscSourceProvider.getResource("third.json") == null) { "This should never happen"}
-        assert(linker.targetSourceProvider.getResource("third.json") == null) { "This should never happen"}
+        assert(linker.miscTarget.relationship.resources.findResources("third.json").toList().isEmpty()) { "This should never happen" }
+        assert(linker.targetTarget.relationship.resources.findResources("third.json").toList().isEmpty()) { "This should never happen" }
     }
 }

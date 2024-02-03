@@ -3,6 +3,7 @@ package net.yakclient.components.extloader.tweaker.archive
 import net.yakclient.archives.ArchiveReference
 
 internal class TweakerArchiveReference(
+    override val name: String,
     val path: String,
     private val delegate: ArchiveReference
 ) : ArchiveReference by delegate {

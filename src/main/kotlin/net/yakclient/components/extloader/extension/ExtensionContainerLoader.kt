@@ -1,5 +1,7 @@
 package net.yakclient.components.extloader.extension
 
+import com.durganmcbroom.jobs.JobResult
+import com.durganmcbroom.jobs.jobScope
 import net.yakclient.archive.mapper.*
 import net.yakclient.archive.mapper.transform.*
 import net.yakclient.archives.ArchiveHandle
@@ -7,11 +9,12 @@ import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.ArchiveTree
 import net.yakclient.archives.Archives
 import net.yakclient.archives.transform.TransformerConfig
-import net.yakclient.boot.container.ProcessLoader
+import net.yakclient.boot.archive.ArchiveAccessTree
+import net.yakclient.boot.archive.ArchiveException
+import net.yakclient.boot.archive.ArchiveNode
 import net.yakclient.boot.loader.ArchiveSourceProvider
 import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.client.api.Extension
-import net.yakclient.client.api.ExtensionContext
 import net.yakclient.common.util.LazyMap
 import net.yakclient.common.util.runCatching
 import net.yakclient.components.extloader.api.environment.*
@@ -19,32 +22,30 @@ import net.yakclient.components.extloader.api.extension.ExtensionClassLoaderProv
 import net.yakclient.components.extloader.extension.versioning.VersionedExtArchiveHandle
 import net.yakclient.components.extloader.mapping.findShortest
 import net.yakclient.components.extloader.mapping.newMappingsGraph
-import net.yakclient.components.extloader.api.target.ApplicationTarget
 import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
 import net.yakclient.components.extloader.api.extension.ExtensionVersionPartition
 import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
+import net.yakclient.components.extloader.api.target.ApplicationTarget
 import net.yakclient.components.extloader.util.parseNode
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
 
-public class ExtensionProcessLoader(
+public class ExtensionContainerLoader(
     private val privilegeManager: PrivilegeManager,
     private val parentClassloader: ClassLoader,
     private val environment: ExtLoaderEnvironment
-) : ProcessLoader<ExtensionInfo, ExtensionProcess>, EnvironmentAttribute {
+) : EnvironmentAttribute {
     private val minecraftRef = environment[ApplicationTarget]!!.reference.reference
     private val mcVersion = environment[ApplicationTarget]!!.reference.descriptor.version
     private val appInheritanceTree = createFakeInheritanceTree(minecraftRef.reader)
-    override val key: EnvironmentAttributeKey<*> = ExtensionProcessLoader
+    override val key: EnvironmentAttributeKey<*> = ExtensionContainerLoader
 
-    public companion object : EnvironmentAttributeKey<ExtensionProcessLoader>
-
+    public companion object : EnvironmentAttributeKey<ExtensionContainerLoader>
 
     private fun transformEachEntry(
         archiveReference: ExtensionArchiveReference,
         // Dependencies should already be mapped
         dependencies: List<ArchiveTree>,
-
         mappings: (ExtensionVersionPartition) -> ArchiveMapping
     ): ClassInheritanceTree {
         // Gets all the loaded mixins and map them to their actual location in the archive reference.
@@ -130,8 +131,13 @@ public class ExtensionProcessLoader(
         return tree
     }
 
-    override fun load(info: ExtensionInfo): ExtensionProcess {
-        val (ref, children, dependencies, erm, containerHandle) = info
+    public suspend fun load(
+        ref: ExtensionArchiveReference,
+        parents: List<ExtensionNode>,
+        dependencies: List<ArchiveHandle>,
+        erm: ExtensionRuntimeModel,
+        access: ArchiveAccessTree,
+    ): JobResult<ExtensionContainer, ArchiveException> = jobScope {
 
         val mappingGraph = newMappingsGraph(environment[mappingProvidersAttrKey]!!)
 
@@ -141,56 +147,52 @@ public class ExtensionProcessLoader(
                 .forIdentifier(identifier)
         }
 
-        val partitionsToMappings = info.archive.enabledPartitions.associateWith {
+        val partitionsToMappings = ref.enabledPartitions.associateWith {
             mappings[it.mappingNamespace to mcVersion]
         }
 
-        val tree = transformEachEntry(ref, dependencies + minecraftRef) {
+        val tree = transformEachEntry(ref, (dependencies + minecraftRef)) {
             partitionsToMappings[it]!!
         }
 
-        return ExtensionProcess(
-            ExtensionReference(
-                environment,
+
+        ExtensionContainer(
+            environment,
+            ref,
+            tree,
+            {
+                partitionsToMappings[it]!!
+            }
+        ) { minecraft ->
+            val archives: List<ArchiveHandle> =
+                parents.mapNotNull { it.archive } + dependencies
+
+            val handle = VersionedExtArchiveHandle(
                 ref,
-                tree,
-                {
-                    partitionsToMappings[it]!!
-                }
-            ) { minecraft ->
-                val archives: List<ArchiveHandle> =
-                    children.map { it.process.archive } + dependencies
-
-                val handle = VersionedExtArchiveHandle(
+                environment[ExtensionClassLoaderProvider]!!.createFor(
                     ref,
-                    environment[ExtensionClassLoaderProvider]!!.createFor(
-                        ref,
-                        archives,
-                        privilegeManager,
-                        containerHandle,
-                        minecraft,
-                        parentClassloader,
-                    ),
-                    info.erm.name,
-                    archives.toSet(),
-                    ArchiveSourceProvider(ref).packages
-                )
+                    access,
+                    privilegeManager,
+                    parentClassloader,
+                ),
+                erm.name,
+                archives.toSet(),
+                ArchiveSourceProvider(ref).packages
+            )
 
-                val s = "${erm.groupId}:${erm.name}:${erm.version}"
+            val s = "${erm.groupId}:${erm.name}:${erm.version}"
 
-                val extensionClass =
-                    runCatching(ClassNotFoundException::class) { handle.classloader.loadClass(erm.extensionClass) }
-                        ?: throw IllegalArgumentException("Could not load extension: '$s' because the class: '${erm.extensionClass}' couldnt be found.")
-                val extensionConstructor = runCatching(NoSuchMethodException::class) { extensionClass.getConstructor() }
-                    ?: throw IllegalArgumentException("Could not find no-arg constructor in class: '${erm.extensionClass}' in extension: '$s'.")
+            val extensionClass =
+                runCatching(ClassNotFoundException::class) { handle.classloader.loadClass(erm.extensionClass) }
+                    ?: throw IllegalArgumentException("Could not load extension: '$s' because the class: '${erm.extensionClass}' couldnt be found.")
+            val extensionConstructor = runCatching(NoSuchMethodException::class) { extensionClass.getConstructor() }
+                ?: throw IllegalArgumentException("Could not find no-arg constructor in class: '${erm.extensionClass}' in extension: '$s'.")
 
-                val instance = extensionConstructor.newInstance() as? Extension
-                    ?: throw IllegalArgumentException("Extension class: '${erm.extensionClass}' does not implement: '${Extension::class.qualifiedName} in extension: '$s'.")
+            val instance = extensionConstructor.newInstance() as? Extension
+                ?: throw IllegalArgumentException("Extension class: '${erm.extensionClass}' does not implement: '${Extension::class.qualifiedName} in extension: '$s'.")
 
-                instance to handle
-            },
-            ExtensionContext()
-        )
+            instance to handle
+        }
     }
 
     private fun mapperFor(
@@ -228,3 +230,5 @@ public class ExtensionProcessLoader(
         )
     }
 }
+
+//}

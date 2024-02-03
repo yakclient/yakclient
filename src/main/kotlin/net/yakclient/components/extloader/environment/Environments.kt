@@ -138,15 +138,16 @@ internal fun ExtensionDevEnvironment(
     env += MutableObjectContainerAttribute<SourceInjectionPoint>(injectionPointsAttrKey)
     env += object : ExtensionRunner {
         override fun init(node: ExtensionNode) {
-            node.extension?.process?.ref?.extension?.init()
+            node.container?.extension?.init()
         }
     }
     env += object : ExtensionClassLoaderProvider {}
     env += object : ApplicationParentClProvider {
         override fun getParent(linker: TargetLinker, environment: ExtLoaderEnvironment): ClassLoader {
             return IntegratedLoader(
-                sp = linker.miscSourceProvider,
-                cp = linker.miscClassProvider,
+                name = "${linker.targetName} Misc access provider",
+                classProvider = linker.miscTarget.relationship.classes,
+                resourceProvider = linker.miscTarget.relationship.resources,
                 parent = environment[ParentClassloaderAttribute]!!.cl
             )
         }

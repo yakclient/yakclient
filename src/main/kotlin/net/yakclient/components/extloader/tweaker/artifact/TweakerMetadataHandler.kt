@@ -20,7 +20,7 @@ internal class TweakerMetadataHandler(
     settings: SimpleMavenRepositorySettings, providers: DependencyTypeContainer
 ) : ExtensionMetadataHandler(settings, providers) {
     override fun requestMetadata(desc: SimpleMavenDescriptor): Either<MetadataRequestException, ExtensionArtifactMetadata> = either.eager {
-        ensure(desc.classifier == "tweaker") {MetadataRequestException.MetadataNotFound}
+        ensure(desc.classifier == "tweaker") { MetadataRequestException.MetadataNotFound }
 
         super.requestMetadata(desc.copy(classifier = null)).bind()
     }

@@ -4,9 +4,7 @@ import net.yakclient.archive.mapper.ArchiveMapping
 import net.yakclient.archive.mapper.transform.ClassInheritanceTree
 import net.yakclient.archive.mapper.transform.mapClassName
 import net.yakclient.archives.mixin.MixinInjection
-import net.yakclient.boot.container.ContainerProcess
 import net.yakclient.client.api.Extension
-import net.yakclient.client.api.ExtensionContext
 import net.yakclient.client.api.annotation.Mixin
 import net.yakclient.common.util.immutableLateInit
 import net.yakclient.components.extloader.api.environment.ApplicationMappingTarget
@@ -25,22 +23,22 @@ import net.yakclient.components.extloader.util.parseNode
 import org.objectweb.asm.tree.AnnotationNode
 import java.lang.reflect.Proxy
 
-public data class ExtensionProcess(
-    val ref: ExtensionReference,
-    private val context: ExtensionContext
-) : ContainerProcess {
-    override val archive: ExtensionArchiveHandle
-        get() = ref.archive
+//public data class ExtensionProcess(
+//    val ref: ExtensionReference,
+//    private val context: ExtensionContext
+//) : ContainerProcess {
+//    override val archive: ExtensionArchiveHandle
+//        get() = ref.archive
+//
+//    override fun start(): Unit = ref.extension.init()
+//}
 
-    override fun start(): Unit = ref.extension.init()
-}
-
-public data class ExtensionReference(
+public data class ExtensionContainer(
     private val environment: ExtLoaderEnvironment,
     private val archiveReference: ExtensionArchiveReference,
     private val inheritanceTree: ClassInheritanceTree,
     private val getMappings: (ExtensionVersionPartition) -> ArchiveMapping,
-    private val lazyLoader: (minecraft: TargetLinker) -> Pair<Extension, ExtensionArchiveHandle>,
+    private val lazyLoader: (TargetLinker) -> Pair<Extension, ExtensionArchiveHandle>,
 ) {
     public var extension: Extension by immutableLateInit()
     public var archive: ExtensionArchiveHandle by immutableLateInit()
