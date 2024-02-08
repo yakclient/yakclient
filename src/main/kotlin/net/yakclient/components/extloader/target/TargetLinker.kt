@@ -39,7 +39,7 @@ public class TargetLinker(
         object : ArchiveRelationship {
             override val name: String = "Circular - Target"
             override val classes: ClassProvider = object : ClassProvider {
-                override val packages: Set<String> = HashSet()
+                override val packages: Set<String> by lazy { target.packages }
 
                 override fun findClass(name: String): Class<*>? {
                     return findClassInternal(name, LinkerState.LOADING_TARGET)

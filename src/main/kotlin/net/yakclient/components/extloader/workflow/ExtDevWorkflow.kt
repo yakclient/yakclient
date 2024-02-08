@@ -88,9 +88,7 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
 //            environment
             targetDescriptor = appReference.descriptor,
             target = object : ClassProvider {
-                override val packages: Set<String>
-
-                by lazy { targetClassProvider.packages }
+                override val packages: Set<String> by lazy { targetClassProvider.packages }
 
                 override fun findClass(name: String): Class<*>? = targetClassProvider.findClass(name)
             },
