@@ -19,7 +19,7 @@ public val injectionPointsAttrKey: MutableObjectContainerAttribute.Key<SourceInj
     MutableObjectContainerAttribute.Key("injection-points")
 
 public val ExtLoaderEnvironment.archiveGraph: ArchiveGraph
-    get() = get(ArchiveGraphAttribute)!!.graph
+    get() = get(ArchiveGraphAttribute).getOrNull()!!.graph
 
 public data class ArchiveGraphAttribute(
     val graph: ArchiveGraph

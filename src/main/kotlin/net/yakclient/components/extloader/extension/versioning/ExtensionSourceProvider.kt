@@ -1,5 +1,6 @@
 package net.yakclient.components.extloader.extension.versioning
 
+import com.durganmcbroom.resources.openStream
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.boot.loader.SourceProvider
 import net.yakclient.common.util.readInputStream
@@ -29,7 +30,7 @@ public class ExtensionSourceProvider(
     override fun findSource(name: String): ByteBuffer? =
         archive.reader[name.withSlashes() + ".class"]
             ?.resource
-            ?.open()
+            ?.openStream()
             ?.readInputStream()
             ?.let(ByteBuffer::wrap)
 

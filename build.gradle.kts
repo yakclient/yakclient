@@ -28,26 +28,28 @@ dependencies {
     testImplementation(project(":"))
     implementation(project(":client-api"))
 
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     implementation("net.yakclient:archive-mapper:1.2-SNAPSHOT")
     implementation("net.yakclient:archive-mapper-transform:1.2-SNAPSHOT")
     implementation("net.yakclient:archive-mapper-proguard:1.2-SNAPSHOT")
 
-    implementation("net.yakclient:launchermeta-handler:1.0-SNAPSHOT")
-    implementation("io.arrow-kt:arrow-core:1.1.2")
+    implementation("net.yakclient:launchermeta-handler:1.1-SNAPSHOT") {
+        isChanging = true
+    }
     implementation("net.yakclient:object-container:1.0-SNAPSHOT")
-    implementation("net.yakclient:archives-mixin:1.1-SNAPSHOT") {
+    api("net.yakclient:archives-mixin:1.2-SNAPSHOT") {
         isChanging = true
     }
-    implementation("net.yakclient:boot:2.0-SNAPSHOT") {
+    implementation("net.yakclient:boot:2.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:artifact-resolver:1.0-SNAPSHOT") {
+    implementation("com.durganmcbroom:artifact-resolver:1.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:artifact-resolver-simple-maven:1.0-SNAPSHOT") {
+    implementation("com.durganmcbroom:artifact-resolver-simple-maven:1.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("net.yakclient:common-util:1.0-SNAPSHOT") {
+    api("net.yakclient:common-util:1.1-SNAPSHOT") {
         isChanging = true
     }
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.4")
@@ -55,23 +57,21 @@ dependencies {
         isChanging = true
     }
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-
-
-    implementation("com.durganmcbroom:jobs:1.0-SNAPSHOT") {
+    api("com.durganmcbroom:jobs:1.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:jobs-logging:1.0-SNAPSHOT") {
+    implementation("com.durganmcbroom:jobs-logging:1.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:jobs-progress:1.0-SNAPSHOT") {
+    implementation("com.durganmcbroom:jobs-progress:1.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:jobs-progress-simple:1.0-SNAPSHOT") {
+    implementation("com.durganmcbroom:jobs-progress-simple:1.1-SNAPSHOT") {
         isChanging = true
     }
 
     testImplementation(kotlin("test"))
-    implementation("net.yakclient:boot-test:2.0-SNAPSHOT")
+    implementation("net.yakclient:boot-test:2.1-SNAPSHOT")
     testImplementation("net.yakclient:archive-mapper-tiny:1.2-SNAPSHOT")
 }
 
@@ -139,9 +139,6 @@ task<Jar>("javadocJar") {
     from(tasks.dokkaJavadoc)
 }
 
-tasks.jar {
-
-}
 
 tasks.withType<AbstractPublishToMaven> {
     onlyIf {

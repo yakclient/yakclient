@@ -1,16 +1,17 @@
 package net.yakclient.components.extloader.extension.artifact
 
-import arrow.core.Either
-import arrow.core.continuations.either
 import com.durganmcbroom.artifact.resolver.MetadataRequestException
-import com.durganmcbroom.artifact.resolver.open
 import com.durganmcbroom.artifact.resolver.simple.maven.*
-import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenDefaultLayout
+import com.durganmcbroom.artifact.resolver.simple.maven.layout.ResourceRetrievalException
 import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenLocalLayout
 import com.durganmcbroom.artifact.resolver.simple.maven.layout.mavenLocal
 import com.durganmcbroom.artifact.resolver.simple.maven.pom.PomRepository
 import com.durganmcbroom.artifact.resolver.simple.maven.pom.PomRepository.Companion.toPomRepository
 import com.durganmcbroom.artifact.resolver.simple.maven.pom.PomRepositoryPolicy
+import com.durganmcbroom.jobs.Job
+import com.durganmcbroom.jobs.JobName
+import com.durganmcbroom.jobs.job
+import com.durganmcbroom.resources.openStream
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -24,15 +25,15 @@ public open class ExtensionMetadataHandler(
 ) : SimpleMavenMetadataHandler(settings) {
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 
-    override fun requestMetadata(desc: SimpleMavenDescriptor): Either<MetadataRequestException, ExtensionArtifactMetadata> {
-        val simpleMaven = providers.get("simple-maven")
-            ?: throw IllegalStateException("SimpleMaven not found in dependency providers!")
+    override fun requestMetadata(desc: SimpleMavenDescriptor): Job<ExtensionArtifactMetadata> =
+        job(JobName("Load extension metadata for: '$desc'")) {
+            val simpleMaven = providers.get("simple-maven")
+                ?: throw IllegalStateException("SimpleMaven not found in dependency providers!")
 
-        return either.eager {
             val (group, artifact, version) = desc
 
-            val ermOr = layout.resourceOf(group, artifact, version, "erm", "json").bind()
-            val erm = mapper.readValue<ExtensionRuntimeModel>(ermOr.open())
+            val ermOr = layout.resourceOf(group, artifact, version, "erm", "json")().merge()
+            val erm = mapper.readValue<ExtensionRuntimeModel>(ermOr.openStream())
 
             val children = erm.extensions
 
@@ -44,18 +45,18 @@ public open class ExtensionMetadataHandler(
                     version,
                     null,
                     erm.packagingType
-                ).orNull(),
+                )().getOrNull(),
                 children.map { req1 ->
-                    val req = simpleMaven.parseRequest(req1) as? SimpleMavenArtifactRequest ?: shift(
-                        ExtensionRequestParsingException(req1, desc)
-                    )
+                    val req = simpleMaven.parseRequest(req1) as? SimpleMavenArtifactRequest
+                        ?: throw ExtensionRequestParsingException(req1, desc)
 
                     SimpleMavenChildInfo(
                         req.descriptor,
                         erm.extensionRepositories.map { settings ->
                             SimpleMavenRepositoryStub(
                                 (simpleMaven.parseSettings(settings) as? SimpleMavenRepositorySettings)?.toPomOrLocalRepository()
-                                    ?: throw IllegalArgumentException("Unknown repository declaration: '$settings' in extension runtime model: '$desc' at '${ermOr.location}'. Cannot parse.")
+                                    ?: throw ResourceRetrievalException.IllegalState("Unknown repository declaration: '$settings' in extension runtime model: '$desc' at '${ermOr.location}'. Cannot parse."),
+                                this@ExtensionMetadataHandler.settings.requireResourceVerification,
                             )
                         },
                         "compile"
@@ -64,9 +65,8 @@ public open class ExtensionMetadataHandler(
                 erm
             )
         }
-    }
 
-    private fun SimpleMavenRepositorySettings.toPomOrLocalRepository() : PomRepository? {
+    private fun SimpleMavenRepositorySettings.toPomOrLocalRepository(): PomRepository? {
         return toPomRepository() ?: run {
             val layout = layout as? SimpleMavenLocalLayout ?: return@run null
 

@@ -81,7 +81,8 @@
       "repository": {
         "type": "simple-maven",
         "settings": {
-          "location" : "http://maven.yakclient.net/snapshots"
+          "type": "local",
+          "location": "/Users/durganmcbroom/.m2/repository"
         }
       }
     },

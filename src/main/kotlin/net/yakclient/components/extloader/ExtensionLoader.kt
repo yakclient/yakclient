@@ -1,18 +1,14 @@
 package net.yakclient.components.extloader
 
-import bootFactories
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
-import com.durganmcbroom.artifact.resolver.simple.maven.layout.mavenLocal
-import com.durganmcbroom.jobs.JobResult
+import com.durganmcbroom.jobs.Job
+import com.durganmcbroom.jobs.job
 import kotlinx.coroutines.runBlocking
 import net.yakclient.archives.ArchiveHandle
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.boot.BootInstance
 import net.yakclient.boot.component.ComponentInstance
-import net.yakclient.boot.component.artifact.SoftwareComponentDescriptor
-import net.yakclient.boot.component.context.ContextNodeTypes
 import net.yakclient.boot.component.context.ContextNodeValue
-import net.yakclient.boot.test.testBootInstance
 import net.yakclient.common.util.resolve
 import net.yakclient.components.extloader.api.environment.*
 import net.yakclient.components.extloader.api.target.AppArchiveReference
@@ -22,9 +18,7 @@ import net.yakclient.components.extloader.workflow.ExtDevWorkflow
 import net.yakclient.components.extloader.workflow.ExtLoaderWorkflow
 import net.yakclient.components.extloader.workflow.ExtLoaderWorkflowContext
 import net.yakclient.minecraft.bootstrapper.*
-import orThrow
 import java.nio.file.Path
-
 
 
 public class ExtensionLoader(
@@ -46,15 +40,19 @@ public class ExtensionLoader(
             override val dependencyHandles: List<ArchiveHandle> by lazy { minecraftHandler.handle.libraries }
             override val handleLoaded: Boolean by minecraftHandler::isLoaded
 
-            override fun load(parent: ClassLoader) {
-                minecraftHandler.loadMinecraft(parent, environment[ExtraClassProviderAttribute] ?: object : ExtraClassProvider {
-                    override fun getByteArray(name: String): ByteArray? = null
-                })
-            }
+            override fun load(parent: ClassLoader) : Job<Unit> =
+                minecraftHandler.loadMinecraft(
+                    parent,
+                    environment[ExtraClassProviderAttribute].getOrNull() ?: object : ExtraClassProvider {
+                        override fun getByteArray(name: String): ByteArray? = null
+                    })
         }
 
         override fun mixin(destination: String, transformer: MinecraftClassTransformer) {
             minecraftHandler.registerMixin(destination, transformer)
+        }
+        override fun mixin(destination: String, priority: Int, transformer: MinecraftClassTransformer) {
+            minecraftHandler.registerMixin(destination, priority, transformer)
         }
 
 //        override fun newMixinTransaction(): MixinTransaction = object : MixinTransaction {
@@ -83,8 +81,8 @@ public class ExtensionLoader(
         override fun end() = shutdown()
     }
 
-    override fun start() {
-        minecraft.start()
+    override fun start(): Job<Unit> = job {
+        minecraft.start()().merge()
 
         val workflow = when (configuration.environment.type) {
             ExtLoaderEnvironmentType.PROD -> TODO()
@@ -92,10 +90,10 @@ public class ExtensionLoader(
             ExtLoaderEnvironmentType.INTERNAL_DEV -> ExtDevWorkflow() //todo
         }
 
-        suspend fun <T : ExtLoaderWorkflowContext> ExtLoaderWorkflow<T>.parseAndRun(
+        fun <T : ExtLoaderWorkflowContext> ExtLoaderWorkflow<T>.parseAndRun(
             node: ContextNodeValue,
             environment: ExtLoaderEnvironment
-        ): JobResult<Unit, Throwable> {
+        ): Job<Unit> {
             val runtimeInfo = minecraft.minecraftHandler.minecraftReference.runtimeInfo
 
             return work(
@@ -111,18 +109,16 @@ public class ExtensionLoader(
             )
         }
 
-        runBlocking(bootFactories()) {
-            val env = ExtLoaderEnvironment()
+        val env = ExtLoaderEnvironment()
 
-            env += ArchiveGraphAttribute(boot.archiveGraph)
-            env += DependencyTypeContainerAttribute(
-                boot.dependencyTypes
-            )
-            env += createMinecraftApp(env, minecraft.minecraftHandler, minecraft::end)
-            env += WorkingDirectoryAttribute(boot.location)
-            env += ParentClassloaderAttribute(ExtensionLoader::class.java.classLoader)
-            workflow.parseAndRun(configuration.environment.configuration, env).orThrow()
-        }
+        env += ArchiveGraphAttribute(boot.archiveGraph)
+        env += DependencyTypeContainerAttribute(
+            boot.dependencyTypes
+        )
+        env += createMinecraftApp(env, minecraft.minecraftHandler, minecraft::end)
+        env += WorkingDirectoryAttribute(boot.location)
+        env += ParentClassloaderAttribute(ExtensionLoader::class.java.classLoader)
+        workflow.parseAndRun(configuration.environment.configuration, env)().merge()
 //        registerBasicProviders()
 //        InternalRegistry.extensionMappingContainer.register(
 //            MOJANG_MAPPING_TYPE,
@@ -177,7 +173,7 @@ public class ExtensionLoader(
     }
 
     // Shutdown of minecraft will trigger extension shutdown
-    override fun end() {
+    override fun end() : Job<Unit> = job {
 //        extensions.forEach {
 //            it.extension?.process?.ref?.extension?.cleanup()
 //        }

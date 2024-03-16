@@ -1,26 +1,17 @@
 package net.yakclient.components.extloader.extension
 
-import net.yakclient.archives.ArchiveHandle
 import net.yakclient.boot.archive.ArchiveAccessTree
-import net.yakclient.boot.container.ContainerHandle
-import net.yakclient.boot.container.ContainerSource
-import net.yakclient.boot.loader.*
-import net.yakclient.boot.security.PrivilegeManager
+import net.yakclient.boot.loader.ArchiveResourceProvider
+import net.yakclient.boot.loader.DelegatingClassProvider
+import net.yakclient.boot.loader.IntegratedLoader
 import net.yakclient.common.util.runCatching
 import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
-import java.security.ProtectionDomain
 import net.yakclient.components.extloader.extension.versioning.ExtensionSourceProvider
-import net.yakclient.components.extloader.api.extension.ExtensionMixin
-import net.yakclient.components.extloader.api.extension.ExtensionVersionPartition
-import net.yakclient.components.extloader.target.TargetLinker
-import java.net.URL
-import java.nio.ByteBuffer
 
 public open class ExtensionClassLoader(
     archive: ExtensionArchiveReference,
 //    dependencies: List<ArchiveHandle>,
     accessTree: ArchiveAccessTree,
-    manager: PrivilegeManager,
     parent: ClassLoader,
 //    handle: ContainerHandle<ExtensionProcess>,
 //    linker: TargetLinker

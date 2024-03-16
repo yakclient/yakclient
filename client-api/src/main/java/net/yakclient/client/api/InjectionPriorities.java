@@ -1,9 +1,9 @@
 package net.yakclient.client.api;
 
 public interface InjectionPriorities {
-    public static final int HIGHEST = 2;
-    public static final int HIGH = 1;
-    public static final int DEFAULT = 0;
-    public static final int LOW = -1;
-    public static final int LOWEST = -2;
+    int HIGHEST = 2;
+    int HIGH = 1;
+    int DEFAULT = 0;
+    int LOW = -1;
+    int LOWEST = -2;
 }

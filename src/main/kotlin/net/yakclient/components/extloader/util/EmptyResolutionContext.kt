@@ -3,7 +3,7 @@ package net.yakclient.components.extloader.util
 import com.durganmcbroom.artifact.resolver.*
 
 public class EmptyResolutionContext<R : ArtifactRequest<*>, S : ArtifactStub<R, *>, T : ArtifactReference<*, S>> :
-    ResolutionContext<R, S, T>(
+    ResolutionContext<R, S, ArtifactMetadata<*, *>, T>(
         object : ArtifactRepositoryContext<R, S, T> {
             override val artifactRepository: ArtifactRepository<R, S, T>
                 get() = throw UnsupportedOperationException("Illegal activity here.")

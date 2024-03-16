@@ -1,8 +1,8 @@
 package net.yakclient.components.extloader.test.extension.mapping
 
+import com.durganmcbroom.resources.Resource
 import net.yakclient.boot.store.DataStore
 import net.yakclient.boot.store.DelegatingDataStore
-import net.yakclient.common.util.resource.SafeResource
 import net.yakclient.components.extloader.extension.mapping.MojangExtensionMappingProvider
 import net.yakclient.components.extloader.extension.mapping.MojangMappingAccess
 import java.lang.IllegalStateException
@@ -26,8 +26,8 @@ class TestMojangMappingProvider {
         val path = Files.createTempDirectory("")
         println(path)
         var shouldPutBeCalled = true
-        val provider = MojangExtensionMappingProvider(object : DelegatingDataStore<String, SafeResource>(MojangMappingAccess(path)) {
-            override fun put(key: String, value: SafeResource) {
+        val provider = MojangExtensionMappingProvider(object : DelegatingDataStore<String, Resource>(MojangMappingAccess(path)) {
+            override fun put(key: String, value: Resource) {
                 if (!shouldPutBeCalled) throw IllegalStateException("Caching not working")
                 super.put(key, value)
             }

@@ -4,12 +4,10 @@ import net.yakclient.archives.ArchiveHandle
 import net.yakclient.boot.archive.ArchiveAccessTree
 import net.yakclient.boot.archive.ArchiveNode
 import net.yakclient.boot.archive.ArchiveNodeResolver
-import net.yakclient.boot.container.ArchiveContainer
 import net.yakclient.boot.dependency.DependencyNode
 import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
 import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
-
 
 
 public data class ExtensionNode(

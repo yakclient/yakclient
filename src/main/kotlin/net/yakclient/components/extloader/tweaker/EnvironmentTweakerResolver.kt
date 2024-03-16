@@ -2,8 +2,10 @@ package net.yakclient.components.extloader.tweaker
 
 import com.durganmcbroom.artifact.resolver.*
 import com.durganmcbroom.artifact.resolver.simple.maven.*
-import com.durganmcbroom.jobs.JobResult
-import com.durganmcbroom.jobs.jobScope
+import com.durganmcbroom.jobs.Job
+import com.durganmcbroom.jobs.job
+import com.durganmcbroom.resources.DelegatingResource
+import com.durganmcbroom.resources.asResourceStream
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -15,7 +17,6 @@ import net.yakclient.boot.dependency.DependencyResolver
 import net.yakclient.boot.maven.MavenLikeResolver
 import net.yakclient.boot.util.*
 import net.yakclient.common.util.resolve
-import net.yakclient.common.util.resource.ProvidedResource
 import net.yakclient.components.extloader.api.environment.*
 import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
 import net.yakclient.components.extloader.api.tweaker.EnvironmentTweaker
@@ -24,6 +25,7 @@ import net.yakclient.components.extloader.tweaker.archive.TweakerArchiveHandle
 import net.yakclient.components.extloader.tweaker.archive.TweakerArchiveReference
 import net.yakclient.components.extloader.tweaker.archive.TweakerClassLoader
 import net.yakclient.components.extloader.tweaker.artifact.TweakerRepositoryFactory
+import java.io.ByteArrayInputStream
 import java.net.URI
 import java.nio.file.Path
 
@@ -38,13 +40,16 @@ public data class EnvironmentTweakerNode(
 
 public class EnvironmentTweakerResolver(
     environment: ExtLoaderEnvironment
-) : MavenLikeResolver<SimpleMavenArtifactRequest, EnvironmentTweakerNode, SimpleMavenRepositorySettings, SimpleMavenArtifactMetadata>,
+) : MavenLikeResolver<EnvironmentTweakerNode, SimpleMavenArtifactMetadata>,
     EnvironmentAttribute {
-    private val dependencyProviders = environment[dependencyTypesAttrKey]!!.container
-    override val factory: RepositoryFactory<SimpleMavenRepositorySettings, SimpleMavenArtifactRequest, *, ArtifactReference<SimpleMavenArtifactMetadata, *>, *> = TweakerRepositoryFactory(dependencyProviders)
+    private val dependencyProviders = environment[dependencyTypesAttrKey].extract().container
+    private val factory = TweakerRepositoryFactory(dependencyProviders)
     override val metadataType: Class<SimpleMavenArtifactMetadata> = SimpleMavenArtifactMetadata::class.java
     override val name: String = "environment-tweaker"
     override val nodeType: Class<EnvironmentTweakerNode> = EnvironmentTweakerNode::class.java
+    override fun createContext(settings: SimpleMavenRepositorySettings): ResolutionContext<SimpleMavenArtifactRequest, *, SimpleMavenArtifactMetadata, *> {
+        return factory.createContext(settings)
+    }
 
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 
@@ -52,16 +57,20 @@ public class EnvironmentTweakerResolver(
         return Path.of("tweakers") resolve super.pathForDescriptor(descriptor, classifier, type)
     }
 
-    override suspend fun load(
+    override fun load(
         data: ArchiveData<SimpleMavenDescriptor, CachedArchiveResource>,
         helper: ResolutionHelper
-    ): JobResult<EnvironmentTweakerNode, ArchiveException>  = jobScope {
-        val erm = mapper.readValue<ExtensionRuntimeModel>(data.resources.requireKeyInDescriptor("erm.json").path.toFile())
-        val jar = data.resources.requireKeyInDescriptor("tweaker.jar").path
+    ): Job<EnvironmentTweakerNode> = job {
+        val erm =
+            mapper.readValue<ExtensionRuntimeModel>(data.resources.requireKeyInDescriptor("erm.json") {trace()}.path.toFile())
+        val jar = data.resources["tweaker.jar"]?.path
         val tweakerPartition = erm.tweakerPartition
-            ?: fail(ArchiveException.IllegalState("Extension '${data.descriptor}' does not have a tweaker yet you are trying to load it!", trace()))
+//            ?: throw ArchiveException.IllegalState(
+//                "Extension '${data.descriptor}' does not have a tweaker yet you are trying to load it!",
+//                trace()
+//            )
 
-        val parents = data.parents .map {
+        val parents = data.parents.map {
             helper.load(
                 it.descriptor,
                 this@EnvironmentTweakerResolver
@@ -77,10 +86,11 @@ public class EnvironmentTweakerResolver(
                 resolver,
                 ArtifactMetadata.Descriptor::class.java,
                 DependencyNode::class.java as Class<out DependencyNode<*>>
-            ).attempt() //dependencyProviders.get(it.resolver)?.resolver ?: fail(ArchiveException.ArchiveTypeNotFound(it.resolver, trace()))
+            )
+                .merge() //dependencyProviders.get(it.resolver)?.resolver ?: raise(ArchiveException.ArchiveTypeNotFound(it.resolver, trace()))
 
             helper.load(
-                localResolver.deserializeDescriptor(descriptor).attempt(),
+                localResolver.deserializeDescriptor(descriptor, trace()).merge(),
                 localResolver
 //                localResolver as ArchiveNodeResolver<ArtifactMetadata.Descriptor, *, DependencyNode, *, *, *>
             )
@@ -92,27 +102,36 @@ public class EnvironmentTweakerResolver(
         }
 
 
-        val ref = TweakerArchiveReference(
-            erm.name,
-            tweakerPartition.path.removeSuffix("/") + "/",
-            Archives.find(jar, Archives.Finders.ZIP_FINDER)
-        )
+        val ref = jar?.let { path ->
+            tweakerPartition?.let { part ->
+                TweakerArchiveReference(
+                    erm.name,
+                    part.path.removeSuffix("/") + "/",
+                    Archives.find(path, Archives.Finders.ZIP_FINDER)
+                )
+            }
+        }
 
         fun handleOrParents(node: ArchiveNode<*>): List<ArchiveHandle> =
             node.archive?.let(::listOf) ?: node.parents.flatMap { handleOrParents(it) }
 
-        val archive = TweakerArchiveHandle(
-            erm.name + "-tweaker",
-            TweakerClassLoader(ref, access, parent),
-            ref,
-            parents.flatMapTo(HashSet(), ::handleOrParents)
-        )
+        val archive = ref?.let {
+            TweakerArchiveHandle(
+                erm.name + "-tweaker",
+                TweakerClassLoader(it, access, parent),
+                it,
+                parents.flatMapTo(HashSet(), ::handleOrParents)
+            )
+        }
 
-        val entrypoint = archive.classloader.loadClass(tweakerPartition.entrypoint)
+        val entrypoint = archive?.classloader?.loadClass(tweakerPartition!!.entrypoint)
 
-        val tweaker = (entrypoint.getConstructor().newInstance() as? EnvironmentTweaker) ?: fail(
-            ArchiveException.IllegalState("Given extension: '${erm.name}' has a tweaker that does not implement: '${EnvironmentTweaker::class.qualifiedName}'", trace())
-        )
+        val tweaker = entrypoint?.getConstructor()?.newInstance()?.let {
+            it as? EnvironmentTweaker ?: throw ArchiveException(
+                trace(),
+                "Given extension: '${erm.name}' has a tweaker that does not implement: '${EnvironmentTweaker::class.qualifiedName}'",
+            )
+        }
 
         EnvironmentTweakerNode(
             data.descriptor,
@@ -129,35 +148,22 @@ public class EnvironmentTweakerResolver(
         val descriptor: Map<String, String>,
         val resolver: String,
     )
-    override suspend fun cache(
+
+    override fun cache(
         metadata: SimpleMavenArtifactMetadata,
         helper: ArchiveCacheHelper<SimpleMavenDescriptor>
-    ): JobResult<ArchiveData<SimpleMavenDescriptor, CacheableArchiveResource>, ArchiveException> = jobScope {
+    ): Job<ArchiveData<SimpleMavenDescriptor, CacheableArchiveResource>> = job {
         metadata as ExtensionArtifactMetadata
         val trace = trace()
 
         val tweakerPartition = metadata.erm.tweakerPartition
 
-
-//        val children = children.map { stub ->
-//            stub.candidates.firstNotFailureOf { candidate ->
-//                helper.cache(
-//                    stub.request.withNewDescriptor(
-//                        stub.request.descriptor.copy(classifier = "tweaker")
-//                    ),
-//                    helper.resolve(candidate).attempt(),
-//                    this@EnvironmentTweakerResolver,
-//                )
-//            }.attempt()
-//        }
-
         val dependencies = tweakerPartition?.dependencies?.map { req ->
             var dependencyDescriptor: ArtifactMetadata.Descriptor? = null
             var dependencyResolver: ArchiveNodeResolver<*, *, *, *, *>? = null
 
-             tweakerPartition.repositories.firstNotFailureOf {
-                val p = dependencyProviders.get(it.type) ?: fail(ArchiveException.ArchiveTypeNotFound(it.type, trace))
-
+            tweakerPartition.repositories.firstNotFailureOf {
+                val p = dependencyProviders.get(it.type) ?: throw ArchiveException.ArchiveTypeNotFound(it.type, trace)
 
                 val artifactRequest = (p.parseRequest(req)
                     ?: casuallyFail(
@@ -172,28 +178,27 @@ public class EnvironmentTweakerResolver(
 
                 helper.cache(
                     artifactRequest as ArtifactRequest<ArtifactMetadata.Descriptor>,
-                    (p.parseSettings(it.settings) ?: casuallyFail(ArchiveException.DependencyInfoParseFailed("Could not parse settings: '${it.settings}'",
-                        trace
-                    ))),
+                    (p.parseSettings(it.settings) ?: casuallyFail(
+                        ArchiveException.DependencyInfoParseFailed(
+                            "Could not parse settings: '${it.settings}'",
+                            trace
+                        )
+                    )),
                     p.resolver as DependencyResolver<ArtifactMetadata.Descriptor, ArtifactRequest<ArtifactMetadata.Descriptor>, *, RepositorySettings, *>
-                )
-            }.mapFailure {
-                ArchiveException.IllegalState("Failed to load dependency: '$req' from repositories '${tweakerPartition.repositories}'. Error was: '${it.message}'",
-                    trace
-                )
-            }.attempt()
+                )()
+            }.merge()
 
             dependencyDescriptor!! to dependencyResolver!!
         } ?: listOf()
 
-        helper.withResource("tweaker.jar", metadata.resource?.toSafeResource())
-        helper.withResource("erm.json", ProvidedResource(URI.create("http://nothing")) {
-            mapper.writeValueAsBytes(metadata.erm)
+        helper.withResource("tweaker.jar", metadata.resource)
+        helper.withResource("erm.json", DelegatingResource("http://nothing") {
+            ByteArrayInputStream(mapper.writeValueAsBytes(metadata.erm)).asResourceStream()
         })
         helper.withResource(
             "extra-dep-info.json",
-            ProvidedResource(URI.create("http://nothing")) {
-                mapper.writeValueAsBytes(
+            DelegatingResource("http://nothing") {
+                ByteArrayInputStream(mapper.writeValueAsBytes(
                     dependencies.map { (descriptor, resolver) ->
                         val serializedDescriptor =
                             (resolver as ArchiveNodeResolver<ArtifactMetadata.Descriptor, *, *, *, *>).serializeDescriptor(
@@ -205,26 +210,14 @@ public class EnvironmentTweakerResolver(
                             resolver.name,
                         )
                     }
-                )
+                )).asResourceStream()
             }
         )
 
         helper.newData(metadata.descriptor)
-
-//        ArchiveData(
-//            ref.metadata.descriptor,
-//            mapOfNonNullValues(
-//                "tweaker.jar" to ref.metadata.resource?.toSafeResource()?.let(::CacheableArchiveResource),
-//                "erm.json" to CacheableArchiveResource(ProvidedResource(URI.create("http://nothing")) {
-//                    mapper.writeValueAsBytes(metadata.erm)
-//                })
-//            ),
-//            dependencies + children
-//
-
     }
 
-    private val parent = environment[ParentClassloaderAttribute]!!.cl
+    private val parent = environment[ParentClassloaderAttribute].extract().cl
 
     override val key: EnvironmentAttributeKey<*> = EnvironmentTweakerResolver
 

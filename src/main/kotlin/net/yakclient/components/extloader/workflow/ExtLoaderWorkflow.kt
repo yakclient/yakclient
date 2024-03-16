@@ -1,6 +1,6 @@
 package net.yakclient.components.extloader.workflow
 
-import com.durganmcbroom.jobs.JobResult
+import com.durganmcbroom.jobs.Job
 import net.yakclient.boot.component.context.ContextNodeValue
 import net.yakclient.components.extloader.api.environment.ExtLoaderEnvironment
 
@@ -11,6 +11,6 @@ public interface ExtLoaderWorkflow<T: ExtLoaderWorkflowContext> {
 
     public fun parse(node: ContextNodeValue) : T
 
-    public suspend fun work(context: T, environment: ExtLoaderEnvironment, args: Array<String>) : JobResult<Unit, Throwable>
+    public fun work(context: T, environment: ExtLoaderEnvironment, args: Array<String>) : Job<Unit>
 }
 

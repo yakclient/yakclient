@@ -3,6 +3,7 @@ package net.yakclient.components.extloader.api.extension
 import net.yakclient.components.extloader.api.environment.EnvironmentAttribute
 import net.yakclient.components.extloader.api.environment.EnvironmentAttributeKey
 import net.yakclient.components.extloader.api.environment.ExtLoaderEnvironment
+import net.yakclient.components.extloader.api.environment.getOrNull
 import net.yakclient.components.extloader.extension.ExtensionNode
 
 public interface ExtensionNodeObserver : EnvironmentAttribute {
@@ -14,7 +15,7 @@ public interface ExtensionNodeObserver : EnvironmentAttribute {
 }
 
 public fun ExtLoaderEnvironment.observeNodes(observer: (ExtensionNode) -> Unit) {
-    val realObserver = get(ExtensionNodeObserver)?.let {
+    val realObserver = get(ExtensionNodeObserver).getOrNull()?.let {
         object: ExtensionNodeObserver {
             override fun observe(node: ExtensionNode) {
                 it.observe(node)

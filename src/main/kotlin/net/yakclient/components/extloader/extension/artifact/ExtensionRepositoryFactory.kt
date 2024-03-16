@@ -1,11 +1,15 @@
 package net.yakclient.components.extloader.extension.artifact
 
-import arrow.core.Either
-import arrow.core.continuations.either
 import com.durganmcbroom.artifact.resolver.*
-import com.durganmcbroom.artifact.resolver.simple.maven.*
+import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenArtifactRequest
+import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenArtifactStub
+import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
+import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositoryStub
 import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenDefaultLayout
 import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenLocalLayout
+import com.durganmcbroom.jobs.Job
+import com.durganmcbroom.jobs.job
+import com.durganmcbroom.jobs.result
 import net.yakclient.boot.dependency.DependencyTypeContainer
 
 public class ExtensionRepositoryFactory(
@@ -25,29 +29,31 @@ public class ExtensionRepositoryFactory(
 
 }
 
-internal fun extRepositoryStubResolver(settings: ExtensionRepositorySettings) = RepositoryStubResolver<SimpleMavenRepositoryStub, SimpleMavenRepositorySettings> { stub ->
-    either.eager {
-        val repo = stub.unresolvedRepository
+internal fun extRepositoryStubResolver(settings: ExtensionRepositorySettings) =
+    RepositoryStubResolver<SimpleMavenRepositoryStub, SimpleMavenRepositorySettings> { stub ->
+        result {
+            val repo = stub.unresolvedRepository
 
-        val layout = when (repo.layout.lowercase()) {
-            "default" -> SimpleMavenDefaultLayout(
-                repo.url, settings.preferredHash,
-                repo.releases.enabled,
-                repo.snapshots.enabled,
+            val layout = when (repo.layout.lowercase()) {
+                "default" -> SimpleMavenDefaultLayout(
+                    repo.url, settings.preferredHash,
+                    repo.releases.enabled,
+                    repo.snapshots.enabled,
+                    settings.requireResourceVerification,
+                )
+
+                "ext-local" -> SimpleMavenLocalLayout(
+                    repo.url
+                )
+
+                else -> throw RepositoryStubResolutionException("Invalid repository layout: '${repo.layout}")
+            }
+
+            SimpleMavenRepositorySettings(
+                layout, settings.preferredHash, settings.pluginProvider, settings.requireResourceVerification
             )
-
-            "ext-local" -> SimpleMavenLocalLayout(
-                repo.url
-            )
-
-            else -> shift(RepositoryStubResolutionException("Invalid repository layout: '${repo.layout}"))
         }
-
-        SimpleMavenRepositorySettings(
-            layout, settings.preferredHash, settings.pluginProvider
-        )
     }
-}
 
 // Kinda duplicate code from maven... only necessary part is the repository stub resolver, rest is for type info
 public class ExtMavenArtifactRepository(
@@ -57,31 +63,31 @@ public class ExtMavenArtifactRepository(
 ) : ArtifactRepository<ExtensionArtifactRequest, ExtensionArtifactStub, ExtensionArtifactReference> {
     override val name: String = "ext"
 
-    override val stubResolver: ArtifactStubResolver<SimpleMavenRepositoryStub, ArtifactStub<SimpleMavenArtifactRequest, SimpleMavenRepositoryStub>, ArtifactReference<ExtensionArtifactMetadata, ArtifactStub<SimpleMavenArtifactRequest, SimpleMavenRepositoryStub>>> = object : ArtifactStubResolver<SimpleMavenRepositoryStub, ExtensionArtifactStub, ExtensionArtifactReference> {
-        override val factory: RepositoryFactory<SimpleMavenRepositorySettings, SimpleMavenArtifactRequest, ExtensionArtifactStub, ExtensionArtifactReference, ExtMavenArtifactRepository> = this@ExtMavenArtifactRepository.factory
+    override val stubResolver: ArtifactStubResolver<SimpleMavenRepositoryStub, ArtifactStub<SimpleMavenArtifactRequest, SimpleMavenRepositoryStub>, ArtifactReference<ExtensionArtifactMetadata, ArtifactStub<SimpleMavenArtifactRequest, SimpleMavenRepositoryStub>>> =
+        object : ArtifactStubResolver<SimpleMavenRepositoryStub, ExtensionArtifactStub, ExtensionArtifactReference> {
+            override val factory: RepositoryFactory<SimpleMavenRepositorySettings, SimpleMavenArtifactRequest, ExtensionArtifactStub, ExtensionArtifactReference, ExtMavenArtifactRepository> =
+                this@ExtMavenArtifactRepository.factory
 
-        override val repositoryResolver: RepositoryStubResolver<SimpleMavenRepositoryStub, SimpleMavenRepositorySettings> =
-            extRepositoryStubResolver(settings)
+            override val repositoryResolver: RepositoryStubResolver<SimpleMavenRepositoryStub, SimpleMavenRepositorySettings> =
+                extRepositoryStubResolver(settings)
 
-        override fun resolve(stub: ExtensionArtifactStub): Either<ArtifactException, ExtensionArtifactReference> = either.eager {
-            val localSettings = stub.candidates
-                .map(repositoryResolver::resolve)
-                .map { it.bind() }
+            override fun resolve(stub: ExtensionArtifactStub): Job<ExtensionArtifactReference> = job {
+                val localSettings = stub.candidates
+                    .map(repositoryResolver::resolve)
+                    .map { it.merge() }
 
-            val repositories = localSettings.map(factory::createNew)
+                val repositories = localSettings.map(factory::createNew)
 
-            val bind = repositories
-                .map { it.get(stub.request) }
-                .firstOrNull(Either<*, *>::isRight)?.bind()
+                val bind = repositories
+                    .map { it.get(stub.request)() }
+                    .firstOrNull { it.isSuccess }?.merge()
 
-            bind
-                ?: shift(ArtifactException.ArtifactNotFound(stub.request.descriptor, repositories.map { it.name }))
+                bind ?: throw ArtifactException.ArtifactNotFound(stub.request.descriptor, repositories.map { it.name })
+            }
         }
 
-    }
-
-    override fun get(request: ExtensionArtifactRequest): Either<ArtifactException, ExtensionArtifactReference> = either.eager {
-        val metadata = handler.requestMetadata(request.descriptor).bind()
+    override fun get(request: ExtensionArtifactRequest): Job<ExtensionArtifactReference> = job {
+        val metadata = handler.requestMetadata(request.descriptor)().merge()
 
         val children = run {
             val rawChildren = metadata.children

@@ -1,15 +1,16 @@
 package net.yakclient.components.extloader.api.mixin
 
+import com.durganmcbroom.jobs.Job
 import net.yakclient.archive.mapper.ArchiveMapping
 import net.yakclient.archive.mapper.transform.ClassInheritanceTree
 import net.yakclient.archives.mixin.MixinInjection
 import net.yakclient.components.extloader.api.environment.ApplicationMappingTarget
 import net.yakclient.components.extloader.api.environment.ExtLoaderEnvironment
+import net.yakclient.components.extloader.api.environment.getOrNull
 import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
 import org.objectweb.asm.tree.ClassNode
 import org.objectweb.asm.tree.FieldNode
 import org.objectweb.asm.tree.MethodNode
-import java.lang.IllegalArgumentException
 
 public interface MixinInjectionProvider<A : Annotation, T : MixinInjection.InjectionData> {
     public val type: String
@@ -17,10 +18,9 @@ public interface MixinInjectionProvider<A : Annotation, T : MixinInjection.Injec
 
     public fun parseData(
         context: InjectionContext<A>,
-//        options: Map<String, String>,
         mappingContext: MappingContext,
         ref: ExtensionArchiveReference
-    ): T
+    ): Job<T>
 
     public fun get(): MixinInjection<T>
 
@@ -30,7 +30,7 @@ public interface MixinInjectionProvider<A : Annotation, T : MixinInjection.Injec
         val fromNS: String,
         val environment: ExtLoaderEnvironment
     ) {
-        val toNS: String = environment[ApplicationMappingTarget]!!.namespace
+        val toNS: String = environment[ApplicationMappingTarget].getOrNull()!!.namespace
     }
 
     public data class InjectionContext<A : Annotation>(

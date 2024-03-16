@@ -107,13 +107,13 @@ import java.nio.file.Path
 // go to bed. All in all, i think this idea of running mapped minecraft (de-obfuscated) is just kindof bad,
 // there must be some other way to get all this good debugging functionallity??
 
-private fun MutableObjectContainerAttribute<MixinInjectionProvider<*,*>>.registerMixins() {
+internal fun MutableObjectContainerAttribute<MixinInjectionProvider<*,*>>.registerMixins() {
     container.register("source", SourceInjectionProvider())
     container.register("method", MethodInjectionProvider())
     container.register("field", FieldInjectionProvider())
 }
 
-private fun MutableObjectContainerAttribute<SourceInjectionPoint>.registerMixinPoints() {
+internal fun MutableObjectContainerAttribute<SourceInjectionPoint>.registerMixinPoints() {
     container.register("after-begin", SourceInjectors.AFTER_BEGIN)
     container.register("before-end", SourceInjectors.BEFORE_END)
     container.register("before-invoke", SourceInjectors.BEFORE_INVOKE)
@@ -148,14 +148,14 @@ internal fun ExtensionDevEnvironment(
                 name = "${linker.targetName} Misc access provider",
                 classProvider = linker.miscTarget.relationship.classes,
                 resourceProvider = linker.miscTarget.relationship.resources,
-                parent = environment[ParentClassloaderAttribute]!!.cl
+                parent = environment[ParentClassloaderAttribute].getOrNull()!!.cl
             )
         }
 
     }
 
-    env[mixinTypesAttrKey]!!.registerMixins()
-    env[injectionPointsAttrKey]!!.registerMixinPoints()
+    env[mixinTypesAttrKey].getOrNull()?.registerMixins()
+    env[injectionPointsAttrKey].getOrNull()?.registerMixinPoints()
 
     return env
 }

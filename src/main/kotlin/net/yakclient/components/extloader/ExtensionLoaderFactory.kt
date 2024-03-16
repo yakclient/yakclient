@@ -1,7 +1,7 @@
 package net.yakclient.components.extloader
 
-import com.durganmcbroom.artifact.resolver.simple.maven.HashType
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
+import com.durganmcbroom.resources.ResourceAlgorithm
 import net.yakclient.boot.BootInstance
 import net.yakclient.boot.component.ComponentFactory
 import net.yakclient.boot.component.artifact.SoftwareComponentDescriptor
@@ -43,10 +43,10 @@ public class ExtensionLoaderFactory(boot: BootInstance) :
         val isInternalDev =  configuration.environment.type == ExtLoaderEnvironmentType.INTERNAL_DEV
 
         val repo = if (isInternalDev)
-            SimpleMavenRepositorySettings.local(preferredHash = HashType.SHA1) else
+            SimpleMavenRepositorySettings.local(preferredHash = ResourceAlgorithm.SHA1) else
             SimpleMavenRepositorySettings.default(
                 "http://maven.yakclient.net/snapshots",
-                preferredHash = HashType.SHA1
+                preferredHash = ResourceAlgorithm.SHA1
             )
 
         val mcConfig = MinecraftBootstrapperConfiguration(

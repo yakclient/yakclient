@@ -1,36 +1,38 @@
 package net.yakclient.components.extloader.workflow
 
+import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.JobName
-import com.durganmcbroom.jobs.JobResult
 import com.durganmcbroom.jobs.job
+import com.durganmcbroom.jobs.mapException
 import net.yakclient.archive.mapper.transform.transformArchive
 import net.yakclient.archives.ArchiveFinder
 import net.yakclient.archives.ArchiveTree
 import net.yakclient.archives.Archives
 import net.yakclient.archives.mixin.MixinInjection
+import net.yakclient.boot.archive.ArchiveException
 import net.yakclient.boot.component.context.ContextNodeValue
 import net.yakclient.boot.loader.*
-import net.yakclient.boot.security.PrivilegeAccess
-import net.yakclient.boot.security.PrivilegeManager
 import net.yakclient.common.util.immutableLateInit
 import net.yakclient.common.util.resolve
 import net.yakclient.components.extloader.api.environment.*
 import net.yakclient.components.extloader.api.extension.ExtensionNodeObserver
 import net.yakclient.components.extloader.api.extension.ExtensionRunner
+import net.yakclient.components.extloader.api.mapping.MappingsProvider
+import net.yakclient.components.extloader.api.target.ApplicationParentClProvider
+import net.yakclient.components.extloader.api.target.ApplicationTarget
 import net.yakclient.components.extloader.environment.ExtensionDevEnvironment
-import net.yakclient.components.extloader.extension.*
+import net.yakclient.components.extloader.extension.ExtensionLoadException
+import net.yakclient.components.extloader.extension.ExtensionNode
+import net.yakclient.components.extloader.extension.ExtensionResolver
 import net.yakclient.components.extloader.extension.artifact.ExtensionArtifactRequest
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 import net.yakclient.components.extloader.extension.artifact.ExtensionRepositorySettings
 import net.yakclient.components.extloader.extension.mapping.MojangExtensionMappingProvider
 import net.yakclient.components.extloader.mapping.findShortest
 import net.yakclient.components.extloader.mapping.newMappingsGraph
-import net.yakclient.components.extloader.api.target.ApplicationTarget
-import net.yakclient.components.extloader.api.mapping.MappingsProvider
-import net.yakclient.components.extloader.api.target.ApplicationParentClProvider
 import net.yakclient.components.extloader.target.TargetLinker
-import net.yakclient.components.extloader.tweaker.EnvironmentTweakerResolver
 import net.yakclient.components.extloader.tweaker.EnvironmentTweakerNode
+import net.yakclient.components.extloader.tweaker.EnvironmentTweakerResolver
 import net.yakclient.minecraft.bootstrapper.MinecraftClassTransformer
 import org.objectweb.asm.tree.ClassNode
 import java.io.File
@@ -58,11 +60,11 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         )
     }
 
-    override suspend fun work(
+    override fun work(
         context: ExtDevWorkflowContext, environment: ExtLoaderEnvironment, args: Array<String>
-    ): JobResult<Unit, Throwable> = job(JobName("Run extension dev workflow")) {
+    ): Job<Unit> = job(JobName("Run extension dev workflow")) {
         // Create initial environment
-        environment += ExtensionDevEnvironment(environment[WorkingDirectoryAttribute]!!.path)
+        environment += ExtensionDevEnvironment(environment[WorkingDirectoryAttribute].extract().path)
         environment += ApplicationMappingTarget(
             context.mappingType
         )
@@ -72,35 +74,14 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         )
         environment += DevExtensionResolver(
             Archives.Finders.ZIP_FINDER,
-            PrivilegeManager(null, PrivilegeAccess.emptyPrivileges()),
-            environment[ParentClassloaderAttribute]!!.cl,
+            environment[ParentClassloaderAttribute].extract().cl,
             environment,
         )
 
-        val appTarget = environment[ApplicationTarget]!!
+        val appTarget = environment[ApplicationTarget].extract()
         val appReference = appTarget.reference
 
-        var targetClassProvider: ClassProvider by immutableLateInit()
-        var targetResourceProvider: ResourceProvider by immutableLateInit()
-
-        // Create linker with delegating to the uninitialized class providers
-        val linker = TargetLinker(
-//            environment
-            targetDescriptor = appReference.descriptor,
-            target = object : ClassProvider {
-                override val packages: Set<String> by lazy { targetClassProvider.packages }
-
-                override fun findClass(name: String): Class<*>? = targetClassProvider.findClass(name)
-            },
-            targetResources = object : ResourceProvider {
-                override fun findResources(name: String): Sequence<URL> {
-                    return targetResourceProvider.findResources(name)
-                }
-            },
-        )
-        environment += linker
-
-        // Delete extension, we want to re-cache since we are in dev mode
+        // Delete extension, we want to re-cache the erm since we are in dev mode
         Files.deleteIfExists(
             environment.archiveGraph.path resolve Path.of(
                 context.extension.group.replace('.', File.separatorChar),
@@ -118,36 +99,40 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
             )
         )
 
-        fun EnvironmentTweakerNode.applyTweakers(env: ExtLoaderEnvironment) {
-            parents.forEach { it.applyTweakers(env) }
-            tweaker?.tweak(env)
-        }
-
         val tweakerDesc = context.extension.copy(
             classifier = "tweaker"
         )
-        val tweakerResolver = environment[EnvironmentTweakerResolver]!!
-        val tweaker = if (environment.archiveGraph.cache(
+        val allTweakers = job(JobName("Load and apply tweakers")) {
+            fun EnvironmentTweakerNode.applyTweakers(env: ExtLoaderEnvironment) {
+                parents.forEach { it.applyTweakers(env) }
+                tweaker?.tweak(env)?.invoke()?.merge()
+            }
+
+            val tweakerResolver = environment[EnvironmentTweakerResolver].extract()
+            val tweakerCacheResult = environment.archiveGraph.cache(
                 ExtensionArtifactRequest(tweakerDesc, includeScopes = setOf("compile", "runtime", "import")),
                 context.repository,
                 tweakerResolver
-            ).wasSuccess()
-        ) {
-            environment.archiveGraph.get(
+            )()
+            val tweaker = if (tweakerCacheResult.exceptionOrNull() is ArchiveException.ArtifactResolutionException) null
+            else if (tweakerCacheResult.isSuccess) environment.archiveGraph.get(
                 tweakerDesc,
                 tweakerResolver
-            ).attempt()
-        } else null
-        tweaker?.applyTweakers(environment)
+            )().merge() else throw tweakerCacheResult.exceptionOrNull()!!
 
-        fun allTweakers(node: EnvironmentTweakerNode): List<EnvironmentTweakerNode> {
-            return listOf(node) + node.parents.flatMap { allTweakers(it) }
-        }
+            tweaker?.applyTweakers(environment)
 
-        val allTweakers = tweaker?.let(::allTweakers) ?: listOf()
+            fun allTweakers(node: EnvironmentTweakerNode): List<EnvironmentTweakerNode> {
+                return listOf(node) + node.parents.flatMap { allTweakers(it) }
+            }
+
+            tweaker?.let(::allTweakers) ?: listOf()
+        }().mapException {
+            ExtensionLoadException(tweakerDesc, it)
+        }.merge()
 
         val mcVersion by appReference.descriptor::version
-        val mapperObjects = environment[MutableObjectSetAttribute.Key<MappingsProvider>("mapping-providers")]!!
+        val mapperObjects = environment[MutableObjectSetAttribute.Key<MappingsProvider>("mapping-providers")].extract()
         val mappingGraph = newMappingsGraph(mapperObjects)
 
         transformArchive(
@@ -163,27 +148,30 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         }
 
         // Get extension resolver
-        val extensionResolver = environment[ExtensionResolver]!!
+        val extensionResolver = environment[ExtensionResolver].extract()
 
         // Load a cacher and attempt to cache the extension request
-
-        environment.archiveGraph.cache(
-            ExtensionArtifactRequest(
-                context.extension, includeScopes = setOf("compile", "runtime", "import")
-            ),
-            context.repository,
-            extensionResolver
-        ).attempt()
-        val extensionNode = environment.archiveGraph.get(
-            context.extension,
-            extensionResolver
-        ).attempt()
+        val extensionNode = job(JobName("Load extensions")) {
+            environment.archiveGraph.cache(
+                ExtensionArtifactRequest(
+                    context.extension, includeScopes = setOf("compile", "runtime", "import")
+                ),
+                context.repository,
+                extensionResolver
+            )().merge()
+            environment.archiveGraph.get(
+                context.extension,
+                extensionResolver
+            )().merge()
+        }().mapException {
+            ExtensionLoadException(context.extension, it)
+        }.merge()
 
         // Get all extension nodes in order
         val extensions = allExtensions(extensionNode)
 
         // Get extension observer (if there is one after tweaker application) and observer each node
-        environment[ExtensionNodeObserver]?.let { extensions.forEach(it::observe) }
+        environment[ExtensionNodeObserver].getOrNull()?.let { extensions.forEach(it::observe) }
 
         extensions.forEach {
             it.container?.injectMixins { to, metadata ->
@@ -201,14 +189,33 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
                         return node
                     }
                 })
-            }
+            }?.invoke()?.merge()
         }
 
+        var targetClassProvider: ClassProvider by immutableLateInit()
+        var targetResourceProvider: ResourceProvider by immutableLateInit()
+
+        // Create linker with delegating to the uninitialized class providers
+        val linker = TargetLinker(
+            targetDescriptor = appReference.descriptor,
+            target = object : ClassProvider {
+                override val packages: Set<String> by lazy { targetClassProvider.packages }
+
+                override fun findClass(name: String): Class<*>? = targetClassProvider.findClass(name)
+            },
+            targetResources = object : ResourceProvider {
+                override fun findResources(name: String): Sequence<URL> {
+                    return targetResourceProvider.findResources(name)
+                }
+            },
+        )
+        environment += linker
+
         // Create the minecraft parent classloader with the delegating linker
-        val parentLoader = environment[ApplicationParentClProvider]!!.getParent(linker, environment)
+        val parentLoader = environment[ApplicationParentClProvider].extract().getParent(linker, environment)
 
         // Init minecraft
-        appTarget.reference.load(parentLoader)
+        appTarget.reference.load(parentLoader)().merge()
 
         // Initialize the first clas provider to allow extensions access to minecraft
         targetClassProvider =
@@ -235,7 +242,7 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         }
 
         // Call init on all extensions, this is ordered correctly
-        extensions.forEach(environment[ExtensionRunner]!!::init)
+        extensions.forEach(environment[ExtensionRunner].extract()::init)
 
         // Start minecraft
         appTarget.start(args)
@@ -243,7 +250,7 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
 }
 
 private class DevExtensionResolver(
-    finder: ArchiveFinder<*>, privilegeManager: PrivilegeManager, parent: ClassLoader, environment: ExtLoaderEnvironment
+    finder: ArchiveFinder<*>, parent: ClassLoader, environment: ExtLoaderEnvironment
 ) : ExtensionResolver(
-     finder, privilegeManager, parent, environment
+    finder, parent, environment
 )

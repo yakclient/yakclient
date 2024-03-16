@@ -1,6 +1,7 @@
 package net.yakclient.components.extloader.api.target
 
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
+import com.durganmcbroom.jobs.Job
 import net.yakclient.archives.ArchiveHandle
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.mixin.MixinInjection
@@ -14,8 +15,9 @@ public interface ApplicationTarget : EnvironmentAttribute {
 
     public val reference: AppArchiveReference
 
-//    public fun newMixinTransaction() : MixinTransaction
     public fun mixin(destination: String, transformer: MinecraftClassTransformer)
+
+    public fun mixin(destination: String, priority: Int, transformer: MinecraftClassTransformer)
 
     public fun start(args: Array<String>)
 
@@ -35,18 +37,13 @@ public interface AppArchiveReference {
 
     public val handleLoaded: Boolean
 
-    public fun load(parent: ClassLoader)
+    public fun load(parent: ClassLoader): Job<Unit>
 }
 
 public interface MixinTransaction {
-//    public val finished: Boolean
-//
-    public data class Metadata<T: MixinInjection.InjectionData>(
+    //
+    public data class Metadata<T : MixinInjection.InjectionData>(
         val data: T,
         val injection: MixinInjection<T>
     )
-//
-//    public fun register(destination: String, metadata: Metadata<*>)
-//
-//    public fun writeAll()
 }
