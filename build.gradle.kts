@@ -57,16 +57,16 @@ dependencies {
         isChanging = true
     }
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-    api("com.durganmcbroom:jobs:1.1-SNAPSHOT") {
+    api("com.durganmcbroom:jobs:1.2-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:jobs-logging:1.1-SNAPSHOT") {
+    implementation("com.durganmcbroom:jobs-logging:1.2-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:jobs-progress:1.1-SNAPSHOT") {
+    implementation("com.durganmcbroom:jobs-progress:1.2-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:jobs-progress-simple:1.1-SNAPSHOT") {
+    implementation("com.durganmcbroom:jobs-progress-simple:1.2-SNAPSHOT") {
         isChanging = true
     }
 
