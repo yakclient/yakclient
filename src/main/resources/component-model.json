@@ -18,7 +18,7 @@
   "dependencies": [
     {
       "request": {
-        "descriptor": "net.yakclient:archives-mixin:1.1-SNAPSHOT"
+        "descriptor": "net.yakclient:archives-mixin:1.2-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",
@@ -85,7 +85,7 @@
     },
     {
       "request": {
-        "descriptor": "net.yakclient:launchermeta-handler:1.0-SNAPSHOT"
+        "descriptor": "net.yakclient:launchermeta-handler:1.1-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",
