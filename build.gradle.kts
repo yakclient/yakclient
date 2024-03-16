@@ -71,18 +71,12 @@ dependencies {
     }
 
     testImplementation(kotlin("test"))
-    implementation("net.yakclient:boot-test:2.1-SNAPSHOT")
+    testImplementation("net.yakclient:boot-test:2.1-SNAPSHOT")
     testImplementation("net.yakclient:archive-mapper-tiny:1.2-SNAPSHOT")
 }
 
 
 open class ListAllDependencies : DefaultTask() {
-    init {
-        // Define the output file within the build directory
-//        val outputFile = project.file("src/test/resources/dependencies.txt")
-//        outputs.file(outputFile)
-    }
-
     @TaskAction
     fun listDependencies() {
         val outputFile = project.file("build/resources/test/dependencies.txt")
