@@ -29,9 +29,9 @@ dependencies {
     implementation(project(":client-api"))
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
-    implementation("net.yakclient:archive-mapper:1.2-SNAPSHOT")
-    implementation("net.yakclient:archive-mapper-transform:1.2-SNAPSHOT")
-    implementation("net.yakclient:archive-mapper-proguard:1.2-SNAPSHOT")
+    implementation("net.yakclient:archive-mapper:1.2.1-SNAPSHOT")
+    implementation("net.yakclient:archive-mapper-transform:1.2.1-SNAPSHOT")
+    implementation("net.yakclient:archive-mapper-proguard:1.2.1-SNAPSHOT")
 
     implementation("net.yakclient:launchermeta-handler:1.1-SNAPSHOT") {
         isChanging = true

@@ -2,6 +2,7 @@
 
 package net.yakclient.components.extloader.environment
 
+import net.yakclient.archive.mapper.MappingsProvider
 import net.yakclient.archives.mixin.SourceInjectionPoint
 import net.yakclient.archives.mixin.SourceInjectors
 import net.yakclient.boot.loader.IntegratedLoader
@@ -14,7 +15,6 @@ import net.yakclient.components.extloader.extension.mapping.MojangExtensionMappi
 import net.yakclient.components.extloader.mixin.FieldInjectionProvider
 import net.yakclient.components.extloader.mixin.MethodInjectionProvider
 import net.yakclient.components.extloader.mixin.SourceInjectionProvider
-import net.yakclient.components.extloader.api.mapping.MappingsProvider
 import net.yakclient.components.extloader.api.mixin.MixinInjectionProvider
 import net.yakclient.components.extloader.api.target.ApplicationParentClProvider
 import net.yakclient.components.extloader.target.TargetLinker

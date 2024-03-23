@@ -4,10 +4,10 @@ import com.durganmcbroom.jobs.result
 import com.durganmcbroom.resources.Resource
 import com.durganmcbroom.resources.openStream
 import net.yakclient.archive.mapper.ArchiveMapping
+import net.yakclient.archive.mapper.MappingsProvider
 import net.yakclient.archive.mapper.parsers.proguard.ProGuardMappingParser
 import net.yakclient.boot.store.CachingDataStore
 import net.yakclient.boot.store.DataStore
-import net.yakclient.components.extloader.api.mapping.MappingsProvider
 import net.yakclient.launchermeta.handler.clientMappings
 import net.yakclient.launchermeta.handler.loadVersionManifest
 import net.yakclient.launchermeta.handler.metadata

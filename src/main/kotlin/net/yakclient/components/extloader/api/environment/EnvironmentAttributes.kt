@@ -1,9 +1,9 @@
 package net.yakclient.components.extloader.api.environment
 
+import net.yakclient.archive.mapper.MappingsProvider
 import net.yakclient.archives.mixin.SourceInjectionPoint
 import net.yakclient.boot.archive.ArchiveGraph
 import net.yakclient.boot.dependency.DependencyTypeContainer
-import net.yakclient.components.extloader.api.mapping.MappingsProvider
 import net.yakclient.components.extloader.api.mixin.MixinInjectionProvider
 import net.yakclient.`object`.MutableObjectContainer
 import net.yakclient.`object`.ObjectContainerImpl

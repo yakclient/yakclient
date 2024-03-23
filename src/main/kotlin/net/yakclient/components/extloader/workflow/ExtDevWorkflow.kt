@@ -4,6 +4,9 @@ import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.JobName
 import com.durganmcbroom.jobs.job
 import com.durganmcbroom.jobs.mapException
+import net.yakclient.archive.mapper.MappingsProvider
+import net.yakclient.archive.mapper.findShortest
+import net.yakclient.archive.mapper.newMappingsGraph
 import net.yakclient.archive.mapper.transform.transformArchive
 import net.yakclient.archives.ArchiveFinder
 import net.yakclient.archives.ArchiveTree
@@ -17,7 +20,6 @@ import net.yakclient.common.util.resolve
 import net.yakclient.components.extloader.api.environment.*
 import net.yakclient.components.extloader.api.extension.ExtensionNodeObserver
 import net.yakclient.components.extloader.api.extension.ExtensionRunner
-import net.yakclient.components.extloader.api.mapping.MappingsProvider
 import net.yakclient.components.extloader.api.target.ApplicationParentClProvider
 import net.yakclient.components.extloader.api.target.ApplicationTarget
 import net.yakclient.components.extloader.environment.ExtensionDevEnvironment
@@ -28,8 +30,6 @@ import net.yakclient.components.extloader.extension.artifact.ExtensionArtifactRe
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 import net.yakclient.components.extloader.extension.artifact.ExtensionRepositorySettings
 import net.yakclient.components.extloader.extension.mapping.MojangExtensionMappingProvider
-import net.yakclient.components.extloader.mapping.findShortest
-import net.yakclient.components.extloader.mapping.newMappingsGraph
 import net.yakclient.components.extloader.target.TargetLinker
 import net.yakclient.components.extloader.tweaker.EnvironmentTweakerNode
 import net.yakclient.components.extloader.tweaker.EnvironmentTweakerResolver

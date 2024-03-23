@@ -1,12 +1,5 @@
 package net.yakclient.components.extloader.extension.mapping
 
-import net.yakclient.archive.mapper.ArchiveMapping
-import net.yakclient.archive.mapper.transform.ClassInheritancePath
-import net.yakclient.archive.mapper.transform.ClassInheritanceTree
-import net.yakclient.archives.ArchiveReference
-import net.yakclient.archives.transform.TransformerConfig
-import net.yakclient.components.extloader.api.mapping.MappingsProvider
-
 //public class EmptyExtensionMappingProvider : MappingsProvider {
 ////    override val typeFrom: String = EMPTY_MAPPING_TYPE
 //
