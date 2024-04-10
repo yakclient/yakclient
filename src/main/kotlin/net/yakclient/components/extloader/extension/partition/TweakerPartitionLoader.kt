@@ -74,7 +74,7 @@ public class TweakerPartitionLoader : ExtensionPartitionLoader<TweakerPartitionM
                 ?: throw IllegalArgumentException("Could not find no-arg constructor in class: '${metadata.tweakerClass}' in partition: '${metadata.name}'.")
 
         val instance = extensionConstructor.newInstance() as? EnvironmentTweaker
-            ?: throw IllegalArgumentException("Extension class: '${metadata.tweakerClass}' does not implement: '${Extension::class.qualifiedName} in extension: '${metadata.name}'.")
+            ?: throw IllegalArgumentException("Tweaker class: '${metadata.tweakerClass}' does not implement: '${EnvironmentTweaker::class.qualifiedName} in extension: '${metadata.name}'.")
 
         val node = TweakerPartitionNode(
             handle,

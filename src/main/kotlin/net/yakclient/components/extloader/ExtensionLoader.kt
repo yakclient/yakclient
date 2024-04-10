@@ -20,6 +20,9 @@ import net.yakclient.components.extloader.workflow.ExtLoaderWorkflowContext
 import net.yakclient.minecraft.bootstrapper.*
 import java.nio.file.Path
 
+public const val EXT_LOADER_GROUP: String = "net.yakclient.components"
+public const val EXT_LOADER_ARTIFACT: String = "ext-loader"
+public const val EXT_LOADER_VERSION: String = "1.1-SNAPSHOT"
 
 public class ExtensionLoader(
     private val boot: BootInstance,

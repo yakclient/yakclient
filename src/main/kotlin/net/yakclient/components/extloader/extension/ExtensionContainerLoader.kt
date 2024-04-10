@@ -3,6 +3,7 @@ package net.yakclient.components.extloader.extension
 import com.durganmcbroom.artifact.resolver.ArtifactMetadata
 import com.durganmcbroom.artifact.resolver.ArtifactRequest
 import com.durganmcbroom.artifact.resolver.RepositorySettings
+import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
 import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.SuccessfulJob
 import com.durganmcbroom.jobs.job
@@ -14,6 +15,8 @@ import net.yakclient.boot.dependency.DependencyResolver
 import net.yakclient.boot.dependency.DependencyResolverProvider
 import net.yakclient.boot.loader.*
 import net.yakclient.boot.util.firstNotFailureOf
+import net.yakclient.components.extloader.EXT_LOADER_ARTIFACT
+import net.yakclient.components.extloader.EXT_LOADER_GROUP
 import net.yakclient.components.extloader.api.environment.*
 import net.yakclient.components.extloader.api.extension.ExtensionClassLoaderProvider
 import net.yakclient.components.extloader.api.extension.ExtensionPartition
@@ -135,6 +138,12 @@ public open class ExtensionContainerLoader(
                         dependencyDescriptor,
                         dependencyResolver
                     )().merge()
+                }.filter {
+                    val d = it.descriptor as? SimpleMavenDescriptor ?: return@filter true
+
+                    // TODO this ensures some amount of backwards compatibility (as ext-loader or the client-api wont be reloaded) however this should instead be anything it in the class loader hierarchy.
+                    !((d.group == EXT_LOADER_GROUP && d.artifact == EXT_LOADER_ARTIFACT) ||
+                            (d.group == "net.yakclient" && d.artifact == "client-api"))
                 }
 
             val metadata = getMetadata(partitionToLoad)().merge()
@@ -164,7 +173,8 @@ public open class ExtensionContainerLoader(
                     }
 
                     override fun access(scope: PartitionAccessTreeScope.() -> Unit): ArchiveAccessTree {
-                        val allTargets = ArrayList<ArchiveTarget>()
+                        val directTargets = ArrayList<ArchiveTarget>()
+                        val transitiveTargets = ArrayList<ArchiveTarget>()
 
                         val scopeObject = object : PartitionAccessTreeScope {
                             override fun withDefaults() {
@@ -190,15 +200,15 @@ public open class ExtensionContainerLoader(
                             }
 
                             override fun direct(dependency: ArchiveNode<*>) {
-                                val directTarget = ArchiveTarget(
+                                directTargets.add(ArchiveTarget(
                                     dependency.descriptor,
                                     ArchiveRelationship.Direct(
                                         ArchiveClassProvider(dependency.archive),
                                         ArchiveResourceProvider(dependency.archive),
                                     )
-                                )
+                                ))
 
-                                val transitiveTargets = dependency.access.targets.map {
+                                transitiveTargets.addAll(dependency.access.targets.map {
                                     ArchiveTarget(
                                         it.descriptor,
                                         ArchiveRelationship.Transitive(
@@ -206,14 +216,11 @@ public open class ExtensionContainerLoader(
                                             it.relationship.resources,
                                         )
                                     )
-                                }
-
-                                allTargets.add(directTarget)
-                                allTargets.addAll(transitiveTargets)
+                                })
                             }
 
                             override fun rawTarget(target: ArchiveTarget) {
-                                allTargets.add(target)
+                                directTargets.add(target)
                             }
                         }
                         scopeObject.scope()
@@ -221,7 +228,7 @@ public open class ExtensionContainerLoader(
                         return object : ArchiveAccessTree {
                             override val descriptor: ArtifactMetadata.Descriptor =
                                 ExtensionDescriptor(erm.groupId, erm.name, erm.version, partitionToLoad.name)
-                            override val targets: Set<ArchiveTarget> = allTargets.toSet()
+                            override val targets: List<ArchiveTarget> = directTargets + transitiveTargets
                         }
                     }
                 }

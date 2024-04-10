@@ -29,6 +29,6 @@ public data class ExtensionNode(
 
     override val access: ArchiveAccessTree = object : ArchiveAccessTree {
         override val descriptor: ArtifactMetadata.Descriptor = this@ExtensionNode.descriptor
-        override val targets: Set<ArchiveTarget> = setOf()
+        override val targets: List<ArchiveTarget> = listOf()
     }
 }
