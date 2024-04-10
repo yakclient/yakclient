@@ -1,3 +1,6 @@
+import java.nio.file.Path
+import java.nio.file.Paths
+
 plugins {
     kotlin("jvm") version "1.9.21"
 
@@ -6,7 +9,7 @@ plugins {
 }
 
 group = "net.yakclient.components"
-version = "1.0-SNAPSHOT"
+version = "1.1-SNAPSHOT"
 
 sourceSets {
     val main by getting

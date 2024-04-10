@@ -6,9 +6,12 @@ import com.durganmcbroom.jobs.job
 import net.yakclient.archive.mapper.transform.mapClassName
 import net.yakclient.archive.mapper.transform.mapMethodDesc
 import net.yakclient.archive.mapper.transform.mapMethodName
+import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.extension.*
 import net.yakclient.archives.mixin.*
-import net.yakclient.archives.transform.*
+import net.yakclient.archives.transform.InstructionResolver
+import net.yakclient.archives.transform.ProvidedInstructionReader
+import net.yakclient.archives.transform.TransformerConfig
 import net.yakclient.client.api.InjectionContinuation
 import net.yakclient.client.api.annotation.FieldInjection
 import net.yakclient.client.api.annotation.InjectionDefaults.SELF_REF
@@ -17,7 +20,6 @@ import net.yakclient.client.api.annotation.MethodInjection
 import net.yakclient.client.api.annotation.SourceInjection
 import net.yakclient.components.extloader.api.environment.getOrNull
 import net.yakclient.components.extloader.api.environment.injectionPointsAttrKey
-import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
 import net.yakclient.components.extloader.api.mixin.MixinInjectionProvider
 import net.yakclient.components.extloader.util.withDots
 import net.yakclient.components.extloader.util.withSlashes
@@ -202,7 +204,7 @@ public class SourceInjectionProvider :
     override fun parseData(
         context: MixinInjectionProvider.InjectionContext<SourceInjection>,
         mappingContext: MixinInjectionProvider.MappingContext,
-        ref: ExtensionArchiveReference
+        ref: ArchiveReference
     ): Job<RichSourceInjectionData> =
         job(
             JobName(
@@ -217,7 +219,6 @@ public class SourceInjectionProvider :
             val unmappedTargetClass = context.target.name
             val unmappedMethodTo = Method(context.element.annotation.methodTo.takeUnless { it == SELF_REF }
                 ?: (context.element.methodNode.name + context.element.methodNode.desc))
-
 
             val targetMethod = run {
                 val name = mappingContext.mappings.mapMethodName(
@@ -242,9 +243,8 @@ public class SourceInjectionProvider :
             if (originStatic.xor(descStatic))
                 throw MixinException(null, "Method access's dont match! One is static and the other is not.")
 
-
             val data = RichSourceInjectionData(
-                ref.erm.name,
+                ref.name!!,
                 mappingContext.mappings
                     .mapClassName(unmappedTargetClass, mappingContext.fromNS, mappingContext.toNS)
                     ?.withDots()
@@ -267,8 +267,6 @@ public class SourceInjectionProvider :
                 },
                 context.element.methodNode.toMethod(),
                 run {
-
-
                     if (!context.target.hasMethod(targetMethod)) throw MixinException(message = "Failed to find method: '$targetMethod' in target class: '${context.target.name}' while applying mixin: '${context.classNode.name}' from extension: '${ref.name}'")
 
                     targetMethod
@@ -306,7 +304,7 @@ public class MethodInjectionProvider : MixinInjectionProvider<MethodInjection, M
     override fun parseData(
         context: MixinInjectionProvider.InjectionContext<MethodInjection>,
         mappingContext: MixinInjectionProvider.MappingContext,
-        ref: ExtensionArchiveReference
+        ref: ArchiveReference
     ): Job<MethodInjectionData> =
         job(
             JobName(
@@ -361,7 +359,7 @@ public class FieldInjectionProvider : MixinInjectionProvider<FieldInjection, Fie
     override fun parseData(
         context: MixinInjectionProvider.InjectionContext<FieldInjection>,
         mappingContext: MixinInjectionProvider.MappingContext,
-        ref: ExtensionArchiveReference
+        ref: ArchiveReference
     ): Job<FieldInjectionData> =
         job(
             JobName(

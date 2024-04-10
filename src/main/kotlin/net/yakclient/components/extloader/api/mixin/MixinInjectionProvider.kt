@@ -3,11 +3,11 @@ package net.yakclient.components.extloader.api.mixin
 import com.durganmcbroom.jobs.Job
 import net.yakclient.archive.mapper.ArchiveMapping
 import net.yakclient.archive.mapper.transform.ClassInheritanceTree
+import net.yakclient.archives.ArchiveReference
 import net.yakclient.archives.mixin.MixinInjection
 import net.yakclient.components.extloader.api.environment.ApplicationMappingTarget
 import net.yakclient.components.extloader.api.environment.ExtLoaderEnvironment
 import net.yakclient.components.extloader.api.environment.getOrNull
-import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
 import org.objectweb.asm.tree.ClassNode
 import org.objectweb.asm.tree.FieldNode
 import org.objectweb.asm.tree.MethodNode
@@ -19,7 +19,7 @@ public interface MixinInjectionProvider<A : Annotation, T : MixinInjection.Injec
     public fun parseData(
         context: InjectionContext<A>,
         mappingContext: MappingContext,
-        ref: ExtensionArchiveReference
+        ref: ArchiveReference
     ): Job<T>
 
     public fun get(): MixinInjection<T>

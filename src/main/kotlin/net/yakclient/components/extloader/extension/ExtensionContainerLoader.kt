@@ -1,235 +1,280 @@
 package net.yakclient.components.extloader.extension
 
+import com.durganmcbroom.artifact.resolver.ArtifactMetadata
+import com.durganmcbroom.artifact.resolver.ArtifactRequest
+import com.durganmcbroom.artifact.resolver.RepositorySettings
 import com.durganmcbroom.jobs.Job
-import com.durganmcbroom.jobs.JobName
+import com.durganmcbroom.jobs.SuccessfulJob
 import com.durganmcbroom.jobs.job
-import com.durganmcbroom.resources.openStream
 import net.yakclient.archive.mapper.*
 import net.yakclient.archive.mapper.transform.*
-import net.yakclient.archives.ArchiveHandle
 import net.yakclient.archives.ArchiveReference
-import net.yakclient.archives.ArchiveTree
-import net.yakclient.archives.Archives
-import net.yakclient.archives.transform.TransformerConfig
-import net.yakclient.boot.archive.ArchiveAccessTree
-import net.yakclient.boot.loader.ArchiveSourceProvider
-import net.yakclient.client.api.Extension
-import net.yakclient.common.util.LazyMap
-import net.yakclient.common.util.runCatching
+import net.yakclient.boot.archive.*
+import net.yakclient.boot.dependency.DependencyResolver
+import net.yakclient.boot.dependency.DependencyResolverProvider
+import net.yakclient.boot.loader.*
+import net.yakclient.boot.util.firstNotFailureOf
 import net.yakclient.components.extloader.api.environment.*
 import net.yakclient.components.extloader.api.extension.ExtensionClassLoaderProvider
+import net.yakclient.components.extloader.api.extension.ExtensionPartition
 import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
-import net.yakclient.components.extloader.api.extension.ExtensionVersionPartition
-import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
-import net.yakclient.components.extloader.api.target.ApplicationTarget
+import net.yakclient.components.extloader.api.extension.descriptor
+import net.yakclient.components.extloader.api.extension.partition.*
+import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
+import net.yakclient.components.extloader.extension.partition.MainPartitionMetadata
+import net.yakclient.components.extloader.extension.partition.MainPartitionNode
 import net.yakclient.components.extloader.extension.versioning.VersionedExtArchiveHandle
-import net.yakclient.components.extloader.util.parseNode
-import org.objectweb.asm.ClassReader
-import org.objectweb.asm.tree.ClassNode
+import net.yakclient.components.extloader.util.slice
+import java.lang.IllegalStateException
+import java.nio.file.Path
 
-public class ExtensionContainerLoader(
+public open class ExtensionContainerLoader(
     private val parentClassloader: ClassLoader,
     private val environment: ExtLoaderEnvironment
 ) : EnvironmentAttribute {
-    private val minecraftRef = environment[ApplicationTarget].extract().reference.reference
-    private val mcVersion = environment[ApplicationTarget].extract().reference.descriptor.version
-    private val appInheritanceTree = createFakeInheritanceTree(minecraftRef.reader)
     override val key: EnvironmentAttributeKey<*> = ExtensionContainerLoader
 
     public companion object : EnvironmentAttributeKey<ExtensionContainerLoader>
 
-    private fun transformEachEntry(
-        archiveReference: ExtensionArchiveReference,
-        // Dependencies should already be mapped
-        dependencies: List<ArchiveTree>,
-        mappings: (ExtensionVersionPartition) -> ArchiveMapping
-    ): Job<ClassInheritanceTree> = job(JobName("Transform all entries in archive reference.")) {
-        // Gets all the loaded mixins and map them to their actual location in the archive reference.
+    private fun loadPartitions(
+        environment: ExtLoaderEnvironment,
+        ref: ArchiveReference,
+        erm: ExtensionRuntimeModel,
+        parents: List<ExtensionNode>,
+    ): Job<List<ExtensionPartitionContainer<*, *>>> = job {
+        val loaded = HashMap<ExtensionPartition, ExtensionPartitionContainer<*, *>>()
 
-        fun inheritancePathFor(
-            node: ClassNode
-        ): Job<ClassInheritancePath> = job {
-            fun ClassNode.getParent(name: String?): ClassInheritancePath? {
-                if (name == null) return null
+        val toLoad = erm.partitions.toMutableList()
 
-                val treeFromApp = run {
-                    val entry = archiveReference.reader["${this.name}.class"] ?: return@run null
+        val allArchives = HashMap<String, ArchiveReference>()
+        val allMetadata = HashMap<ExtensionPartition, ExtensionPartitionMetadata>()
 
-                    val part = archiveReference.reader.determinePartition(entry).first()
+        fun getArchive(path: String): ArchiveReference =
+            allArchives[path] ?: run {
+                ref.slice(Path.of(path)).also { allArchives[path] = it }
+            }
 
-                    if (part is ExtensionVersionPartition) {
-                        appInheritanceTree[mappings(part).mapClassName(
-                            name,
-                            part.mappingNamespace,
-                            environment[ApplicationMappingTarget].extract().namespace
-                        ) ?: name]
-                    } else null
-                }
+        fun getMetadata(partition: ExtensionPartition): Job<ExtensionPartitionMetadata> = job {
+            allMetadata[partition] ?: run {
+                val loaders = environment[partitionLoadersAttrKey].extract().container
+                val loader = loaders.get(partition.type) ?: throw IllegalArgumentException(
+                    "Illegal partition type: '${partition.type}', only accepted ones are: '${
+                        loaders.objects().map(
+                            Map.Entry<String, ExtensionPartitionLoader<*>>::key
+                        )
+                    }'"
+                )
 
-                val treeFromRef = archiveReference.reader["$name.class"]?.let { e ->
-                    inheritancePathFor(
-                        e.resource.openStream().parseNode()
+                loader.parseMetadata(
+                    partition,
+                    getArchive(partition.path),
+                    object : PartitionMetadataHelper {
+                        override val runtimeModel: ExtensionRuntimeModel = erm
+                        override val environment: ExtLoaderEnvironment = environment
+                    }
+                )().merge().also { allMetadata[partition] = it }
+            }
+        }
+
+        fun loadPartition(
+            partitionToLoad: ExtensionPartition,
+            trace: List<String>,
+        ): Job<ExtensionPartitionContainer<*, *>> = loaded[partitionToLoad]?.let { SuccessfulJob { it }} ?: job {
+            val dependencyProviders = environment[dependencyTypesAttrKey].extract().container
+            val loaders = environment[partitionLoadersAttrKey].extract().container
+            val archiveGraph = environment.archiveGraph
+
+            check(trace.distinct().size == trace.size) { "Cyclic Partitions: '$trace' in extension: '${erm.name}'" }
+
+            val loader = (loaders.get(partitionToLoad.type) as? ExtensionPartitionLoader<ExtensionPartitionMetadata>) ?: throw IllegalArgumentException(
+                "Illegal partition type: '${partitionToLoad.type}', only accepted ones are: '${
+                    loaders.objects().map(
+                        Map.Entry<String, ExtensionPartitionLoader<*>>::key
+                    )
+                }'"
+            )
+
+            val dependencies = partitionToLoad.dependencies
+                .map { dependency ->
+                    val (dependencyDescriptor, dependencyResolver) = partitionToLoad.repositories.firstNotFailureOf findRepo@{ settings ->
+                        val provider: DependencyResolverProvider<*, *, *> =
+                            dependencyProviders.get(settings.type) ?: throw ArchiveException.ArchiveTypeNotFound(
+                                settings.type,
+                                trace()
+                            )
+
+                        val depReq: ArtifactRequest<*> = provider.parseRequest(dependency) ?: casuallyFail(
+                            ArchiveException.DependencyInfoParseFailed(
+                                "Failed to parse request: '$dependency'",
+                                trace()
+                            )
+                        )
+
+                        val repoSettings = provider.parseSettings(settings.settings) ?: casuallyFail(
+                            ArchiveException.DependencyInfoParseFailed(
+                                "Failed to parse settings: '$settings'",
+                                trace()
+                            )
+                        )
+
+                        val resolver =
+                            provider.resolver as DependencyResolver<ArtifactMetadata.Descriptor, ArtifactRequest<ArtifactMetadata.Descriptor>, *, RepositorySettings, *>
+
+                        archiveGraph.cache(
+                            depReq as ArtifactRequest<ArtifactMetadata.Descriptor>,
+                            repoSettings,
+                            resolver
+                        )().casuallyAttempt()
+
+                        Result.success(
+                            depReq.descriptor to resolver
+                        )
+                    }.merge()
+
+                    archiveGraph.get(
+                        dependencyDescriptor,
+                        dependencyResolver
                     )().merge()
                 }
 
-                val treeFromDependencies = dependencies.firstNotNullOfOrNull {
-                    it.getResource("$name.class")?.parseNode()?.let(::inheritancePathFor)?.invoke()?.merge()
+            val metadata = getMetadata(partitionToLoad)().merge()
+
+            loader.load(
+                metadata,
+                getArchive(partitionToLoad.path),
+                object : PartitionLoaderHelper {
+                    override val environment: ExtLoaderEnvironment = environment
+                    override val runtimeModel: ExtensionRuntimeModel = erm
+                    override val parents: List<ExtensionNode> = parents
+                    override val parentClassloader: ClassLoader = this@ExtensionContainerLoader.parentClassloader
+                    override val thisDescriptor: ArtifactMetadata.Descriptor =
+                        ExtensionDescriptor(erm.groupId, erm.name, erm.version, partitionToLoad.name)
+
+                    override val partitions: Map<ExtensionPartition, ExtensionPartitionMetadata>
+                        get() = allMetadata
+
+                    override fun addPartition(partition: ExtensionPartition): ExtensionPartitionMetadata {
+                        toLoad.add(partition)
+
+                        return getMetadata(partition)().merge()
+                    }
+
+                    override fun load(partition: ExtensionPartition): ExtensionPartitionContainer<*, *> {
+                        return loadPartition(partition, trace + partition.name)().merge()
+                    }
+
+                    override fun access(scope: PartitionAccessTreeScope.() -> Unit): ArchiveAccessTree {
+                        val allTargets = ArrayList<ArchiveTarget>()
+
+                        val scopeObject = object : PartitionAccessTreeScope {
+                            override fun withDefaults() {
+                                allDirect(dependencies)
+                            }
+
+                            override fun direct(node: ExtensionPartitionContainer<*, *>) {
+                                rawTarget(
+                                    ArchiveTarget(
+                                        node.descriptor,
+                                        object : ArchiveRelationship {
+                                            override val name: String = "Lazy"
+                                            override val classes: ClassProvider by lazy {
+                                                ArchiveClassProvider(node.node.archive)
+                                            }
+
+                                            override val resources: ResourceProvider by lazy {
+                                                ArchiveResourceProvider(node.node.archive)
+                                            }
+                                        }
+                                    )
+                                )
+                            }
+
+                            override fun direct(dependency: ArchiveNode<*>) {
+                                val directTarget = ArchiveTarget(
+                                    dependency.descriptor,
+                                    ArchiveRelationship.Direct(
+                                        ArchiveClassProvider(dependency.archive),
+                                        ArchiveResourceProvider(dependency.archive),
+                                    )
+                                )
+
+                                val transitiveTargets = dependency.access.targets.map {
+                                    ArchiveTarget(
+                                        it.descriptor,
+                                        ArchiveRelationship.Transitive(
+                                            it.relationship.classes,
+                                            it.relationship.resources,
+                                        )
+                                    )
+                                }
+
+                                allTargets.add(directTarget)
+                                allTargets.addAll(transitiveTargets)
+                            }
+
+                            override fun rawTarget(target: ArchiveTarget) {
+                                allTargets.add(target)
+                            }
+                        }
+                        scopeObject.scope()
+
+                        return object : ArchiveAccessTree {
+                            override val descriptor: ArtifactMetadata.Descriptor =
+                                ExtensionDescriptor(erm.groupId, erm.name, erm.version, partitionToLoad.name)
+                            override val targets: Set<ArchiveTarget> = allTargets.toSet()
+                        }
+                    }
                 }
-
-                return treeFromApp ?: treeFromRef ?: treeFromDependencies
-            }
-
-            ClassInheritancePath(
-                node.name,
-                node.getParent(node.superName),
-                node.interfaces.mapNotNull { node.getParent(it) }
-            )
+            )().merge().also { loaded[partitionToLoad] = it }
         }
 
-        val treeInternal = (archiveReference.reader.entries())
-            .filterNot(ArchiveReference.Entry::isDirectory)
-            .filter { it.name.endsWith(".class") }
-            .associate { e ->
-                val path = inheritancePathFor(
-                    e.resource.openStream()
-                        .parseNode()
-                )().merge()
-                path.name to path
-            }
 
-        val tree = object : Map<String, ClassInheritancePath> by treeInternal {
-            override fun get(key: String): ClassInheritancePath? {
-                return treeInternal[key] ?: appInheritanceTree[key]
-            }
+        var i = 0
+        while (i < toLoad.size) {
+            val partition = toLoad[i++]
+
+            if (loaded.contains(partition)) continue
+            loadPartition(partition, listOf(partition.name))().merge()
         }
 
-        // Map each entry based on its respective mapper
-        archiveReference.reader.entries()
-            .filter { it.name.endsWith(".class") }
-            .forEach { entry ->
-            val part = archiveReference.reader.determinePartition(entry).first()
-            val config = mapperFor(
-                archiveReference,
-                dependencies,
-                if (part is ExtensionVersionPartition) mappings(part) else ArchiveMapping(
-                    setOf(), MappingValueContainerImpl(
-                        mapOf()
-                    ), MappingNodeContainerImpl(setOf())
-                ),
-                tree,
-                if (part is ExtensionVersionPartition) part.mappingNamespace else environment[ApplicationMappingTarget].extract().namespace
-            )
-
-            // TODO, this will recompute frames, see if we need to do that or not.
-            Archives.resolve(
-                ClassReader(entry.resource.openStream()),
-                config,
-            )
-
-            archiveReference.writer.put(
-                entry.transform(
-                    config, dependencies
-                )
-            )
-        }
-
-        tree
+         loaded.values.toList()
     }
 
     public fun load(
-        ref: ExtensionArchiveReference,
+        ref: ArchiveReference,
         parents: List<ExtensionNode>,
-        dependencies: List<ArchiveHandle>,
         erm: ExtensionRuntimeModel,
-        access: ArchiveAccessTree,
-    ): Job<ExtensionContainer> = job {
-        val mappingGraph = newMappingsGraph(environment[mappingProvidersAttrKey].extract())
-
-        // From, (to is implicitly the application target), and identifier (version)
-        val mappings = LazyMap<Pair<String, String>, ArchiveMapping> { (fromNS, identifier) ->
-            mappingGraph.findShortest(fromNS, environment[ApplicationMappingTarget].extract().namespace)
-                .forIdentifier(identifier)
-        }
-
-        val partitionsToMappings = ref.enabledPartitions.associateWith {
-            mappings[it.mappingNamespace to mcVersion]
-        }
-
-        val tree = transformEachEntry(ref, (dependencies + minecraftRef)) {
-            partitionsToMappings[it]!!
-        }().merge()
-
+    ): Job<Pair<ExtensionContainer, List<ExtensionPartitionContainer<*, *>>>> = job {
+        val partitions = loadPartitions(
+            environment,
+            ref,
+            erm,
+            parents,
+        )().merge()
 
         ExtensionContainer(
             environment,
             ref,
-            tree,
-            {
-                partitionsToMappings[it]!!
-            }
-        ) { minecraft ->
-            val archives: List<ArchiveHandle> =
-                parents.mapNotNull { it.archive } + dependencies
-
+            partitions
+        ) { linker ->
             val handle = VersionedExtArchiveHandle(
-                ref,
                 environment[ExtensionClassLoaderProvider].extract().createFor(
                     ref,
-                    access,
+                    erm,
+                    partitions.map {
+                        it.node
+                    },
                     parentClassloader,
                 ),
                 erm.name,
-                archives.toSet(),
+                parents.mapNotNullTo(HashSet()) { it.archive },
                 ArchiveSourceProvider(ref).packages
             )
 
-            val s = "${erm.groupId}:${erm.name}:${erm.version}"
-
-            val extensionClass =
-                runCatching(ClassNotFoundException::class) { handle.classloader.loadClass(erm.extensionClass) }
-                    ?: throw IllegalArgumentException("Could not load extension: '$s' because the class: '${erm.extensionClass}' couldnt be found.")
-            val extensionConstructor = runCatching(NoSuchMethodException::class) { extensionClass.getConstructor() }
-                ?: throw IllegalArgumentException("Could not find no-arg constructor in class: '${erm.extensionClass}' in extension: '$s'.")
-
-            val instance = extensionConstructor.newInstance() as? Extension
-                ?: throw IllegalArgumentException("Extension class: '${erm.extensionClass}' does not implement: '${Extension::class.qualifiedName} in extension: '$s'.")
+            val instance = partitions.map { it.node }.filterIsInstance<MainPartitionNode>().firstOrNull()?.extension
+                ?: throw IllegalStateException("Failed to find main partition in extension: '${erm.descriptor}'")
 
             instance to handle
-        }
-    }
-
-    private fun mapperFor(
-        archive: ArchiveReference,
-        dependencies: List<ArchiveTree>,
-        mappings: ArchiveMapping,
-        tree: ClassInheritanceTree,
-        fromNS: String,
-    ): TransformerConfig {
-        val toNamespace = environment[ApplicationMappingTarget].extract().namespace
-
-        fun ClassInheritancePath.fromTreeInternal(): ClassInheritancePath {
-            val mappedName = mappings.mapClassName(name, fromNS, toNamespace) ?: name
-
-            return ClassInheritancePath(
-                mappedName,
-                superClass?.fromTreeInternal(),
-                interfaces.map { it.fromTreeInternal() }
-            )
-        }
-
-        val lazilyMappedTree = LazyMap<String, ClassInheritancePath> {
-            tree[mappings.mapClassName(it, fromNS, toNamespace)]?.fromTreeInternal()
-        }
-
-        return mappingTransformConfigFor(
-            ArchiveTransformerContext(
-                archive,
-                dependencies,
-                mappings,
-                fromNS,
-                toNamespace,
-                lazilyMappedTree,
-            )
-        )
+        } to partitions
     }
 }

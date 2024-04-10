@@ -9,21 +9,21 @@ import net.yakclient.common.util.resolve
 import java.nio.file.Path
 import kotlin.io.path.writeBytes
 
-public class ExtToTweakerDataAccess(
-    path: Path,
-) : DataAccess<SimpleMavenDescriptor, List<SimpleMavenDescriptor>> {
-    private val path = path resolve "tweakers.json"
-    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
-    override fun read(key: SimpleMavenDescriptor): List<SimpleMavenDescriptor>? {
-        return mapper.readValue<Map<SimpleMavenDescriptor, List<SimpleMavenDescriptor>>>(path.toFile())[key]
-    }
-
-    override fun write(key: SimpleMavenDescriptor, value: List<SimpleMavenDescriptor>) {
-        val map = mapper.readValue<MutableMap<SimpleMavenDescriptor, List<SimpleMavenDescriptor>>>(
-            path.toFile()
-        )
-        map[key] = value
-
-        path.writeBytes(mapper.writeValueAsBytes(map))
-    }
-}
+//public class ExtToTweakerDataAccess(
+//    path: Path,
+//) : DataAccess<SimpleMavenDescriptor, List<SimpleMavenDescriptor>> {
+//    private val path = path resolve "tweakers.json"
+//    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
+//    override fun read(key: SimpleMavenDescriptor): List<SimpleMavenDescriptor>? {
+//        return mapper.readValue<Map<SimpleMavenDescriptor, List<SimpleMavenDescriptor>>>(path.toFile())[key]
+//    }
+//
+//    override fun write(key: SimpleMavenDescriptor, value: List<SimpleMavenDescriptor>) {
+//        val map = mapper.readValue<MutableMap<SimpleMavenDescriptor, List<SimpleMavenDescriptor>>>(
+//            path.toFile()
+//        )
+//        map[key] = value
+//
+//        path.writeBytes(mapper.writeValueAsBytes(map))
+//    }
+//}

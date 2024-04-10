@@ -12,7 +12,6 @@ import net.yakclient.archives.ArchiveFinder
 import net.yakclient.archives.ArchiveTree
 import net.yakclient.archives.Archives
 import net.yakclient.archives.mixin.MixinInjection
-import net.yakclient.boot.archive.ArchiveException
 import net.yakclient.boot.component.context.ContextNodeValue
 import net.yakclient.boot.loader.*
 import net.yakclient.common.util.immutableLateInit
@@ -30,9 +29,10 @@ import net.yakclient.components.extloader.extension.artifact.ExtensionArtifactRe
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 import net.yakclient.components.extloader.extension.artifact.ExtensionRepositorySettings
 import net.yakclient.components.extloader.extension.mapping.MojangExtensionMappingProvider
+import net.yakclient.components.extloader.extension.partition.TweakerPartitionLoader
+import net.yakclient.components.extloader.extension.partition.TweakerPartitionMetadata
+import net.yakclient.components.extloader.extension.partition.TweakerPartitionNode
 import net.yakclient.components.extloader.target.TargetLinker
-import net.yakclient.components.extloader.tweaker.EnvironmentTweakerNode
-import net.yakclient.components.extloader.tweaker.EnvironmentTweakerResolver
 import net.yakclient.minecraft.bootstrapper.MinecraftClassTransformer
 import org.objectweb.asm.tree.ClassNode
 import java.io.File
@@ -69,9 +69,6 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
             context.mappingType
         )
         // Add dev graph to environment
-        environment += EnvironmentTweakerResolver(
-            environment
-        )
         environment += DevExtensionResolver(
             Archives.Finders.ZIP_FINDER,
             environment[ParentClassloaderAttribute].extract().cl,
@@ -99,49 +96,7 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
             )
         )
 
-        val tweakerDesc = context.extension.copy(
-            classifier = "tweaker"
-        )
-        val allTweakers = job(JobName("Load and apply tweakers")) {
-            fun EnvironmentTweakerNode.applyTweakers(env: ExtLoaderEnvironment) {
-                parents.forEach { it.applyTweakers(env) }
-                tweaker?.tweak(env)?.invoke()?.merge()
-            }
 
-            val tweakerResolver = environment[EnvironmentTweakerResolver].extract()
-            val tweakerCacheResult = environment.archiveGraph.cache(
-                ExtensionArtifactRequest(tweakerDesc, includeScopes = setOf("compile", "runtime", "import")),
-                context.repository,
-                tweakerResolver
-            )()
-            val tweaker = if (tweakerCacheResult.exceptionOrNull() is ArchiveException.ArtifactResolutionException) null
-            else if (tweakerCacheResult.isSuccess) environment.archiveGraph.get(
-                tweakerDesc,
-                tweakerResolver
-            )().merge() else throw tweakerCacheResult.exceptionOrNull()!!
-
-            tweaker?.applyTweakers(environment)
-
-            fun allTweakers(node: EnvironmentTweakerNode): List<EnvironmentTweakerNode> {
-                return listOf(node) + node.parents.flatMap { allTweakers(it) }
-            }
-
-            tweaker?.let(::allTweakers) ?: listOf()
-        }().mapException {
-            ExtensionLoadException(tweakerDesc, it)
-        }.merge()
-
-        val mcVersion by appReference.descriptor::version
-        val mapperObjects = environment[MutableObjectSetAttribute.Key<MappingsProvider>("mapping-providers")].extract()
-        val mappingGraph = newMappingsGraph(mapperObjects)
-
-        transformArchive(
-            appReference.reference, appReference.dependencyReferences,
-            mappingGraph.findShortest(
-                MojangExtensionMappingProvider.FAKE_TYPE, context.mappingType
-            ).forIdentifier(mcVersion),
-            MojangExtensionMappingProvider.FAKE_TYPE, context.mappingType,
-        )
 
         fun allExtensions(node: ExtensionNode): Set<ExtensionNode> {
             return node.parents.flatMapTo(HashSet(), ::allExtensions) + node
@@ -167,6 +122,27 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
             ExtensionLoadException(context.extension, it)
         }.merge()
 
+        val tweakers = allExtensions(extensionNode).flatMap(ExtensionNode::partitions).filter {
+            it.metadata is TweakerPartitionMetadata
+        }.map {
+            it.node
+        }.filterIsInstance<TweakerPartitionNode>()
+        tweakers.forEach {
+            it.tweaker.tweak(environment)().merge()
+        }
+
+        val mcVersion by appReference.descriptor::version
+        val mapperObjects = environment[MutableObjectSetAttribute.Key<MappingsProvider>("mapping-providers")].extract()
+        val mappingGraph = newMappingsGraph(mapperObjects)
+
+        transformArchive(
+            appReference.reference, appReference.dependencyReferences,
+            mappingGraph.findShortest(
+                MojangExtensionMappingProvider.FAKE_TYPE, context.mappingType
+            ).forIdentifier(mcVersion),
+            MojangExtensionMappingProvider.FAKE_TYPE, context.mappingType,
+        )
+
         // Get all extension nodes in order
         val extensions = allExtensions(extensionNode)
 
@@ -174,8 +150,8 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         environment[ExtensionNodeObserver].getOrNull()?.let { extensions.forEach(it::observe) }
 
         extensions.forEach {
-            it.container?.injectMixins { to, metadata ->
-                appTarget.mixin(to, object : MinecraftClassTransformer {
+            it.container?.injectMixins { metadata ->
+                appTarget.mixin(metadata.destination, object : MinecraftClassTransformer {
                     override val trees: List<ArchiveTree> = listOf()
 
                     override fun transform(node: ClassNode): ClassNode {
@@ -226,7 +202,7 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         // Setup extensions, dont init yet
         extensions.forEach {
             val container = it.container
-            container?.setup(linker)
+            container?.setup(linker)?.invoke()?.merge()
 
             it.archive?.let { a -> linker.addMiscClasses(ArchiveClassProvider(a)) }
             linker.addMiscResources(object : ResourceProvider {
@@ -237,8 +213,8 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
         }
 
         // Specifically NOT adding tweaker resources.
-        allTweakers.forEach {
-            it.archive?.let { a -> linker.addMiscClasses(ArchiveClassProvider(a)) }
+        tweakers.forEach {
+            it.archive.let { a -> linker.addMiscClasses(ArchiveClassProvider(a)) }
         }
 
         // Call init on all extensions, this is ordered correctly
