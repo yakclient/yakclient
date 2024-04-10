@@ -40,43 +40,40 @@
     },
     {
       "request": {
-        "descriptor": "net.yakclient:archive-mapper:1.2-SNAPSHOT"
+        "descriptor": "net.yakclient:archive-mapper:1.2.1-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",
         "settings": {
-          "type": "local",
-          "location": "/Users/durganmcbroom/.m2/repository"
+          "location": "http://maven.yakclient.net/snapshots"
         }
       }
     },
     {
       "request": {
-        "descriptor": "net.yakclient:archive-mapper-proguard:1.2-SNAPSHOT"
+        "descriptor": "net.yakclient:archive-mapper-proguard:1.2.1-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",
         "settings": {
-          "type": "local",
-          "location": "/Users/durganmcbroom/.m2/repository"
+          "location": "http://maven.yakclient.net/snapshots"
         }
       }
     },
     {
       "request": {
-        "descriptor": "net.yakclient:archive-mapper-transform:1.2-SNAPSHOT"
+        "descriptor": "net.yakclient:archive-mapper-transform:1.2.1-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",
         "settings": {
-          "type": "local",
-          "location": "/Users/durganmcbroom/.m2/repository"
+          "location": "http://maven.yakclient.net/snapshots"
         }
       }
     },
     {
       "request": {
-        "descriptor": "net.yakclient:client-api:1.0-SNAPSHOT"
+        "descriptor": "net.yakclient:client-api:1.1-SNAPSHOT"
       },
       "repository": {
         "type": "simple-maven",

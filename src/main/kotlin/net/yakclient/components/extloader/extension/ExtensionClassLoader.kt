@@ -1,25 +1,20 @@
 package net.yakclient.components.extloader.extension
 
-import net.yakclient.boot.archive.ArchiveAccessTree
-import net.yakclient.boot.loader.ArchiveResourceProvider
+import net.yakclient.boot.loader.ArchiveClassProvider
 import net.yakclient.boot.loader.DelegatingClassProvider
 import net.yakclient.boot.loader.IntegratedLoader
 import net.yakclient.common.util.runCatching
-import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
-import net.yakclient.components.extloader.extension.versioning.ExtensionSourceProvider
+import net.yakclient.components.extloader.api.extension.partition.ExtensionPartitionNode
 
 public open class ExtensionClassLoader(
-    archive: ExtensionArchiveReference,
-    accessTree: ArchiveAccessTree,
+    name: String,
+    partitions: List<ExtensionPartitionNode>,
     parent: ClassLoader,
 ) : IntegratedLoader(
-    name = "Extension ${archive.erm.name}",
+    name = "Extension $name",
     classProvider = DelegatingClassProvider(
-        accessTree.targets
-            .map { it.relationship.classes }
+        partitions.map { it.archive }.map(::ArchiveClassProvider)
     ),
-    sourceProvider = ExtensionSourceProvider(archive),
-    resourceProvider = ArchiveResourceProvider(archive),
     parent = parent
 ) {
     override fun loadClass(name: String): Class<*> {

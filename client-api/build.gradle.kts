@@ -1,6 +1,7 @@
 version = "1.0-SNAPSHOT"
 
 group = "net.yakclient"
+version = "1.1-SNAPSHOT"
 
 configurations.all {
     resolutionStrategy.cacheChangingModulesFor(0, "seconds")

@@ -2,11 +2,10 @@ package net.yakclient.components.extloader.extension.versioning
 
 import net.yakclient.archives.ArchiveHandle
 import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveHandle
-import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
+//import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
 
 internal class  VersionedExtArchiveHandle(
 //    private val delegate: ArchiveHandle,
-    override val reference: ExtensionArchiveReference,
     override val classloader: ClassLoader,
     override val name: String?,
     override val parents: Set<ArchiveHandle>,

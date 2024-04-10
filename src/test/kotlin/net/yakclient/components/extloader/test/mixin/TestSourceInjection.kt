@@ -19,10 +19,6 @@ import net.yakclient.client.api.AFTER_BEGIN
 import net.yakclient.client.api.InjectionContinuation
 import net.yakclient.client.api.annotation.SourceInjection
 import net.yakclient.components.extloader.api.environment.*
-import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
-import net.yakclient.components.extloader.api.extension.ExtensionVersionPartition
-import net.yakclient.components.extloader.api.extension.MainVersionPartition
-import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveReference
 import net.yakclient.components.extloader.api.mixin.MixinInjectionProvider
 import net.yakclient.components.extloader.environment.registerMixinPoints
 import net.yakclient.components.extloader.environment.registerMixins
@@ -64,7 +60,7 @@ class TestSourceInjection {
 
     private fun <A : Annotation, T : MixinInjection.InjectionData> ProcessedMixinContext<A, T>.parseAndApply(
         mappingContext: MixinInjectionProvider.MappingContext,
-        reference: ExtensionArchiveReference,
+        reference: ArchiveReference,
     ): Job<TransformerConfig.Mutable> = job {
         provider.get().apply(
             provider.parseData(
@@ -200,31 +196,8 @@ class TestSourceInjection {
                             }
                         }
                     ),
-                    object : ExtensionArchiveReference {
-                        override val delegate: ArchiveReference
-                            get() = TODO("Not yet implemented")
-                        override val enabledPartitions: Set<ExtensionVersionPartition>
-                            get() = TODO("Not yet implemented")
-                        override val mainPartition: MainVersionPartition
-                            get() = TODO("Not yet implemented")
-                        override val erm: ExtensionRuntimeModel = ExtensionRuntimeModel(
-                            "net.yakclient",
-                            "test",
-                            "test",
-                            "none",
-                            "",
-                            MainVersionPartition(
-                                "main",
-                                "/",
-                                ArrayList(),
-                                ArrayList()
-                            ),
-                            ArrayList(),
-                            ArrayList(),
-                            ArrayList(),
-                            null
-                        )
-                        override val reader: ExtensionArchiveReference.ExtensionArchiveReader
+                    object : ArchiveReference {
+                        override val reader: ArchiveReference.Reader
                             get() = TODO("Not yet implemented")
                         override val isClosed: Boolean
                             get() = TODO("Not yet implemented")
