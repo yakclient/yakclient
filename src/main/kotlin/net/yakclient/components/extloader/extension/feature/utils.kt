@@ -7,15 +7,15 @@ import org.objectweb.asm.Type
 import org.objectweb.asm.tree.ClassNode
 import java.lang.IllegalStateException
 
-internal fun ClassNode.containsFeatures(): Boolean = visibleAnnotations.any { a ->
+internal fun ClassNode.containsFeatures(): Boolean = visibleAnnotations?.any { a ->
     Type.getType(a.desc) == Type.getType(FeatureContainer::class.java)
-}
+} ?: false
 
 internal fun ClassNode.findFeatures(): List<FeatureReference> {
     val clsName = name
 
     val fieldFeatures = fields.mapNotNull {
-        val anno = it.visibleAnnotations.find { a ->
+        val anno = it.visibleAnnotations?.find { a ->
             Type.getType(a.desc) == Type.getType(Feature::class.java)
         }?.let { instantiateAnnotation(it, Feature::class.java) } ?: return@mapNotNull null
 
@@ -30,7 +30,7 @@ internal fun ClassNode.findFeatures(): List<FeatureReference> {
     }
 
     val methodFeatures = methods.mapNotNull {
-        val anno = it.visibleAnnotations.find { a ->
+        val anno = it.visibleAnnotations?.find { a ->
             Type.getType(a.desc) == Type.getType(Feature::class.java)
         }?.let { instantiateAnnotation(it, Feature::class.java) } ?: return@mapNotNull null
 
@@ -44,7 +44,7 @@ internal fun ClassNode.findFeatures(): List<FeatureReference> {
         )
     }
 
-    val clsFeature = visibleAnnotations.find { a ->
+    val clsFeature = visibleAnnotations?.find { a ->
         Type.getType(a.desc) == Type.getType(Feature::class.java)
     }?.let { instantiateAnnotation(it, Feature::class.java) } ?: return fieldFeatures + methodFeatures
 

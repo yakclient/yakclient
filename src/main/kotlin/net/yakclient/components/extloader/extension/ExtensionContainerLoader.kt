@@ -26,6 +26,7 @@ import net.yakclient.components.extloader.api.extension.partition.*
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 import net.yakclient.components.extloader.extension.partition.MainPartitionMetadata
 import net.yakclient.components.extloader.extension.partition.MainPartitionNode
+import net.yakclient.components.extloader.extension.partition.PartitionLoadException
 import net.yakclient.components.extloader.extension.versioning.VersionedExtArchiveHandle
 import net.yakclient.components.extloader.util.slice
 import java.lang.IllegalStateException
@@ -97,55 +98,6 @@ public open class ExtensionContainerLoader(
                 }'"
             )
 
-            val dependencies = partitionToLoad.dependencies
-                .map { dependency ->
-                    val (dependencyDescriptor, dependencyResolver) = partitionToLoad.repositories.firstNotFailureOf findRepo@{ settings ->
-                        val provider: DependencyResolverProvider<*, *, *> =
-                            dependencyProviders.get(settings.type) ?: throw ArchiveException.ArchiveTypeNotFound(
-                                settings.type,
-                                trace()
-                            )
-
-                        val depReq: ArtifactRequest<*> = provider.parseRequest(dependency) ?: casuallyFail(
-                            ArchiveException.DependencyInfoParseFailed(
-                                "Failed to parse request: '$dependency'",
-                                trace()
-                            )
-                        )
-
-                        val repoSettings = provider.parseSettings(settings.settings) ?: casuallyFail(
-                            ArchiveException.DependencyInfoParseFailed(
-                                "Failed to parse settings: '$settings'",
-                                trace()
-                            )
-                        )
-
-                        val resolver =
-                            provider.resolver as DependencyResolver<ArtifactMetadata.Descriptor, ArtifactRequest<ArtifactMetadata.Descriptor>, *, RepositorySettings, *>
-
-                        archiveGraph.cache(
-                            depReq as ArtifactRequest<ArtifactMetadata.Descriptor>,
-                            repoSettings,
-                            resolver
-                        )().casuallyAttempt()
-
-                        Result.success(
-                            depReq.descriptor to resolver
-                        )
-                    }.merge()
-
-                    archiveGraph.get(
-                        dependencyDescriptor,
-                        dependencyResolver
-                    )().merge()
-                }.filter {
-                    val d = it.descriptor as? SimpleMavenDescriptor ?: return@filter true
-
-                    // TODO this ensures some amount of backwards compatibility (as ext-loader or the client-api wont be reloaded) however this should instead be anything it in the class loader hierarchy.
-                    !((d.group == EXT_LOADER_GROUP && d.artifact == EXT_LOADER_ARTIFACT) ||
-                            (d.group == "net.yakclient" && d.artifact == "client-api"))
-                }
-
             val metadata = getMetadata(partitionToLoad)().merge()
 
             loader.load(
@@ -178,6 +130,58 @@ public open class ExtensionContainerLoader(
 
                         val scopeObject = object : PartitionAccessTreeScope {
                             override fun withDefaults() {
+                                val dependencies = partitionToLoad.dependencies
+                                    .map { dependency ->
+                                        if (partitionToLoad.repositories.isEmpty()) {
+                                            throw PartitionLoadException("Partition: '${partitionToLoad.name}' has no defined repositories but has dependencies!")
+                                        }
+                                        val (dependencyDescriptor, dependencyResolver) = partitionToLoad.repositories.firstNotFailureOf findRepo@ { settings ->
+                                            val provider: DependencyResolverProvider<*, *, *> =
+                                                dependencyProviders.get(settings.type) ?: throw ArchiveException.ArchiveTypeNotFound(
+                                                    settings.type,
+                                                    trace()
+                                                )
+
+                                            val depReq: ArtifactRequest<*> = provider.parseRequest(dependency) ?: casuallyFail(
+                                                ArchiveException.DependencyInfoParseFailed(
+                                                    "Failed to parse request: '$dependency'",
+                                                    trace()
+                                                )
+                                            )
+
+                                            val repoSettings = provider.parseSettings(settings.settings) ?: casuallyFail(
+                                                ArchiveException.DependencyInfoParseFailed(
+                                                    "Failed to parse settings: '$settings'",
+                                                    trace()
+                                                )
+                                            )
+
+                                            val resolver =
+                                                provider.resolver as DependencyResolver<ArtifactMetadata.Descriptor, ArtifactRequest<ArtifactMetadata.Descriptor>, *, RepositorySettings, *>
+
+                                            archiveGraph.cache(
+                                                depReq as ArtifactRequest<ArtifactMetadata.Descriptor>,
+                                                repoSettings,
+                                                resolver
+                                            )().casuallyAttempt()
+
+                                            Result.success(
+                                                depReq.descriptor to resolver
+                                            )
+                                        }.merge()
+
+                                        archiveGraph.get(
+                                            dependencyDescriptor,
+                                            dependencyResolver
+                                        )().merge()
+                                    }.filter {
+                                        val d = it.descriptor as? SimpleMavenDescriptor ?: return@filter true
+
+                                        // TODO this ensures some amount of backwards compatibility (as ext-loader or the client-api wont be reloaded) however this should instead be anything it in the class loader hierarchy.
+                                        !((d.group == EXT_LOADER_GROUP && d.artifact == EXT_LOADER_ARTIFACT) ||
+                                                (d.group == "net.yakclient" && d.artifact == "client-api"))
+                                    }
+
                                 allDirect(dependencies)
                             }
 

@@ -55,7 +55,7 @@ class TestExtensionComponent {
                 "extension" to mapOf(
                     "descriptor" to mapOf(
                         "groupId" to "net.yakclient.extensions",
-                        "artifactId" to "yakgradle-ext-test",
+                        "artifactId" to "yakgradle-ext-test-2",
                         "version" to "1.0-SNAPSHOT"
                     ),
                     "repository" to mapOf(
