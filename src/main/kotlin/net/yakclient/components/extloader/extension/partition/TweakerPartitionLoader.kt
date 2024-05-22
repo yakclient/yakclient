@@ -96,5 +96,4 @@ public data  class TweakerPartitionNode(
     override val archive: ArchiveHandle,
     override val access: ArchiveAccessTree,
     val tweaker: EnvironmentTweaker,
-) : ExtensionPartitionNode {
-}
+) : ExtensionPartitionNode

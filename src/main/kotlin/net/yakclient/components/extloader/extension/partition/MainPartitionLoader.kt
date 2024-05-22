@@ -167,5 +167,4 @@ public data class MainPartitionNode(
     override val archive: ArchiveHandle,
     override val access: ArchiveAccessTree,
     val extension: Extension,
-) : ExtensionPartitionNode {
-}
+) : ExtensionPartitionNode

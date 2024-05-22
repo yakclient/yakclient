@@ -153,40 +153,6 @@ internal fun dependenciesFromPartition(
                 descriptor asContext "Dependency descriptor"
             }
         }.merge()
-//                cacheResult.
-
-
-//            .firstNotNullOfOrNull { (triple, result) ->
-//            val (request) = triple
-//            result.getOrNull() ?: result.exceptionOrNull()!!.let {
-//                if (it is ArchiveException.ArchiveNotFound && it.archive == request.descriptor) null
-//                else throw PartitionLoadException(
-//                    partition.name,
-//                    "a dependency failed to load.",
-//                    it
-//                ) {
-//                    extName asContext "Extension name"
-//                    request asContext "Dependency request"
-//                    requests.map { it.second } asContext "Attempted repositories"
-//                }
-//            }
-//        }
-
-//            ?: throw PartitionLoadException(
-//            partition.name,
-//            "a dependency couldnt be located."
-//        ) {
-//            extName asContext "Extension name"
-//            dependency asContext "Raw dependency request" // We want the raw dependency request because there was an issue with every single dependency provider (and we correctly assume that all may have different dependency descriptor types)
-//            requests.map { it.second } asContext "Attempted repositories"
-//
-//            solution("Make sure all repositories are defined correctly and contain the requested artifact.")
-//        }).merge()
-//
-//                archiveGraph.get (
-//                dependencyDescriptor,
-//        dependencyResolver
-//        )().merge()
     }.filterDuplicates()
 }
 

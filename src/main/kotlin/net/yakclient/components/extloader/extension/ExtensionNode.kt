@@ -13,15 +13,10 @@ import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 
 public data class ExtensionNode(
     override val descriptor: ExtensionDescriptor,
-//    public val extensionReference: ExtensionArchiveReference?,
     public val container: ExtensionContainer?,
     public val partitions: List<ExtensionPartitionContainer<*, *>>,
     public val erm: ExtensionRuntimeModel,
-
-//    override val access: ArchiveAccessTree,
     override val parents: Set<ExtensionNode>,
-//    public val dependencies: Set<DependencyNode<*>>,
-
     override val resolver: ArchiveNodeResolver<*, *, ExtensionNode, *, *>,
 ) : ArchiveNode<ExtensionNode> {
     override val archive: ExtensionArchiveHandle?

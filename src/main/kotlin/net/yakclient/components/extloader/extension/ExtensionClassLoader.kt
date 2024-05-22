@@ -9,9 +9,5 @@ public open class ExtensionClassLoader(
     parent: ClassLoader,
 ) : IntegratedLoader(
     name = "Extension $name",
-//    // TODO do we need this? For features its nice but may better to have features manually rely
-//    classProvider = DelegatingClassProvider(
-//        partitions.map { it.node.archive }.map(::ArchiveClassProvider)
-//    ),
     parent = parent
 )

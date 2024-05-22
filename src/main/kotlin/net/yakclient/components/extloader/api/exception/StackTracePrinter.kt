@@ -10,5 +10,4 @@ public interface StackTracePrinter : EnvironmentAttribute {
     public fun printStacktrace(throwable: Throwable, printer: PrintWriter)
 
     public companion object : EnvironmentAttributeKey<StackTracePrinter>
-
 }

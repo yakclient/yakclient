@@ -11,7 +11,5 @@ public interface ApplicationParentClProvider : EnvironmentAttribute {
 
     public fun getParent(linker: TargetLinker, environment: ExtLoaderEnvironment) : ClassLoader
 
-    public companion object : EnvironmentAttributeKey<ApplicationParentClProvider> {
-
-    }
+    public companion object : EnvironmentAttributeKey<ApplicationParentClProvider>
 }

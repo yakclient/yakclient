@@ -5,16 +5,6 @@ import net.yakclient.components.extloader.api.exception.ExceptionConfiguration
 import net.yakclient.components.extloader.exception.ExtLoaderExceptions
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 
-//public class ExtensionLoadException(
-//    descriptor: ExtensionDescriptor,
-//    override val cause: Throwable,
-//    override val type: ExceptionType,
-//    configure: JobExceptionContextScope.() -> Unit,
-//) : JobException(configure) {
-//
-//    override val message: String = "Error loading extension: '$descriptor'"
-//}
-
 public fun ExtensionLoadException(
     descriptor: ExtensionDescriptor,
     cause: Throwable? = null,

@@ -213,7 +213,6 @@ allprojects {
     apply(plugin = "org.jetbrains.dokka")
 
     repositories {
-        mavenLocal()
         mavenCentral()
         maven {
             url = uri("https://maven.fabricmc.net/")

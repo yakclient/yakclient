@@ -1,6 +1,5 @@
 package net.yakclient.components.extloader.api.extension
 
-import com.durganmcbroom.artifact.resolver.ArtifactMetadata
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 
 // TODO make jackson parsing return a more readable yak wrapped error.

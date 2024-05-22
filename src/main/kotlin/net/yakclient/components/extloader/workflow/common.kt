@@ -30,8 +30,3 @@ internal fun ContextNodeTree.parseSettings(): ExtensionRepositorySettings {
         else -> throw IllegalArgumentException("Unknown repository type: '$repoType' for repository : '$repo' ")
     }
 }
-
-//fun parseExt(contextNodeValue: ContextNodeValue): ExtLoaderExtConfiguration {
-//    val extTree = contextNodeValue.coerceTree()
-//
-//}

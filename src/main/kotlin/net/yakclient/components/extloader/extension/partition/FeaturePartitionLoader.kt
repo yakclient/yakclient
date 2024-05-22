@@ -40,9 +40,7 @@ import java.security.CodeSource
 import java.security.ProtectionDomain
 import java.security.cert.Certificate
 
-public class FeaturePartitionMetadata(
-
-) : ExtensionPartitionMetadata {
+public class FeaturePartitionMetadata : ExtensionPartitionMetadata {
     override val name: String = FeaturePartitionLoader.TYPE
 }
 

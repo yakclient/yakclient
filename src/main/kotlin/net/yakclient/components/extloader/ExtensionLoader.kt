@@ -81,7 +81,6 @@ public class ExtensionLoader(
         ).registerBasicSerializers()
         env += BasicExceptionPrinter()
 
-
         minecraft.start()()
             .mapException {
                 StructuredException(
@@ -143,10 +142,5 @@ public class ExtensionLoader(
     // Shutdown of minecraft will trigger extension shutdown
     override fun end(): Job<Unit> = job {
         minecraft.end()
-    }
-
-    internal companion object {
-        private const val EXTENSION_CACHE = "extensions"
-        private val MOJANG_MAPPING_CACHE = Path.of("mappings") resolve "mojang"
     }
 }
