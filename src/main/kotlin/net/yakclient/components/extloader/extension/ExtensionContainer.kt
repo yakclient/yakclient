@@ -6,13 +6,15 @@ import net.yakclient.archives.mixin.MixinInjection
 import net.yakclient.client.api.Extension
 import net.yakclient.common.util.immutableLateInit
 import net.yakclient.components.extloader.api.environment.ExtLoaderEnvironment
+import net.yakclient.components.extloader.api.exception.StructuredException
+import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
 import net.yakclient.components.extloader.api.extension.archive.ExtensionArchiveHandle
 import net.yakclient.components.extloader.api.extension.partition.ExtensionPartitionContainer
 import net.yakclient.components.extloader.api.extension.partition.TargetRequiringPartitionContainer
 import net.yakclient.components.extloader.api.mixin.MixinInjectionProvider
 import net.yakclient.components.extloader.api.target.MixinTransaction
+import net.yakclient.components.extloader.exception.ExtLoaderExceptions
 import net.yakclient.components.extloader.extension.partition.VersionedPartitionMetadata
-import net.yakclient.components.extloader.mixin.MixinException
 import net.yakclient.components.extloader.target.TargetLinker
 import net.yakclient.components.extloader.util.instantiateAnnotation
 import net.yakclient.components.extloader.util.withSlashes
@@ -21,33 +23,35 @@ import org.objectweb.asm.tree.AnnotationNode
 import org.objectweb.asm.tree.ClassNode
 
 public data class ExtensionContainer(
+    private val erm: ExtensionRuntimeModel,
     private val environment: ExtLoaderEnvironment,
     private val extRef: ArchiveReference,
     public val partitions: List<ExtensionPartitionContainer<*, *>>,
-    private val lazyLoader: JobScope.(TargetLinker) -> Pair<Extension, ExtensionArchiveHandle>,
+    private val lazyLoader: JobScope.(TargetLinker) -> ExtensionArchiveHandle,
 ) {
-    public var extension: Extension by immutableLateInit()
     public var archive: ExtensionArchiveHandle by immutableLateInit()
 
     public fun injectMixins(register: (metadata: MixinTransaction.Metadata<*>) -> Unit): Job<Unit> =
         job(JobName("Inject mixins from extension: '${extRef.name}'")) {
-            partitions.map { it.metadata }.filterIsInstance<VersionedPartitionMetadata>().flatMap {
-                it.mixins
-            }.forEach { context ->
-                register(
-                    context
-                )
+            partitions
+                .map(ExtensionPartitionContainer<*, *>::metadata)
+                .filterIsInstance<VersionedPartitionMetadata>()
+                .filter(VersionedPartitionMetadata::enabled)
+                .flatMap(VersionedPartitionMetadata::mixins)
+                .forEach(register)
+        }.mapException {
+            StructuredException(ExtLoaderExceptions.MixinException, it) {
+                erm.name asContext "Extension name"
+                partitions.map { it.metadata.name } asContext "Loaded partitions"
             }
-        }.mapException { MixinException(it) }
+        }
 
-    public fun setup(linker: TargetLinker) : Job<Unit> = job {
+    public fun setup(linker: TargetLinker): Job<Unit> = job {
         partitions
             .filterIsInstance<TargetRequiringPartitionContainer<*, *>>()
             .forEach { it.setup(linker)().merge() }
 
-        val (e, a) = lazyLoader(linker)
-        extension = e
-        archive = a
+        archive = lazyLoader(linker)
     }
 }
 

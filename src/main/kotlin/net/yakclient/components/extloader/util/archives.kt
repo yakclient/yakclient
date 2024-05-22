@@ -1,7 +1,49 @@
 package net.yakclient.components.extloader.util
 
+import net.yakclient.archives.ArchiveHandle
 import net.yakclient.archives.ArchiveReference
+import net.yakclient.components.extloader.ExtensionLoader
+import java.net.URI
 import java.nio.file.Path
+
+public fun emptyArchiveReference(
+    location: URI = URI("archive:empty")
+): ArchiveReference = object : ArchiveReference {
+    private val entries: MutableMap<String, () -> ArchiveReference.Entry> = HashMap()
+    override val isClosed: Boolean = false
+    override val location: URI = location
+    override val modified: Boolean = entries.isNotEmpty()
+    override val name: String? = null
+    override val reader: ArchiveReference.Reader = object : ArchiveReference.Reader {
+        override fun entries(): Sequence<ArchiveReference.Entry> {
+            return entries.values.asSequence().map { it() }
+        }
+
+        override fun of(name: String): ArchiveReference.Entry? {
+            return entries[name]?.invoke()
+        }
+    }
+    override val writer = object : ArchiveReference.Writer {
+        override fun put(entry: ArchiveReference.Entry) {
+            entries[entry.name] = {entry}
+        }
+
+        override fun remove(name: String) {
+            entries.remove(name)
+        }
+
+    }
+
+    override fun close() {}
+}
+
+public fun emptyArchiveHandle() : ArchiveHandle = object : ArchiveHandle {
+    override val classloader: ClassLoader = ExtensionLoader::class.java.classLoader
+    override val name: String? = null
+    override val packages: Set<String> = setOf()
+    override val parents: Set<ArchiveHandle> = setOf()
+}
+
 
 public fun ArchiveReference.copy(): ArchiveReference = object : ArchiveReference by this {
     override var isClosed: Boolean = this@copy.isClosed

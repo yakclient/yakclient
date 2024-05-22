@@ -1,6 +1,7 @@
 package net.yakclient.components.extloader.extension.mapping
 
 import com.durganmcbroom.resources.Resource
+import com.durganmcbroom.resources.toResource
 import kotlinx.coroutines.runBlocking
 import net.yakclient.boot.store.DataAccess
 import net.yakclient.common.util.copyTo
@@ -9,6 +10,7 @@ import net.yakclient.common.util.toResource
 import java.nio.file.Path
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.exists
+import kotlin.io.path.toPath
 
 public class MojangMappingAccess(
         private val path: Path
@@ -18,7 +20,7 @@ public class MojangMappingAccess(
 
         if (!versionPath.exists()) return null
 
-        return versionPath.toUri().toResource()
+        return versionPath.toResource()
     }
 
     override fun write(key: String, value: Resource) {

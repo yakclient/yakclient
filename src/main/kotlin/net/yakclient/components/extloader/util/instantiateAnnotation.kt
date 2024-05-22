@@ -17,7 +17,7 @@ internal fun <T : Annotation> instantiateAnnotation(annotationNode: AnnotationNo
         arrayOf(annotationClass)
     ) { _, method, _ ->
         if (method.name == "toString") "proxy(${annotationClass.name})"
-        else valuesMap[method.name]
+        else valuesMap[method.name] ?: annotationClass.methods.find { it.name == method.name }?.defaultValue
     } as T
 
     return annotationInstance

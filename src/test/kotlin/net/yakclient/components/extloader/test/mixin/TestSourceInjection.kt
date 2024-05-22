@@ -194,7 +194,8 @@ class TestSourceInjection {
                             it += MutableObjectContainerAttribute<MixinInjectionProvider<*,*>>(mixinTypesAttrKey).apply {
                                 registerMixins()
                             }
-                        }
+                        },
+                        "test-ext"
                     ),
                     object : ArchiveReference {
                         override val reader: ArchiveReference.Reader

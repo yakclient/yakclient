@@ -213,7 +213,7 @@ public class SourceInjectionProvider :
                         "'${context.element.methodNode.toMethod()}'"
             )
         ) {
-            val self = context.classNode.name.replace('/', '.')
+            val self = context.classNode.name.withDots()
             val point = context.element.annotation.point
 
             val unmappedTargetClass = context.target.name
@@ -235,20 +235,45 @@ public class SourceInjectionProvider :
                 Method(name, desc)
             }
             val targetMethodNode = context.target.methodOf(targetMethod)
-                ?: throw IllegalArgumentException("Failed to find method: '$targetMethod' in class: '${context.target.name}'.")
+                ?: throw MixinException(message = "Failed to find method: '$targetMethod' in target class: '${context.target.name}'") {
+                    ref.name asContext "Extension name"
+
+                    unmappedTargetClass asContext "Unmapped target class name"
+                    (mappingContext.mappings
+                        .mapClassName(unmappedTargetClass, mappingContext.fromNS, mappingContext.toNS)
+                        ?.withDots() ?: unmappedTargetClass) asContext "Mapped target class name"
+
+                    unmappedMethodTo.descriptor asContext "Unmapped target method signature"
+                    targetMethod.descriptor asContext "Mapped target method signature"
+
+                    mappingContext.fromNS asContext "Unmapped (source) mapping namespace"
+                    mappingContext.toNS asContext "Mapped (target) mapping namespace"
+                }
+            val targetClassname = mappingContext.mappings
+                .mapClassName(unmappedTargetClass, mappingContext.fromNS, mappingContext.toNS)
+                ?.withDots() ?: unmappedTargetClass
 
             val originStatic = context.element.methodNode.access.and(Opcodes.ACC_STATIC) == Opcodes.ACC_STATIC
             val descStatic = targetMethodNode.access.and(Opcodes.ACC_STATIC) == Opcodes.ACC_STATIC
 
             if (originStatic.xor(descStatic))
-                throw MixinException(null, "Method access's dont match! One is static and the other is not.")
+                throw MixinException(null, "Method access's dont match! One is static and the other is not.") {
+                    unmappedTargetClass asContext "Unmapped target class name"
+                    targetClassname asContext "Mapped target class name"
+
+                    unmappedMethodTo.descriptor asContext "Unmapped target method signature"
+                    targetMethod.descriptor asContext "Mapped target method signature"
+
+                    self asContext "Mixin classname"
+                    (context.element.methodNode.name + context.element.methodNode.desc) asContext "@SourceInjection method descriptor"
+
+                    mappingContext.fromNS asContext "Unmapped (source) mapping namespace"
+                    mappingContext.toNS asContext "Mapped (target) mapping namespace"
+                }
 
             val data = RichSourceInjectionData(
-                ref.name!!,
-                mappingContext.mappings
-                    .mapClassName(unmappedTargetClass, mappingContext.fromNS, mappingContext.toNS)
-                    ?.withDots()
-                    ?: unmappedTargetClass,
+                mappingContext.extensionName,
+                targetClassname,
                 self.withSlashes(),
                 run {
                     val methodFrom = context.element.methodNode.name + context.element.methodNode.desc
@@ -267,7 +292,6 @@ public class SourceInjectionProvider :
                 },
                 context.element.methodNode.toMethod(),
                 run {
-                    if (!context.target.hasMethod(targetMethod)) throw MixinException(message = "Failed to find method: '$targetMethod' in target class: '${context.target.name}' while applying mixin: '${context.classNode.name}' from extension: '${ref.name}'")
 
                     targetMethod
                 },
@@ -290,8 +314,6 @@ public class SourceInjectionProvider :
         public val methodFrom: Method,
         public val methodTo: Method,
         public val methodAt: SourceInjectionPoint,
-//        public val methodFromName: String,
-//        public val methodFromDesc: String,
 
         public val isStatic: Boolean
     ) : MixinInjection.InjectionData

@@ -6,6 +6,7 @@ import net.yakclient.boot.archive.ArchiveGraph
 import net.yakclient.boot.dependency.DependencyTypeContainer
 import net.yakclient.components.extloader.api.extension.partition.ExtensionPartitionLoader
 import net.yakclient.components.extloader.api.mixin.MixinInjectionProvider
+import net.yakclient.components.extloader.api.exception.ExceptionContextSerializer
 import net.yakclient.`object`.MutableObjectContainer
 import net.yakclient.`object`.ObjectContainerImpl
 import java.nio.file.Path
@@ -20,6 +21,8 @@ public val injectionPointsAttrKey: MutableObjectContainerAttribute.Key<SourceInj
     MutableObjectContainerAttribute.Key("injection-points")
 public val partitionLoadersAttrKey : MutableObjectContainerAttribute.Key<ExtensionPartitionLoader<*>> =
     MutableObjectContainerAttribute.Key("partition-loader")
+public val exceptionContextSerializers : MutableObjectSetAttribute.Key<ExceptionContextSerializer<*>>
+    = MutableObjectSetAttribute.Key("exception-context-serializer")
 
 public val ExtLoaderEnvironment.archiveGraph: ArchiveGraph
     get() = get(ArchiveGraphAttribute).getOrNull()!!.graph

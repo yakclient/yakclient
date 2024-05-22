@@ -28,7 +28,8 @@ public interface MixinInjectionProvider<A : Annotation, T : MixinInjection.Injec
         val tree: ClassInheritanceTree,
         val mappings: ArchiveMapping,
         val fromNS: String,
-        val environment: ExtLoaderEnvironment
+        val environment: ExtLoaderEnvironment,
+        val extensionName: String
     ) {
         val toNS: String = environment[ApplicationMappingTarget].getOrNull()!!.namespace
     }

@@ -18,6 +18,7 @@ import net.yakclient.components.extloader.extension.feature.FeatureReference
 import net.yakclient.components.extloader.extension.feature.containsFeatures
 import net.yakclient.components.extloader.extension.feature.findFeatures
 import net.yakclient.components.extloader.util.parseNode
+import net.yakclient.components.extloader.util.withDots
 import java.nio.ByteBuffer
 import java.util.*
 import kotlin.collections.HashSet
@@ -65,7 +66,7 @@ public class MainPartitionLoader : ExtensionPartitionLoader<MainPartitionMetadat
             featurePartitionName,
             "/META-INF/partitions/$featurePartitionName",
             helper.runtimeModel.partitions.flatMap { it.repositories },
-            helper.runtimeModel.partitions.flatMap { it.dependencies },
+            helper.runtimeModel.partitions.flatMapTo(HashSet()) { it.dependencies },
             mapOf()
         )
         helper.addPartition(
@@ -106,7 +107,7 @@ public class MainPartitionLoader : ExtensionPartitionLoader<MainPartitionMetadat
                 reference,
                 helper.parentClassloader,
                 sourceProvider = object : SourceProvider by sourceProviderDelegate {
-                    private val featureContainers = metadata.definedFeatures.mapTo(HashSet()) { it.container }
+                    private val featureContainers = metadata.definedFeatures.mapTo(HashSet()) { it.container.withDots() }
 
                     override fun findSource(name: String): ByteBuffer? {
                         return if (featureContainers.contains(name)) null

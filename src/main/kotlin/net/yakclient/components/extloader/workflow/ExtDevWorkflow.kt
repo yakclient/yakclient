@@ -17,11 +17,13 @@ import net.yakclient.boot.loader.*
 import net.yakclient.common.util.immutableLateInit
 import net.yakclient.common.util.resolve
 import net.yakclient.components.extloader.api.environment.*
+import net.yakclient.components.extloader.api.exception.StructuredException
 import net.yakclient.components.extloader.api.extension.ExtensionNodeObserver
 import net.yakclient.components.extloader.api.extension.ExtensionRunner
 import net.yakclient.components.extloader.api.target.ApplicationParentClProvider
 import net.yakclient.components.extloader.api.target.ApplicationTarget
 import net.yakclient.components.extloader.environment.ExtensionDevEnvironment
+import net.yakclient.components.extloader.exception.ExtLoaderExceptions
 import net.yakclient.components.extloader.extension.ExtensionLoadException
 import net.yakclient.components.extloader.extension.ExtensionNode
 import net.yakclient.components.extloader.extension.ExtensionResolver
@@ -29,7 +31,6 @@ import net.yakclient.components.extloader.extension.artifact.ExtensionArtifactRe
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 import net.yakclient.components.extloader.extension.artifact.ExtensionRepositorySettings
 import net.yakclient.components.extloader.extension.mapping.MojangExtensionMappingProvider
-import net.yakclient.components.extloader.extension.partition.TweakerPartitionLoader
 import net.yakclient.components.extloader.extension.partition.TweakerPartitionMetadata
 import net.yakclient.components.extloader.extension.partition.TweakerPartitionNode
 import net.yakclient.components.extloader.target.TargetLinker
@@ -96,8 +97,6 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
             )
         )
 
-
-
         fun allExtensions(node: ExtensionNode): Set<ExtensionNode> {
             return node.parents.flatMapTo(HashSet(), ::allExtensions) + node
         }
@@ -119,7 +118,10 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
                 extensionResolver
             )().merge()
         }().mapException {
-            ExtensionLoadException(context.extension, it)
+            ExtensionLoadException(context.extension, it) {
+                context.extension asContext "Extension"
+                this@ExtDevWorkflow.name asContext "Workflow/Environment"
+            }
         }.merge()
 
         val tweakers = allExtensions(extensionNode).flatMap(ExtensionNode::partitions).filter {
@@ -200,21 +202,32 @@ internal class ExtDevWorkflow : ExtLoaderWorkflow<ExtDevWorkflowContext> {
             DelegatingResourceProvider((appReference.dependencyHandles + appReference.handle).map(::ArchiveResourceProvider))
 
         // Setup extensions, dont init yet
-        extensions.forEach {
-            val container = it.container
-            container?.setup(linker)?.invoke()?.merge()
+        extensions.forEach { n ->
+            val container = n.container
+            container?.setup(linker)?.invoke()?.mapException {
+                StructuredException(
+                    ExtLoaderExceptions.ExtensionSetupException,
+                    it
+                ) {
+                    n.erm.name asContext "Extension name"
+                }
+            }?.merge()
 
-            it.archive?.let { a -> linker.addMiscClasses(ArchiveClassProvider(a)) }
+            n.partitions.forEach {
+                linker.addMiscClasses(ArchiveClassProvider(it.node.archive))
+            }
             linker.addMiscResources(object : ResourceProvider {
                 override fun findResources(name: String): Sequence<URL> {
-                    return it.archive?.classloader?.getResource(name)?.let { sequenceOf(it) } ?: emptySequence()
+                    return n.archive?.classloader?.getResource(name)?.let { sequenceOf(it) } ?: emptySequence()
                 }
             })
         }
 
         // Specifically NOT adding tweaker resources.
         tweakers.forEach {
-            it.archive.let { a -> linker.addMiscClasses(ArchiveClassProvider(a)) }
+            it.archive.let { a -> linker.addMiscClasses(
+                ArchiveClassProvider(a)
+            ) }
         }
 
         // Call init on all extensions, this is ordered correctly

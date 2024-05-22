@@ -8,17 +8,25 @@ import net.yakclient.archives.mixin.SourceInjectors
 import net.yakclient.boot.loader.IntegratedLoader
 import net.yakclient.common.util.resolve
 import net.yakclient.components.extloader.api.environment.*
+import net.yakclient.components.extloader.api.exception.ExceptionContextSerializer
+import net.yakclient.components.extloader.api.exception.StructuredException
 import net.yakclient.components.extloader.api.extension.ExtensionClassLoaderProvider
-import net.yakclient.components.extloader.extension.ExtensionNode
 import net.yakclient.components.extloader.api.extension.ExtensionRunner
+import net.yakclient.components.extloader.api.extension.descriptor
 import net.yakclient.components.extloader.api.extension.partition.ExtensionPartitionLoader
+import net.yakclient.components.extloader.api.mixin.MixinInjectionProvider
+import net.yakclient.components.extloader.api.target.ApplicationParentClProvider
+import net.yakclient.components.extloader.exception.*
+import net.yakclient.components.extloader.exception.AnyContextSerializer
+import net.yakclient.components.extloader.exception.IterableContextSerializer
+import net.yakclient.components.extloader.exception.MapContextSerializer
+import net.yakclient.components.extloader.exception.StringContextSerializer
+import net.yakclient.components.extloader.extension.ExtensionNode
 import net.yakclient.components.extloader.extension.mapping.MojangExtensionMappingProvider
+import net.yakclient.components.extloader.extension.partition.*
 import net.yakclient.components.extloader.mixin.FieldInjectionProvider
 import net.yakclient.components.extloader.mixin.MethodInjectionProvider
 import net.yakclient.components.extloader.mixin.SourceInjectionProvider
-import net.yakclient.components.extloader.api.mixin.MixinInjectionProvider
-import net.yakclient.components.extloader.api.target.ApplicationParentClProvider
-import net.yakclient.components.extloader.extension.partition.*
 import net.yakclient.components.extloader.target.TargetLinker
 import java.nio.file.Path
 
@@ -43,6 +51,16 @@ internal fun MutableObjectContainerAttribute<ExtensionPartitionLoader<*>>.regist
     FeaturePartitionLoader().also { container.register(it.type, it) }
 }
 
+internal fun MutableObjectSetAttribute<ExceptionContextSerializer<*>>.registerBasicSerializers(): MutableObjectSetAttribute<ExceptionContextSerializer<*>> {
+    AnyContextSerializer().also(::add)
+    IterableContextSerializer().also(::add)
+    MapContextSerializer().also(::add)
+    StringContextSerializer().also(::add)
+    PathContextSerializer().also(::add)
+
+    return this
+}
+
 internal fun ExtensionDevEnvironment(
     path: Path
 ): ExtLoaderEnvironment {
@@ -51,7 +69,7 @@ internal fun ExtensionDevEnvironment(
     env += MutableObjectSetAttribute<MappingsProvider>(mappingProvidersAttrKey).also {
         it.add(
             MojangExtensionMappingProvider(
-                path resolve "mapping" resolve "mojang"
+                path resolve "mappings" resolve "mojang"
             )
         )
     }
@@ -59,7 +77,18 @@ internal fun ExtensionDevEnvironment(
     env += MutableObjectContainerAttribute<SourceInjectionPoint>(injectionPointsAttrKey)
     env += object : ExtensionRunner {
         override fun init(node: ExtensionNode) {
-            node.container?.extension?.init()
+            try {
+                node.partitions
+                    .map { it.node }
+                    .filterIsInstance<MainPartitionNode>()
+                    .firstOrNull()?.extension?.init()
+            } catch (e: Throwable) {
+                throw StructuredException(
+                    ExtLoaderExceptions.ExtensionInitializationException,
+                    cause = e,
+                    message = "An exception occurred while initiating: '${node.erm.descriptor}'"
+                )
+            }
         }
     }
     env += object : ExtensionClassLoaderProvider {}

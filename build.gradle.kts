@@ -36,7 +36,7 @@ dependencies {
     implementation("net.yakclient:archive-mapper-transform:1.2.1-SNAPSHOT")
     implementation("net.yakclient:archive-mapper-proguard:1.2.1-SNAPSHOT")
 
-    implementation("net.yakclient:launchermeta-handler:1.1-SNAPSHOT") {
+    implementation("net.yakclient:launchermeta-handler:1.1.1-SNAPSHOT") {
         isChanging = true
     }
     implementation("net.yakclient:object-container:1.0-SNAPSHOT")
@@ -46,13 +46,13 @@ dependencies {
     implementation("net.yakclient:boot:2.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:artifact-resolver:1.1-SNAPSHOT") {
+    implementation("com.durganmcbroom:artifact-resolver:1.1.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:artifact-resolver-simple-maven:1.1-SNAPSHOT") {
+    implementation("com.durganmcbroom:artifact-resolver-simple-maven:1.1.1-SNAPSHOT") {
         isChanging = true
     }
-    api("net.yakclient:common-util:1.1-SNAPSHOT") {
+    api("net.yakclient:common-util:1.1.1-SNAPSHOT") {
         isChanging = true
     }
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.4")
@@ -77,7 +77,6 @@ dependencies {
     testImplementation("net.yakclient:boot-test:2.1-SNAPSHOT")
     testImplementation("net.yakclient:archive-mapper-tiny:1.2-SNAPSHOT")
 }
-
 
 open class ListAllDependencies : DefaultTask() {
     @TaskAction
@@ -214,8 +213,8 @@ allprojects {
     apply(plugin = "org.jetbrains.dokka")
 
     repositories {
-        mavenCentral()
         mavenLocal()
+        mavenCentral()
         maven {
             url = uri("https://maven.fabricmc.net/")
         }

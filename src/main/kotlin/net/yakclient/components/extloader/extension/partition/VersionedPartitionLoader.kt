@@ -1,5 +1,6 @@
 package net.yakclient.components.extloader.extension.partition
 
+import com.durganmcbroom.artifact.resolver.ArtifactMetadata
 import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.JobName
 import com.durganmcbroom.jobs.job
@@ -12,6 +13,7 @@ import net.yakclient.archives.ArchiveTree
 import net.yakclient.archives.Archives
 import net.yakclient.archives.transform.TransformerConfig
 import net.yakclient.boot.archive.ArchiveAccessTree
+import net.yakclient.boot.archive.ArchiveTarget
 import net.yakclient.boot.loader.ArchiveSourceProvider
 import net.yakclient.boot.loader.SourceProvider
 import net.yakclient.client.api.annotation.Mixin
@@ -23,17 +25,15 @@ import net.yakclient.components.extloader.api.extension.partition.*
 import net.yakclient.components.extloader.api.mixin.MixinInjectionProvider
 import net.yakclient.components.extloader.api.target.ApplicationTarget
 import net.yakclient.components.extloader.api.target.MixinTransaction
+import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 import net.yakclient.components.extloader.extension.feature.FeatureReference
 import net.yakclient.components.extloader.extension.feature.containsFeatures
 import net.yakclient.components.extloader.extension.feature.findFeatures
 import net.yakclient.components.extloader.extension.processClassForMixinContexts
-import net.yakclient.components.extloader.util.instantiateAnnotation
-import net.yakclient.components.extloader.util.parseNode
-import net.yakclient.components.extloader.util.withDots
-import net.yakclient.components.extloader.util.withSlashes
+import net.yakclient.components.extloader.util.*
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Type
 import org.objectweb.asm.tree.ClassNode
-import java.io.InputStream
 import java.nio.ByteBuffer
 
 public data class VersionedPartitionMetadata(
@@ -46,13 +46,25 @@ public data class VersionedPartitionMetadata(
     public val supportedVersions: List<String>,
 ) : ExtensionPartitionMetadata
 
-public open class VersionedPartitionNode(
+public open class VersionedPartitionNode internal constructor(
     override val archive: ArchiveHandle,
     override val access: ArchiveAccessTree,
-) : ExtensionPartitionNode
+) : ExtensionPartitionNode {
+    internal constructor(descriptor: ArtifactMetadata.Descriptor) : this(
+        emptyArchiveHandle(),
+        object : ArchiveAccessTree {
+            override val descriptor: ArtifactMetadata.Descriptor = descriptor
+            override val targets: List<ArchiveTarget> = listOf()
+        }
+    )
+}
 
 public class VersionedPartitionLoader : ExtensionPartitionLoader<VersionedPartitionMetadata> {
     override val type: String = TYPE
+    private var appInheritanceTree: ClassInheritanceTree? = null
+    public companion object {
+        public const val TYPE: String = "versioned"
+    }
 
     override fun parseMetadata(
         partition: ExtensionPartition,
@@ -119,11 +131,6 @@ public class VersionedPartitionLoader : ExtensionPartitionLoader<VersionedPartit
         )
     }
 
-    public companion object {
-        public const val TYPE: String = "versioned"
-    }
-
-    private var appInheritanceTree: ClassInheritanceTree? = null
 
     override fun load(
         metadata: VersionedPartitionMetadata,
@@ -135,6 +142,8 @@ public class VersionedPartitionLoader : ExtensionPartitionLoader<VersionedPartit
                 helper.thisDescriptor,
                 metadata
             ) { linker ->
+                if (!metadata.enabled) return@ExtensionPartitionContainer VersionedPartitionNode(helper.thisDescriptor)
+
                 val access = helper.access {
                     withDefaults()
 
@@ -142,7 +151,8 @@ public class VersionedPartitionLoader : ExtensionPartitionLoader<VersionedPartit
                         helper.load(
                             helper.partitions
                                 .keys
-                                .first { it.type == MainPartitionLoader.TYPE }
+                                .find { it.type == MainPartitionLoader.TYPE }
+                                ?: noMainPartition(metadata, helper)
                         ).also {
                             (it as TargetRequiringPartitionContainer<*, *>).setup(linker)().merge()
                         }
@@ -179,14 +189,15 @@ public class VersionedPartitionLoader : ExtensionPartitionLoader<VersionedPartit
                     reference,
                     helper.parentClassloader,
 
-                    sourceProvider = object : SourceProvider by sourceProviderDelegate {
-                        private val featureContainers = metadata.implementedFeatures.mapTo(HashSet()) { it.container }
-
-                        override fun findSource(name: String): ByteBuffer? {
-                            return if (featureContainers.contains(name)) null
-                            else sourceProviderDelegate.findSource(name)
-                        }
-                    }
+                    sourceProvider = sourceProviderDelegate,
+//                    sourceProvider = object : SourceProvider by sourceProviderDelegate {
+//                        private val featureContainers = metadata.implementedFeatures.mapTo(HashSet()) { it.container.withDots() }
+//
+//                        override fun findSource(name: String): ByteBuffer? {
+//                            return if (featureContainers.contains(name)) null
+//                            else sourceProviderDelegate.findSource(name)
+//                        }
+//                    }
                 )
 
                 val handle = PartitionArchiveHandle(
@@ -205,7 +216,7 @@ public class VersionedPartitionLoader : ExtensionPartitionLoader<VersionedPartit
         }
 
     private fun setupMixinData(
-        extension: String,
+        extension: ExtensionDescriptor,
         archiveReference: ArchiveReference,
         environment: ExtLoaderEnvironment,
         mappings: ArchiveMapping,
@@ -218,24 +229,28 @@ public class VersionedPartitionLoader : ExtensionPartitionLoader<VersionedPartit
                 val mixinNode = entry.resource.openStream()
                     .parseNode()
 
-                val mixinAnnotation = (mixinNode.visibleAnnotations
-                    ?: listOf()).find { it.desc == "L${Mixin::class.java.name.withSlashes()};" }
-                    ?.let { instantiateAnnotation(it, Mixin::class.java) } ?: return@mapNotNull null
+                val mixinValues = ((mixinNode.visibleAnnotations
+                    ?: listOf()).find { it.desc == "L${Mixin::class.java.name.withSlashes()};" } ?: return@mapNotNull null)
+                    .values.withIndex().groupBy {
+                        it.index / 2
+                    }.values.associate { it[0].value as String to it[1].value }
+
+                val mixinRawDest = (mixinValues["value"] as Type).internalName
 
                 val providers = environment[mixinTypesAttrKey].extract().container
 
                 val mappedTarget = mappings.mapClassName(
-                    mixinAnnotation.value.withSlashes(),
+                    mixinRawDest.withSlashes(),
                     mappingNamespace,
                     environment[ApplicationMappingTarget].extract().namespace
-                ) ?: mixinAnnotation.value.withSlashes()
+                ) ?: mixinRawDest.withSlashes()
 
                 val targetNode = environment[ApplicationTarget].extract().reference.reference.reader[
                     "$mappedTarget.class"
                 ]?.resource?.openStream()
                     ?.parseNode() ?: throw IllegalArgumentException(
                     "Failed to find target of mixin: '${mixinNode.name}' and injection: '${Mixin::class.java.name}'. " +
-                            "Unmapped target (as compiled by extension: '$extension') was '${mixinAnnotation.value}', mapped target (what was searched for) is: '$mappedTarget'."
+                            "Unmapped target (as compiled by extension: '$extension') was '${mixinRawDest.withDots()}', mapped target (what was searched for) is: '$mappedTarget'."
                 )
 
                 processClassForMixinContexts(
@@ -244,12 +259,13 @@ public class VersionedPartitionLoader : ExtensionPartitionLoader<VersionedPartit
                     providers
                 ).map {
                     it.createTransactionMetadata(
-                        mixinNode.name.withDots(),
+                        mixinRawDest.withDots(),
                         MixinInjectionProvider.MappingContext(
                             inheritanceTree,
                             mappings,
                             mappingNamespace,
-                            environment
+                            environment,
+                            extension.artifact
                         ),
                         archiveReference
                     )().merge()

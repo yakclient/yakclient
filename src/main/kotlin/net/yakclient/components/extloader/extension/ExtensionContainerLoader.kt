@@ -1,22 +1,16 @@
 package net.yakclient.components.extloader.extension
 
 import com.durganmcbroom.artifact.resolver.ArtifactMetadata
-import com.durganmcbroom.artifact.resolver.ArtifactRequest
-import com.durganmcbroom.artifact.resolver.RepositorySettings
-import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
 import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.SuccessfulJob
 import com.durganmcbroom.jobs.job
+import com.durganmcbroom.jobs.mapException
 import net.yakclient.archive.mapper.*
 import net.yakclient.archive.mapper.transform.*
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.boot.archive.*
-import net.yakclient.boot.dependency.DependencyResolver
-import net.yakclient.boot.dependency.DependencyResolverProvider
+import net.yakclient.boot.dependency.DependencyTypeContainer
 import net.yakclient.boot.loader.*
-import net.yakclient.boot.util.firstNotFailureOf
-import net.yakclient.components.extloader.EXT_LOADER_ARTIFACT
-import net.yakclient.components.extloader.EXT_LOADER_GROUP
 import net.yakclient.components.extloader.api.environment.*
 import net.yakclient.components.extloader.api.extension.ExtensionClassLoaderProvider
 import net.yakclient.components.extloader.api.extension.ExtensionPartition
@@ -24,12 +18,8 @@ import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
 import net.yakclient.components.extloader.api.extension.descriptor
 import net.yakclient.components.extloader.api.extension.partition.*
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
-import net.yakclient.components.extloader.extension.partition.MainPartitionMetadata
-import net.yakclient.components.extloader.extension.partition.MainPartitionNode
-import net.yakclient.components.extloader.extension.partition.PartitionLoadException
-import net.yakclient.components.extloader.extension.versioning.VersionedExtArchiveHandle
+import net.yakclient.components.extloader.extension.versioning.ExtensionArchiveHandle
 import net.yakclient.components.extloader.util.slice
-import java.lang.IllegalStateException
 import java.nio.file.Path
 
 public open class ExtensionContainerLoader(
@@ -45,6 +35,7 @@ public open class ExtensionContainerLoader(
         ref: ArchiveReference,
         erm: ExtensionRuntimeModel,
         parents: List<ExtensionNode>,
+        parentClassloader: ClassLoader,
     ): Job<List<ExtensionPartitionContainer<*, *>>> = job {
         val loaded = HashMap<ExtensionPartition, ExtensionPartitionContainer<*, *>>()
 
@@ -83,20 +74,21 @@ public open class ExtensionContainerLoader(
         fun loadPartition(
             partitionToLoad: ExtensionPartition,
             trace: List<String>,
-        ): Job<ExtensionPartitionContainer<*, *>> = loaded[partitionToLoad]?.let { SuccessfulJob { it }} ?: job {
-            val dependencyProviders = environment[dependencyTypesAttrKey].extract().container
+        ): Job<ExtensionPartitionContainer<*, *>> = loaded[partitionToLoad]?.let { SuccessfulJob { it } } ?: job {
+            val dependencyProviders: DependencyTypeContainer = environment[dependencyTypesAttrKey].extract().container
             val loaders = environment[partitionLoadersAttrKey].extract().container
             val archiveGraph = environment.archiveGraph
 
             check(trace.distinct().size == trace.size) { "Cyclic Partitions: '$trace' in extension: '${erm.name}'" }
 
-            val loader = (loaders.get(partitionToLoad.type) as? ExtensionPartitionLoader<ExtensionPartitionMetadata>) ?: throw IllegalArgumentException(
-                "Illegal partition type: '${partitionToLoad.type}', only accepted ones are: '${
-                    loaders.objects().map(
-                        Map.Entry<String, ExtensionPartitionLoader<*>>::key
-                    )
-                }'"
-            )
+            val loader = (loaders.get(partitionToLoad.type) as? ExtensionPartitionLoader<ExtensionPartitionMetadata>)
+                ?: throw IllegalArgumentException(
+                    "Illegal partition type: '${partitionToLoad.type}', only accepted ones are: '${
+                        loaders.objects().map(
+                            Map.Entry<String, ExtensionPartitionLoader<*>>::key
+                        )
+                    }'"
+                )
 
             val metadata = getMetadata(partitionToLoad)().merge()
 
@@ -107,7 +99,7 @@ public open class ExtensionContainerLoader(
                     override val environment: ExtLoaderEnvironment = environment
                     override val runtimeModel: ExtensionRuntimeModel = erm
                     override val parents: List<ExtensionNode> = parents
-                    override val parentClassloader: ClassLoader = this@ExtensionContainerLoader.parentClassloader
+                    override val parentClassloader: ClassLoader = parentClassloader
                     override val thisDescriptor: ArtifactMetadata.Descriptor =
                         ExtensionDescriptor(erm.groupId, erm.name, erm.version, partitionToLoad.name)
 
@@ -130,57 +122,12 @@ public open class ExtensionContainerLoader(
 
                         val scopeObject = object : PartitionAccessTreeScope {
                             override fun withDefaults() {
-                                val dependencies = partitionToLoad.dependencies
-                                    .map { dependency ->
-                                        if (partitionToLoad.repositories.isEmpty()) {
-                                            throw PartitionLoadException("Partition: '${partitionToLoad.name}' has no defined repositories but has dependencies!")
-                                        }
-                                        val (dependencyDescriptor, dependencyResolver) = partitionToLoad.repositories.firstNotFailureOf findRepo@ { settings ->
-                                            val provider: DependencyResolverProvider<*, *, *> =
-                                                dependencyProviders.get(settings.type) ?: throw ArchiveException.ArchiveTypeNotFound(
-                                                    settings.type,
-                                                    trace()
-                                                )
-
-                                            val depReq: ArtifactRequest<*> = provider.parseRequest(dependency) ?: casuallyFail(
-                                                ArchiveException.DependencyInfoParseFailed(
-                                                    "Failed to parse request: '$dependency'",
-                                                    trace()
-                                                )
-                                            )
-
-                                            val repoSettings = provider.parseSettings(settings.settings) ?: casuallyFail(
-                                                ArchiveException.DependencyInfoParseFailed(
-                                                    "Failed to parse settings: '$settings'",
-                                                    trace()
-                                                )
-                                            )
-
-                                            val resolver =
-                                                provider.resolver as DependencyResolver<ArtifactMetadata.Descriptor, ArtifactRequest<ArtifactMetadata.Descriptor>, *, RepositorySettings, *>
-
-                                            archiveGraph.cache(
-                                                depReq as ArtifactRequest<ArtifactMetadata.Descriptor>,
-                                                repoSettings,
-                                                resolver
-                                            )().casuallyAttempt()
-
-                                            Result.success(
-                                                depReq.descriptor to resolver
-                                            )
-                                        }.merge()
-
-                                        archiveGraph.get(
-                                            dependencyDescriptor,
-                                            dependencyResolver
-                                        )().merge()
-                                    }.filter {
-                                        val d = it.descriptor as? SimpleMavenDescriptor ?: return@filter true
-
-                                        // TODO this ensures some amount of backwards compatibility (as ext-loader or the client-api wont be reloaded) however this should instead be anything it in the class loader hierarchy.
-                                        !((d.group == EXT_LOADER_GROUP && d.artifact == EXT_LOADER_ARTIFACT) ||
-                                                (d.group == "net.yakclient" && d.artifact == "client-api"))
-                                    }
+                                val dependencies = dependenciesFromPartition(
+                                    partitionToLoad,
+                                    erm.name,
+                                    dependencyProviders,
+                                    archiveGraph
+                                )().merge()
 
                                 allDirect(dependencies)
                             }
@@ -204,13 +151,15 @@ public open class ExtensionContainerLoader(
                             }
 
                             override fun direct(dependency: ArchiveNode<*>) {
-                                directTargets.add(ArchiveTarget(
-                                    dependency.descriptor,
-                                    ArchiveRelationship.Direct(
-                                        ArchiveClassProvider(dependency.archive),
-                                        ArchiveResourceProvider(dependency.archive),
+                                directTargets.add(
+                                    ArchiveTarget(
+                                        dependency.descriptor,
+                                        ArchiveRelationship.Direct(
+                                            ArchiveClassProvider(dependency.archive),
+                                            ArchiveResourceProvider(dependency.archive),
+                                        )
                                     )
-                                ))
+                                )
 
                                 transitiveTargets.addAll(dependency.access.targets.map {
                                     ArchiveTarget(
@@ -248,7 +197,7 @@ public open class ExtensionContainerLoader(
             loadPartition(partition, listOf(partition.name))().merge()
         }
 
-         loaded.values.toList()
+        loaded.values.toList()
     }
 
     public fun load(
@@ -256,36 +205,41 @@ public open class ExtensionContainerLoader(
         parents: List<ExtensionNode>,
         erm: ExtensionRuntimeModel,
     ): Job<Pair<ExtensionContainer, List<ExtensionPartitionContainer<*, *>>>> = job {
+        val loader = environment[ExtensionClassLoaderProvider].extract().createFor(
+            ref,
+            erm,
+            listOf(),
+            parentClassloader,
+        )
+
         val partitions = loadPartitions(
             environment,
             ref,
             erm,
             parents,
+            loader
         )().merge()
 
         ExtensionContainer(
+            erm,
             environment,
             ref,
             partitions
         ) { linker ->
-            val handle = VersionedExtArchiveHandle(
-                environment[ExtensionClassLoaderProvider].extract().createFor(
-                    ref,
-                    erm,
-                    partitions.map {
-                        it.node
-                    },
-                    parentClassloader,
-                ),
+            val handle = ExtensionArchiveHandle(
+                loader,
                 erm.name,
                 parents.mapNotNullTo(HashSet()) { it.archive },
                 ArchiveSourceProvider(ref).packages
             )
 
-            val instance = partitions.map { it.node }.filterIsInstance<MainPartitionNode>().firstOrNull()?.extension
-                ?: throw IllegalStateException("Failed to find main partition in extension: '${erm.descriptor}'")
+            loader.partitions.addAll(partitions)
 
-            instance to handle
+            handle
         } to partitions
+    }.mapException {
+        ExtensionLoadException(erm.descriptor, it) {
+            erm.descriptor asContext "Extension name"
+        }
     }
 }

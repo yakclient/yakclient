@@ -3,6 +3,7 @@ package net.yakclient.components.extloader.api.extension
 import net.yakclient.archives.ArchiveReference
 import net.yakclient.components.extloader.api.environment.EnvironmentAttribute
 import net.yakclient.components.extloader.api.environment.EnvironmentAttributeKey
+import net.yakclient.components.extloader.api.extension.partition.ExtensionPartitionContainer
 import net.yakclient.components.extloader.api.extension.partition.ExtensionPartitionNode
 import net.yakclient.components.extloader.extension.ExtensionClassLoader
 
@@ -13,11 +14,11 @@ public interface ExtensionClassLoaderProvider : EnvironmentAttribute {
     public fun createFor(
         archive: ArchiveReference,
         erm: ExtensionRuntimeModel,
-        partitions: List<ExtensionPartitionNode>,
+        partitions: List<ExtensionPartitionContainer<*, *>>,
         parent: ClassLoader,
-    ): ClassLoader {
+    ): ExtensionClassLoader {
         return ExtensionClassLoader(
-            erm.name, partitions, parent
+            erm.name, partitions.toMutableList(), parent
         )
     }
 

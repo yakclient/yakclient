@@ -1,10 +1,24 @@
 package net.yakclient.components.extloader.extension
 
-import net.yakclient.boot.archive.ArchiveException
-import net.yakclient.boot.archive.ArchiveTrace
+import net.yakclient.components.extloader.api.exception.StructuredException
+import net.yakclient.components.extloader.api.exception.ExceptionConfiguration
+import net.yakclient.components.extloader.exception.ExtLoaderExceptions
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 
-public class ExtensionLoadException(
+//public class ExtensionLoadException(
+//    descriptor: ExtensionDescriptor,
+//    override val cause: Throwable,
+//    override val type: ExceptionType,
+//    configure: JobExceptionContextScope.() -> Unit,
+//) : JobException(configure) {
+//
+//    override val message: String = "Error loading extension: '$descriptor'"
+//}
+
+public fun ExtensionLoadException(
     descriptor: ExtensionDescriptor,
-    cause: Throwable
-) : ArchiveException(ArchiveTrace(descriptor,null), "Error loading extension", cause)
+    cause: Throwable? = null,
+    configure: ExceptionConfiguration.() -> Unit = {},
+): Throwable = StructuredException(ExtLoaderExceptions.ExtensionLoadException, cause, "Error loading extension: '$descriptor'") {
+    configure()
+}

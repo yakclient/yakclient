@@ -5,7 +5,6 @@ import net.yakclient.client.api.annotation.FeatureContainer
 import net.yakclient.components.extloader.util.instantiateAnnotation
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree.ClassNode
-import java.lang.IllegalStateException
 
 internal fun ClassNode.containsFeatures(): Boolean = visibleAnnotations?.any { a ->
     Type.getType(a.desc) == Type.getType(FeatureContainer::class.java)
@@ -49,7 +48,11 @@ internal fun ClassNode.findFeatures(): List<FeatureReference> {
     }?.let { instantiateAnnotation(it, Feature::class.java) } ?: return fieldFeatures + methodFeatures
 
     if (fieldFeatures.isNotEmpty() || methodFeatures.isNotEmpty()) {
-        throw IllegalFeatureException("Feature container: '$clsName' is a feature, yet also contains features; features cannot contain features.")
+        throw IllegalFeatureException("Features cannot contain features.") {
+            clsName.replace('/', '.') asContext "Feature container name"
+
+            solution("Remove the @Feature annotation on \${Feature container name}")
+        }
     }
 
     return listOf(

@@ -5,17 +5,18 @@ import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
 import net.yakclient.components.extloader.target.TargetLinker
 
-public interface ExtensionPartitionContainer<T: ExtensionPartitionNode, M: ExtensionPartitionMetadata> {
+public interface ExtensionPartitionContainer<T : ExtensionPartitionNode, M : ExtensionPartitionMetadata> {
     public val descriptor: ArtifactMetadata.Descriptor
     public val metadata: M
     public val node: T
 }
 
-public interface TargetRequiringPartitionContainer<T: ExtensionPartitionNode, M: ExtensionPartitionMetadata> : ExtensionPartitionContainer<T, M> {
-    public fun setup(linker: TargetLinker) : Job<Unit>
+public interface TargetRequiringPartitionContainer<T : ExtensionPartitionNode, M : ExtensionPartitionMetadata> :
+    ExtensionPartitionContainer<T, M> {
+    public fun setup(linker: TargetLinker): Job<Unit>
 }
 
-internal fun <T : ExtensionPartitionNode, M: ExtensionPartitionMetadata> ExtensionPartitionContainer(
+internal fun <T : ExtensionPartitionNode, M : ExtensionPartitionMetadata> ExtensionPartitionContainer(
     descriptor: ArtifactMetadata.Descriptor,
     metadata: M,
     node: T,
@@ -26,7 +27,7 @@ internal fun <T : ExtensionPartitionNode, M: ExtensionPartitionMetadata> Extensi
         override val node: T = node
     }
 
-internal fun <T : ExtensionPartitionNode, M: ExtensionPartitionMetadata> ExtensionPartitionContainer(
+internal fun <T : ExtensionPartitionNode, M : ExtensionPartitionMetadata> ExtensionPartitionContainer(
     descriptor: ArtifactMetadata.Descriptor,
     metadata: M,
     node: (linker: TargetLinker) -> T,

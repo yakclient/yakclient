@@ -9,6 +9,7 @@ import net.yakclient.boot.archive.ArchiveTarget
 import net.yakclient.boot.loader.*
 import net.yakclient.components.extloader.api.extension.ExtensionRuntimeModel
 import net.yakclient.components.extloader.api.extension.partition.ExtensionPartitionNode
+import java.security.ProtectionDomain
 
 internal fun PartitionClassLoader(
     model: ExtensionRuntimeModel,
@@ -22,12 +23,16 @@ internal fun PartitionClassLoader(
     classProvider: ClassProvider = DelegatingClassProvider(access.targets.map { it.relationship.classes }),
     resourceProvider: ResourceProvider = ArchiveResourceProvider(ref),
     sourceProvider: SourceProvider = ArchiveSourceProvider(ref),
+    sourceDefiner: SourceDefiner = SourceDefiner { n, b, cl, d ->
+        d(n, b, ProtectionDomain(null, null, cl, null))
+    },
 ): ClassLoader = IntegratedLoader(
     "${model.name}-${name}",
 
     classProvider = classProvider,
     resourceProvider = resourceProvider,
     sourceProvider = sourceProvider,
+    sourceDefiner = sourceDefiner,
 
     parent = parent
 )
