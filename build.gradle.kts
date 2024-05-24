@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "net.yakclient.components"
-version = "1.1-SNAPSHOT"
+version = "1.1.1-SNAPSHOT"
 
 sourceSets {
     val main by getting
@@ -36,23 +36,23 @@ dependencies {
     implementation("net.yakclient:archive-mapper-transform:1.2.1-SNAPSHOT")
     implementation("net.yakclient:archive-mapper-proguard:1.2.1-SNAPSHOT")
 
-    implementation("net.yakclient:launchermeta-handler:1.1.1-SNAPSHOT") {
+    implementation("net.yakclient:launchermeta-handler:1.1.2-SNAPSHOT") {
         isChanging = true
     }
     implementation("net.yakclient:object-container:1.0-SNAPSHOT")
     api("net.yakclient:archives-mixin:1.2-SNAPSHOT") {
         isChanging = true
     }
-    implementation("net.yakclient:boot:2.1-SNAPSHOT") {
+    implementation("net.yakclient:boot:2.1.1-SNAPSHOT") {
         isChanging = true
     }
-    implementation("com.durganmcbroom:artifact-resolver:1.1.1-SNAPSHOT") {
+    implementation("com.durganmcbroom:artifact-resolver:1.1.3-SNAPSHOT") {
         isChanging = true
     }
     implementation("com.durganmcbroom:artifact-resolver-simple-maven:1.1.1-SNAPSHOT") {
         isChanging = true
     }
-    api("net.yakclient:common-util:1.1.1-SNAPSHOT") {
+    api("net.yakclient:common-util:1.1.3-SNAPSHOT") {
         isChanging = true
     }
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.4")

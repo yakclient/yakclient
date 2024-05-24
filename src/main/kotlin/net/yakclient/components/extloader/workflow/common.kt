@@ -5,7 +5,6 @@ import net.yakclient.boot.component.context.ContextNodeTypes
 import net.yakclient.components.extloader.extension.artifact.ExtensionDescriptor
 import net.yakclient.components.extloader.extension.artifact.ExtensionRepositorySettings
 
-
 internal fun <T : Any> T?.check(name: () -> String): T {
     return checkNotNull(this) { "Error while trying to parse configuration for component: 'ext-loader'. Could not find property '${name()}'." }
 }
