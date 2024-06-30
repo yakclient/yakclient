@@ -15,10 +15,10 @@
 //    requires yakclient.client.api;
 //    requires yakclient.archive.mapper.transform;
 //
-//    exports net.yakclient.components.yak.extension;
-//    exports net.yakclient.components.yak;
-//    exports net.yakclient.components.yak.mixin;
-//    exports net.yakclient.components.yak.extension.versioning;
+//    exports dev.extframework.components.yak.extension;
+//    exports dev.extframework.components.yak;
+//    exports dev.extframework.components.yak.mixin;
+//    exports dev.extframework.components.yak.extension.versioning;
 //
-//    opens net.yakclient.components.yak.extension to com.fasterxml.jackson.databind, kotlin.reflect;
+//    opens dev.extframework.components.yak.extension to com.fasterxml.jackson.databind, kotlin.reflect;
 //}
