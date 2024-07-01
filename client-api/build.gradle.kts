@@ -7,13 +7,6 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
-tasks.test {
-    jvmArgs = listOf(
-        "--add-reads",
-        "kotlin.stdlib=kotlinx.coroutines.core.jvm"
-    )
-}
-
 common {
     publishing {
         publication {
