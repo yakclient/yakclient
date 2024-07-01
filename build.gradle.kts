@@ -163,6 +163,7 @@ allprojects {
             repositories {
                 extFramework(credentials = propertyCredentialProvider)
             }
+
             publication {
                 withJava()
                 withSources()
