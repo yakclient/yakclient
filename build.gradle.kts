@@ -11,18 +11,6 @@ plugins {
 group = "dev.extframework.components"
 version = "1.1.1-SNAPSHOT"
 
-sourceSets {
-    val main by getting
-    val test by getting {
-        compileClasspath += main.output
-        runtimeClasspath += main.output
-    }
-}
-
-configurations.all {
-    resolutionStrategy.cacheChangingModulesFor(0, "seconds")
-}
-
 tasks.wrapper {
     gradleVersion = "8.3"
 }
@@ -84,8 +72,7 @@ open class ListAllDependencies : DefaultTask() {
     }
 }
 
-// Register the custom task in the project
-tasks.register<ListAllDependencies>("writeDependencyMetadata")// tasks.register<ListAllDependencies>("writeDependencyMetadata")
+tasks.register<ListAllDependencies>("writeDependencyMetadata")
 
 tasks.test {
     dependsOn(tasks.named("writeDependencyMetadata"))
@@ -98,7 +85,7 @@ tasks.named("processTestResources") {
 tasks.withType<AbstractPublishToMaven> {
     onlyIf {
         ((this is PublishToMavenLocal && publication.name == "local") ||
-                (this is PublishToMavenRepository && publication.name == "prod"))
+                (this is PublishToMavenRepository && publication.name == "ext-loader-release"))
     }
 }
 
@@ -123,12 +110,6 @@ common {
                 "component-model"
 
             artifactId = "ext-loader"
-
-            pom {
-                name.set("YakClient Software Component for loading Yak Extensions")
-                description.set("Extension Loader")
-                url.set("https://github.com/extframework/ext-loader")
-            }
         }
     }
 }
