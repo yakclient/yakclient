@@ -5,7 +5,7 @@ import dev.extframework.gradle.common.dm.jobs
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.5"
+    id("dev.extframework.common") version "1.0.6"
 }
 
 group = "dev.extframework.components"
@@ -34,6 +34,7 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.4")
 
     testImplementation(kotlin("test"))
+    testImplementation("net.bytebuddy:byte-buddy-agent:1.14.17")
 }
 
 open class ListAllDependencies : DefaultTask() {
