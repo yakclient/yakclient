@@ -1,14 +1,14 @@
 package dev.extframework.components.extloader.test.exception
 
-import dev.extframework.components.extloader.api.environment.MutableObjectSetAttribute
-import dev.extframework.components.extloader.api.environment.exceptionContextSerializers
-import dev.extframework.components.extloader.api.exception.ExceptionContextSerializer
-import dev.extframework.components.extloader.api.exception.ExceptionType
-import dev.extframework.components.extloader.api.exception.StructuredException
 import dev.extframework.components.extloader.environment.registerBasicSerializers
 import dev.extframework.components.extloader.exception.BasicExceptionPrinter
 import dev.extframework.components.extloader.exception.handleException
 import dev.extframework.components.extloader.exception.hierarchicalDistance
+import dev.extframework.internal.api.environment.MutableObjectSetAttribute
+import dev.extframework.internal.api.environment.exceptionCxtSerializersAttrKey
+import dev.extframework.internal.api.exception.ExceptionContextSerializer
+import dev.extframework.internal.api.exception.ExceptionType
+import dev.extframework.internal.api.exception.StructuredException
 import kotlin.test.Test
 
 class TestExceptionPrinting {
@@ -34,7 +34,7 @@ class TestExceptionPrinting {
     fun `Print exception without context`() {
         val exception = StructuredException(BasicExceptionCauses.Basic)
 
-        val container = MutableObjectSetAttribute<ExceptionContextSerializer<*>>(exceptionContextSerializers)
+        val container = MutableObjectSetAttribute<ExceptionContextSerializer<*>>(exceptionCxtSerializersAttrKey)
         container.registerBasicSerializers()
 
         handleException(
@@ -51,7 +51,7 @@ class TestExceptionPrinting {
             100100 asContext "A random number"
         }
 
-        val container = MutableObjectSetAttribute<ExceptionContextSerializer<*>>(exceptionContextSerializers)
+        val container = MutableObjectSetAttribute<ExceptionContextSerializer<*>>(exceptionCxtSerializersAttrKey)
         container.registerBasicSerializers()
 
         handleException(
@@ -70,7 +70,7 @@ class TestExceptionPrinting {
             listOf(listOf("a", "b"), listOf("one", "two", "three", "five?"), listOf()) asContext "list of lists"
         }
 
-        val container = MutableObjectSetAttribute<ExceptionContextSerializer<*>>(exceptionContextSerializers)
+        val container = MutableObjectSetAttribute<ExceptionContextSerializer<*>>(exceptionCxtSerializersAttrKey)
         container.registerBasicSerializers()
 
         handleException(

@@ -1,17 +1,17 @@
 package dev.extframework.components.extloader.test.extension
 
-import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
-import com.durganmcbroom.artifact.resolver.simple.maven.layout.mavenLocal
-import dev.extframework.boot.component.artifact.SoftwareComponentDescriptor
-import dev.extframework.boot.component.context.ContextNodeTypes
-import dev.extframework.boot.test.testBootInstance
+import BootLoggerFactory
+import com.durganmcbroom.jobs.launch
+import dev.extframework.boot.archive.ArchiveGraph
+import dev.extframework.boot.dependency.DependencyTypeContainer
+import dev.extframework.boot.maven.MavenResolverProvider
 import dev.extframework.common.util.resolve
-import dev.extframework.components.extloader.ExtLoaderConfiguration
-import dev.extframework.components.extloader.ExtLoaderEnvironmentConfiguration
-import dev.extframework.components.extloader.ExtLoaderEnvironmentType
-import dev.extframework.components.extloader.ExtensionLoaderFactory
-import dev.extframework.minecraft.bootstrapper.MinecraftBootstrapperFactory
-import runBootBlocking
+import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
+import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
+import dev.extframework.components.extloader.test.createAppTarget
+import dev.extframework.components.extloader.work
+import dev.extframework.components.extloader.workflow.DevWorkflow
+import dev.extframework.components.extloader.workflow.DevWorkflowContext
 import java.io.InputStreamReader
 import java.nio.file.Path
 import kotlin.test.Test
@@ -32,48 +32,26 @@ class TestExtensionComponent {
     fun `Load extension`() {
         val cache = Path.of(System.getProperty("user.dir")) resolve "src" resolve "test" resolve "resources" resolve "run-cache"
 
-        val dependencies = readDependenciesList().mapTo(HashSet()) { SimpleMavenDescriptor.parseDescription(it)!! }
-            .filterNotTo(HashSet()) { it.artifact == "minecraft-bootstrapper" }
+        val archiveGraph = ArchiveGraph.from(cache resolve "archives")
+        val dependencyTypes = DependencyTypeContainer(archiveGraph)
+        dependencyTypes.register("simple-maven", MavenResolverProvider())
 
-        runBootBlocking {
-            val boot = testBootInstance(
-                mapOf(
-                    SoftwareComponentDescriptor(
-                        "dev.extframework.components",
-                        "minecraft-bootstrapper",
-                        "1.0-SNAPSHOT", null
-                    ) to MinecraftBootstrapperFactory::class.java
-                ), cache,
-                dependencies = dependencies
-            )
+        launch(BootLoggerFactory()) {
+            val app = createAppTarget(
+                "1.21", cache, archiveGraph, dependencyTypes
+            )().merge()
 
-            val value = mapOf(
-                "extension" to mapOf(
-                    "descriptor" to mapOf(
-                        "groupId" to "dev.extframework.extensions",
-                        "artifactId" to "example-extension",
-                        "version" to "1.0-SNAPSHOT"
-                    ),
-                    "repository" to mapOf(
-                        "type" to "local",
-                        "location" to mavenLocal
-                    )
+            work(
+                cache,
+                archiveGraph,
+                dependencyTypes,
+                DevWorkflowContext(
+                    ExtensionDescriptor.parseDescriptor("com.example:test-ext:1.0"),
+                    ExtensionRepositorySettings.local(path = this::class.java.getResource("/blackbox-repo")!!.path),
                 ),
-                "mappingType" to "mojang:deobfuscated"
-            )
-
-            val instance = ExtensionLoaderFactory(boot).new(
-                ExtLoaderConfiguration(
-                    "1.20.1",
-                    listOf("--accessToken", ""),
-                    ExtLoaderEnvironmentConfiguration(
-                        ExtLoaderEnvironmentType.EXT_DEV,
-                        ContextNodeTypes.newValueType(value)
-                    )
-                )
-            )
-
-            instance.start()().merge()
+                DevWorkflow(),
+                app
+            )().merge()
         }
     }
 }

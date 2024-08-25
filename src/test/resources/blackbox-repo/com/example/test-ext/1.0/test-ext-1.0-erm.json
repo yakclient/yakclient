@@ -1,0 +1,24 @@
+{
+  "groupId": "com.example",
+  "name": "test-ext",
+  "version": "1.0",
+  "repositories": [
+    {
+      "type": "local",
+      "location": "src/test/resources/blackbox-repo"
+    }
+  ],
+  "parents": [
+    {
+      "group": "com.example",
+      "extension": "asdf",
+      "version": "1.0"
+    }
+  ],
+  "partitions": [
+    {
+      "type": "tweaker",
+      "name": "tweaker"
+    }
+  ]
+}
