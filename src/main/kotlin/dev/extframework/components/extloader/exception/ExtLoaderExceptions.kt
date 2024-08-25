@@ -1,6 +1,6 @@
 package dev.extframework.components.extloader.exception
 
-import dev.extframework.components.extloader.api.exception.ExceptionType
+import dev.extframework.internal.api.exception.ExceptionType
 
 public enum class ExtLoaderExceptions : ExceptionType {
     PartitionLoadException,
@@ -8,12 +8,7 @@ public enum class ExtLoaderExceptions : ExceptionType {
 
     ExtensionLoadException,
     ExtensionSetupException,
-    MixinException,
-    ExtensionInitializationException,
+    InvalidErm,
 
     WorkflowException,
-
-    MinecraftResourceException,
-    MinecraftBootstrapStartException,
-
 }

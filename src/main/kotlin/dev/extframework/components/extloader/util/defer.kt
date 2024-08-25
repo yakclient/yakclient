@@ -1,13 +1,14 @@
 package dev.extframework.components.extloader.util
 
 import com.durganmcbroom.artifact.resolver.ArtifactMetadata
+import dev.extframework.boot.archive.ArchiveNode
 import dev.extframework.boot.archive.ArchiveRelationship
 import dev.extframework.boot.archive.ArchiveTarget
 import dev.extframework.boot.loader.ClassProvider
 import dev.extframework.boot.loader.ResourceProvider
-import dev.extframework.components.extloader.api.environment.DeferredValue
-import dev.extframework.components.extloader.api.environment.extract
-import dev.extframework.components.extloader.api.environment.getOrNull
+import dev.extframework.internal.api.environment.DeferredValue
+import dev.extframework.internal.api.environment.extract
+import dev.extframework.internal.api.environment.getOrNull
 import java.io.InputStream
 import java.net.URL
 import java.util.*
@@ -33,12 +34,10 @@ public fun DeferredValue<ArchiveTarget>.defer(descriptor: ArtifactMetadata.Descr
     return  ArchiveTarget(
         descriptor,
         object: ArchiveRelationship {
-            override val classes: ClassProvider
-                get() = extract().relationship.classes
             override val name: String
                 get() = extract().relationship.name
-            override val resources: ResourceProvider
-                get() = extract().relationship.resources
+            override val node: ArchiveNode<*>
+                get() = extract().relationship.node
 
         }
     )

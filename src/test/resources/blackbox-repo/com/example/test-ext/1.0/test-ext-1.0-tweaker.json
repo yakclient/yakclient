@@ -1,0 +1,13 @@
+{
+  "type": "tweaker",
+  "name": "tweaker",
+  "repositories": [
+
+  ],
+  "dependencies": [
+
+  ],
+  "options": {
+    "tweaker-class": "com.example.TestTweaker"
+  }
+}

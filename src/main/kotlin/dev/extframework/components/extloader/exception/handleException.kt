@@ -1,8 +1,8 @@
 package dev.extframework.components.extloader.exception
 
-import dev.extframework.components.extloader.api.exception.ExceptionContextSerializer
-import dev.extframework.components.extloader.api.exception.StructuredException
-import dev.extframework.components.extloader.api.exception.StackTracePrinter
+import dev.extframework.internal.api.exception.ExceptionContextSerializer
+import dev.extframework.internal.api.exception.StackTracePrinter
+import dev.extframework.internal.api.exception.StructuredException
 import java.io.OutputStream
 import java.io.PrintWriter
 import java.lang.StringBuilder
@@ -10,7 +10,6 @@ import java.lang.StringBuilder
 internal open class HierarchicalDistance(
     val distance: Int
 ) {
-
     fun increment(): HierarchicalDistance {
         return incrementBy(1)
     }
@@ -87,14 +86,17 @@ internal fun handleException(
 
     output.appendLine("Exception chain: ${causes.joinToString(separator = " <- ") { (it as? StructuredException)?.type?.toString() ?: it::class.java.simpleName }}")
     output.appendLine("A fatal exception has occurred:")
-    output.appendLine(" --> " + (causes.firstNotNullOfOrNull { it.message } ?: "No message provided"))
+    output.appendLine(" --> " + (causes
+        .reversed()
+        .filterIsInstance<StructuredException>()
+        .firstNotNullOfOrNull { it.message } ?: "No message provided"))
 
     if (completeContext.isNotEmpty()) {
         output.appendLine("Context:")
         completeContext.forEach { (k, v) ->
             output.appendLine(" > \"$k\" -> ${serializeInternal(v)}")
         }
-    } else output.appendLine("Context: (no context provided)")
+    } else output.appendLine("Context: (none provided)")
 
     causes.filterIsInstance<StructuredException>().lastOrNull()?.let {
         output.append("Solutions:")

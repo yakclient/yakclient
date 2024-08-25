@@ -1,10 +1,15 @@
 package dev.extframework.components.extloader.util
 
+import com.durganmcbroom.resources.openStream
 import dev.extframework.archives.ArchiveHandle
 import dev.extframework.archives.ArchiveReference
-import dev.extframework.components.extloader.ExtensionLoader
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.net.URI
 import java.nio.file.Path
+import java.util.jar.JarEntry
+import java.util.jar.JarOutputStream
 
 public fun emptyArchiveReference(
     location: URI = URI("archive:empty")
@@ -25,7 +30,7 @@ public fun emptyArchiveReference(
     }
     override val writer = object : ArchiveReference.Writer {
         override fun put(entry: ArchiveReference.Entry) {
-            entries[entry.name] = {entry}
+            entries[entry.name] = { entry }
         }
 
         override fun remove(name: String) {
@@ -35,13 +40,6 @@ public fun emptyArchiveReference(
     }
 
     override fun close() {}
-}
-
-public fun emptyArchiveHandle() : ArchiveHandle = object : ArchiveHandle {
-    override val classloader: ClassLoader = ExtensionLoader::class.java.classLoader
-    override val name: String? = null
-    override val packages: Set<String> = setOf()
-    override val parents: Set<ArchiveHandle> = setOf()
 }
 
 
@@ -131,9 +129,11 @@ public fun ArchiveReference.slice(path: Path): ArchiveReference {
             private val delegate: ArchiveReference.Writer
         ) : ArchiveReference.Writer {
             override fun put(entry: ArchiveReference.Entry) {
-                delegate.put(entry.copy(
-                    name=path.resolve(entry.name).toString()
-                ))
+                delegate.put(
+                    entry.copy(
+                        name = path.resolve(entry.name).toString()
+                    )
+                )
             }
 
             override fun remove(name: String) {
@@ -141,4 +141,31 @@ public fun ArchiveReference.slice(path: Path): ArchiveReference {
             }
         }
     }
+}
+
+public fun ArchiveReference.toInputStream(): InputStream {
+    val out = ByteArrayOutputStream()
+
+    JarOutputStream(out).use { target ->
+        reader.entries().forEach { e ->
+            val entry = JarEntry(e.name)
+
+            target.putNextEntry(entry)
+
+            val eIn = e.resource.openStream()
+
+            val buffer = ByteArray(1024)
+
+            while (true) {
+                val count: Int = eIn.read(buffer)
+                if (count == -1) break
+
+                target.write(buffer, 0, count)
+            }
+
+            target.closeEntry()
+        }
+    }
+
+    return ByteArrayInputStream(out.toByteArray())
 }
