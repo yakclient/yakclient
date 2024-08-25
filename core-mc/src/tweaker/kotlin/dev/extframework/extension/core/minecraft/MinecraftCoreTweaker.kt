@@ -2,7 +2,6 @@ package dev.extframework.extension.core.minecraft
 
 import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
-import com.durganmcbroom.jobs.logging.info
 import dev.extframework.extension.core.annotation.AnnotationProcessor
 import dev.extframework.extension.core.minecraft.environment.ApplicationMappingTarget
 import dev.extframework.extension.core.minecraft.environment.mappingProvidersAttrKey
@@ -13,7 +12,7 @@ import dev.extframework.extension.core.minecraft.partition.MinecraftPartitionLoa
 import dev.extframework.internal.api.environment.*
 import dev.extframework.internal.api.tweaker.EnvironmentTweaker
 
-public class MinecraftStdlibTweaker : EnvironmentTweaker {
+public class MinecraftCoreTweaker : EnvironmentTweaker {
     override fun tweak(environment: ExtensionEnvironment): Job<Unit> = job {
         environment += MutableObjectSetAttribute(mappingProvidersAttrKey)
 

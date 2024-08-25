@@ -7,7 +7,7 @@ import dev.extframework.internal.api.extension.partition.artifact.PartitionDescr
 // ---------- RUNTIME ----------
 
 public val THIS_DESCRIPTOR: PartitionDescriptor = run {
-    val resource = StdlibTweaker::class.java.getResourceAsStream("/descriptor.txt")
+    val resource = CoreTweaker::class.java.getResourceAsStream("/descriptor.txt")
         ?: throw Exception("Unable to find the extension descriptor. Is jar this packaged correctly?")
 
     val extensionDescriptor = ExtensionDescriptor.parseDescriptor(String(resource.readInputStream()))

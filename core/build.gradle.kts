@@ -55,7 +55,7 @@ val generateMainPrm by tasks.registering(GeneratePrm::class) {
         PartitionRuntimeModel(
             "main", "main",
             options = mutableMapOf(
-                "extension-class" to "dev.extframework.extension.core.StdlibExtension"
+                "extension-class" to "dev.extframework.extension.core.CoreExtension"
             )
         )
     )
@@ -67,7 +67,7 @@ val generateTweakerPrm by tasks.registering(GeneratePrm::class) {
         PartitionRuntimeModel(
             "tweaker", "tweaker",
             options = mutableMapOf(
-                "tweaker-class" to "dev.extframework.extension.core.StdlibTweaker"
+                "tweaker-class" to "dev.extframework.extension.core.CoreTweaker"
             )
         )
     )

@@ -48,7 +48,6 @@ import dev.extframework.extension.core.minecraft.environment.remappersAttrKey
 public data class MinecraftPartitionMetadata(
     override val name: String,
     override val implementedFeatures: List<Pair<FeatureReference, String>>,
-    override val mixins: Sequence<MixinTransaction.Metadata<*>>,
     override val archive: ArchiveReference,
 
     override val enabled: Boolean,
@@ -113,23 +112,6 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
             }.toList()
 
 
-        val mixins: Sequence<MixinTransaction.Metadata<*>> = setupMixinContexts(
-            helper.erm.descriptor,
-            reference,
-            environment,
-        )().merge()
-            .map {
-                it.createTransactionMetadata(
-                    it.context.targetNode.name.withDots(),
-//                MappingInjectionProvider.Context(
-//                    remappedTree,
-//                    mappings,
-//                    srcNS,
-//                    environment,
-//                )
-                )().merge()
-            }
-
         val enabled = supportedVersions.contains(
             environment[ApplicationTarget].get().getOrNull()!!.node.descriptor.version
         )
@@ -137,7 +119,6 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
         MinecraftPartitionMetadata(
             partition.name,
             implementedFeatures,
-            mixins,
             reference,
             enabled,
             supportedVersions,

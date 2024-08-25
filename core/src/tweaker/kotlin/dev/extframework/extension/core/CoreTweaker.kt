@@ -2,7 +2,6 @@ package dev.extframework.extension.core
 
 import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
-import dev.extframework.archives.mixin.SourceInjectionPoint
 import dev.extframework.archives.mixin.SourceInjectors
 import dev.extframework.extension.core.environment.delegationProvidersAttrKey
 import dev.extframework.extension.core.environment.injectionPointsAttrKey
@@ -22,7 +21,7 @@ import dev.extframework.internal.api.extension.ExtensionResolver
 import dev.extframework.internal.api.target.ApplicationTarget
 import dev.extframework.internal.api.tweaker.EnvironmentTweaker
 
-public class StdlibTweaker : EnvironmentTweaker {
+public class CoreTweaker : EnvironmentTweaker {
     override fun tweak(environment: ExtensionEnvironment): Job<Unit> = job {
         // Mixin
         val injectionPoints = MutableObjectContainerAttribute(injectionPointsAttrKey)

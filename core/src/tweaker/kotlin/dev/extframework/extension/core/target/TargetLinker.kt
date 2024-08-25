@@ -1,7 +1,7 @@
 package dev.extframework.extension.core.target
 
 import dev.extframework.boot.loader.*
-import dev.extframework.extension.core.StdlibTweaker
+import dev.extframework.extension.core.CoreTweaker
 import dev.extframework.internal.api.environment.EnvironmentAttribute
 import dev.extframework.internal.api.environment.EnvironmentAttributeKey
 import dev.extframework.internal.api.target.ApplicationTarget
@@ -56,7 +56,7 @@ public class TargetLinker(
                 return findResourceInternal(name, LinkerState.LOAD_EXTENSION)
             }
         },
-        parent = StdlibTweaker::class.java.classLoader,
+        parent = CoreTweaker::class.java.classLoader,
     )
 
     public fun addExtensionClasses(provider: ClassProvider): Unit = extensionClasses.add(provider)

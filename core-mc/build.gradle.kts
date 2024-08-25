@@ -7,26 +7,21 @@ group = "dev.extframework.extensions"
 version = "1.0-SNAPSHOT"
 
 sourceSets {
-    create("tweaker") {
-
-    }
+    create("tweaker")
 }
 
 repositories {
     mavenCentral()
 }
 
-val coreTweakerOutput = project(":core").sourceSets["tweaker"].output
-
 dependencies {
     "tweakerImplementation"("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+
     "tweakerImplementation"(project(":tooling-api"))
     "tweakerImplementation"(project(":core:core-api"))
     "tweakerImplementation"(project(":core"))
-
     "tweakerImplementation"(partition(":core", "tweaker"))
 
-    "tweakerImplementation"(coreTweakerOutput)
     boot(version = "3.2.1-SNAPSHOT",configurationName = "tweakerImplementation")
     jobs(version = "1.3.1-SNAPSHOT",configurationName = "tweakerImplementation")
     artifactResolver(configurationName = "tweakerImplementation", version = "1.2.2-SNAPSHOT")
@@ -35,15 +30,53 @@ dependencies {
     commonUtil(configurationName = "tweakerImplementation")
     objectContainer(configurationName = "tweakerImplementation")
 
-    implementation(sourceSets.getByName("tweaker").output)
-    implementation(project(":tooling-api"))
-    boot(version = "3.2.1-SNAPSHOT")
-    jobs(version = "1.3.1-SNAPSHOT",)
-    artifactResolver()
-    archives(mixin = true)
-    archiveMapper(version = "1.2.4-SNAPSHOT", transform = true)
-    commonUtil()
-    objectContainer()
+    implementation(partition("tweaker"))
+    implementation(project(":core:core-api"))
+}
+
+val generateMainPrm by tasks.registering(GeneratePrm::class) {
+    sourceSetName.set("main")
+    prm.set(
+        PartitionRuntimeModel(
+            "main", "main",
+            options = mutableMapOf(
+                "extension-class" to "dev.extframework.extension.core.minecraft.CoreMinecraft"
+            )
+        )
+    )
+    ignoredModules.addAll()
+}
+
+val generateTweakerPrm by tasks.registering(GeneratePrm::class) {
+    sourceSetName.set("tweaker")
+    prm.set(
+        PartitionRuntimeModel(
+            "tweaker", "tweaker",
+            options = mutableMapOf(
+                "tweaker-class" to "dev.extframework.extension.core.minecraft.MinecraftCoreTweaker"
+            )
+        )
+    )
+    ignoredModules.addAll(
+        "dev.extframework.extension:core"
+    )
+}
+
+val tweakerJar by tasks.registering(Jar::class) {
+    from(sourceSets["tweaker"].output)
+    archiveBaseName.set("tweaker")
+}
+
+common {
+    publishing {
+        publication {
+            artifact(project.file("src/main/resources/erm.json")).classifier = "erm"
+            artifact(generateMainPrm).classifier = "main"
+            artifact(generateTweakerPrm).classifier = "tweaker"
+            artifact(tasks.jar).classifier = "main"
+            artifact(tweakerJar).classifier = "tweaker"
+        }
+    }
 }
 
 tasks.test {
