@@ -17,7 +17,6 @@ tasks.wrapper {
 
 dependencies {
     testImplementation(project(":"))
-    implementation(project(":client-api"))
 
     jobs( logging = true, progressSimple = true)
     artifactResolver()
