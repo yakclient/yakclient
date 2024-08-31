@@ -39,6 +39,9 @@ fun setupErm(): Any {
 
     return temp
 }
+tasks.withType<PublishToMavenRepository>() {
+    enabled = false
+}
 
 publishing {
     publications {

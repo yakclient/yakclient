@@ -96,6 +96,10 @@ common {
     defaultJavaSettings()
 }
 
+tasks.withType<PublishToMavenRepository>() {
+    enabled = false
+}
+
 afterEvaluate {
     tasks.named("dokkaJavadoc").get().dependsOn(project(":core").tasks.named("tweakerJar"))
 }

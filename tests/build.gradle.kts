@@ -44,5 +44,4 @@ tasks.test {
     dependsOn(project(":core:core-blackbox-feature-delegation-ext").tasks.named("publishToMavenLocal"))
     dependsOn(project(":core:core-blackbox-link-ext").tasks.named("publishToMavenLocal"))
     dependsOn(project(":core:core-blackbox-app-ext").tasks.named("publishToMavenLocal"))
-
 }
