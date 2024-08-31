@@ -5,7 +5,7 @@ import dev.extframework.gradle.common.dm.jobs
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.10"
+    id("dev.extframework.common") version "1.0.13"
 }
 
 group = "dev.extframework"
@@ -19,10 +19,10 @@ dependencies {
     testImplementation(project(":"))
     implementation(project(":client-api"))
 
-    jobs(version = "1.3.1-SNAPSHOT", logging = true, progressSimple = true)
-    artifactResolver(version = "1.2.2-SNAPSHOT")
+    jobs( logging = true, progressSimple = true)
+    artifactResolver()
 
-    boot(version = "3.2.1-SNAPSHOT")
+    boot()
     archives(mixin=true)
     commonUtil()
     archiveMapper(transform = true, proguard = true, tiny = true)
@@ -36,8 +36,6 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation("net.bytebuddy:byte-buddy-agent:1.14.17")
-
-    minecraftBootstrapper(version = "2.0.3-SNAPSHOT", configurationName = "testImplementation")
 }
 
 common {

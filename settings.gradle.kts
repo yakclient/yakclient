@@ -12,7 +12,6 @@ plugins {
 
 rootProject.name = "ext-loader"
 
-include(":client-api")
 include("blackbox-test")
 include("tooling-api")
 include("core")
