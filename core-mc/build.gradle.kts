@@ -22,11 +22,11 @@ dependencies {
     "tweakerImplementation"(project(":core"))
     "tweakerImplementation"(partition(":core", "tweaker"))
 
-    boot(version = "3.2.1-SNAPSHOT",configurationName = "tweakerImplementation")
-    jobs(version = "1.3.1-SNAPSHOT",configurationName = "tweakerImplementation")
-    artifactResolver(configurationName = "tweakerImplementation", version = "1.2.2-SNAPSHOT")
+    boot(configurationName = "tweakerImplementation")
+    jobs(configurationName = "tweakerImplementation")
+    artifactResolver(configurationName = "tweakerImplementation")
     archives(configurationName = "tweakerImplementation", mixin = true, )
-    archiveMapper(version = "1.2.4-SNAPSHOT", configurationName = "tweakerImplementation", transform = true)
+    archiveMapper(configurationName = "tweakerImplementation", transform = true)
     commonUtil(configurationName = "tweakerImplementation")
     objectContainer(configurationName = "tweakerImplementation")
 

@@ -9,7 +9,7 @@ group = "dev.extframework"
 version = "1.0-SNAPSHOT"
 
 dependencies {
-    boot(version = "3.2.1-SNAPSHOT")
+    boot()
     objectContainer()
     jobs()
     artifactResolver()
