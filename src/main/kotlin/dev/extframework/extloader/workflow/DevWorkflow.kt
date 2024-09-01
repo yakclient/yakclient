@@ -14,6 +14,7 @@ import dev.extframework.extloader.extension.partition.TweakerPartitionLoader
 import dev.extframework.extloader.extension.partition.TweakerPartitionNode
 import dev.extframework.extloader.extension.DefaultExtensionResolver
 import dev.extframework.extloader.extension.ExtensionLoadException
+import dev.extframework.extloader.extension.partition.DefaultPartitionResolver
 import dev.extframework.internal.api.environment.*
 import dev.extframework.internal.api.extension.ExtensionNode
 import dev.extframework.internal.api.extension.ExtensionNodeObserver
@@ -148,6 +149,15 @@ private class DevExtensionResolver(
     parent, environment
 ) {
     private val tempDir = Files.createTempDirectory("dev-extensions").toAbsolutePath()
+
+    override val partitionResolver: DefaultPartitionResolver = object : DefaultPartitionResolver(
+        factory,
+        environment,
+        { extensionLoaders[it]!! }) {
+        override fun pathForDescriptor(descriptor: PartitionDescriptor, classifier: String, type: String): Path {
+            return tempDir resolve super.pathForDescriptor(descriptor, classifier, type)
+        }
+    }
 
     override fun pathForDescriptor(descriptor: ExtensionDescriptor, classifier: String, type: String): Path {
         return tempDir resolve super.pathForDescriptor(descriptor, classifier, type)

@@ -1,8 +1,13 @@
+import dev.extframework.gradle.common.dm.jobs
 import java.nio.file.Files
 import kotlin.io.path.writeText
 
 group = "dev.extframework.extension"
 version = "1.0-SNAPSHOT"
+
+sourceSets {
+    create("tweaker")
+}
 
 repositories {
     mavenCentral()
@@ -10,6 +15,9 @@ repositories {
 
 dependencies {
     implementation(project(":core:core-api"))
+    implementation(partition("tweaker"))
+    "tweakerImplementation"(project(":tooling-api"))
+    jobs(configurationName = "tweakerImplementation")
 }
 
 val generateMainPrm by tasks.registering(GeneratePrm::class) {
@@ -24,6 +32,25 @@ val generateMainPrm by tasks.registering(GeneratePrm::class) {
     )
     ignoredModules.addAll(setOf(
     ))
+}
+
+val generateTweakerPrm by tasks.registering(GeneratePrm::class) {
+    sourceSetName.set("tweaker")
+    prm.set(
+        PartitionRuntimeModel(
+            "tweaker", "tweaker",
+            options = mutableMapOf(
+                "tweaker-class" to "dev.extframework.test.extension.TestInitTweaker"
+            )
+        )
+    )
+    ignoredModules.addAll(setOf(
+    ))
+}
+
+val tweakerJar by tasks.registering(Jar::class) {
+    from(sourceSets.named("tweaker").get().output)
+    archiveClassifier = "tweaker"
 }
 
 common {
@@ -43,17 +70,23 @@ tasks.withType<PublishToMavenRepository>() {
     enabled = false
 }
 
+
+
 publishing {
     publications {
         create<MavenPublication>("test") {
             artifact(setupErm()).classifier = "erm"
             artifact(generateMainPrm).classifier = "main"
             artifact(tasks.jar).classifier = "main"
+            artifact(generateTweakerPrm).classifier = "tweaker"
+            artifact(tweakerJar).classifier = "tweaker"
         }
     }
 }
 
+
 afterEvaluate {
+//    tasks.named("publishCore-blackbox-init-ext-releasePublicationToMavenLocal").get().dependsOn(tweakerJar)
     tasks.named("dokkaJavadoc").get().dependsOn(project(":core").tasks.named("tweakerJar"))
 }
 

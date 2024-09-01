@@ -41,9 +41,9 @@ public open class DefaultExtensionResolver(
     environment: ExtensionEnvironment,
 ) : ExtensionResolver {
     private val layerLoader = ExtensionLayerClassLoader(parent)
-    private val factory = ExtensionRepositoryFactory(environment[dependencyTypesAttrKey].extract().container)
+    protected val factory: ExtensionRepositoryFactory = ExtensionRepositoryFactory(environment[dependencyTypesAttrKey].extract().container)
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
-    private val extensionLoaders: Map<ExtensionDescriptor, ExtensionClassLoader> = LazyMap {
+    protected val extensionLoaders: Map<ExtensionDescriptor, ExtensionClassLoader> = LazyMap {
         ExtensionClassLoader(
             it.name,
             ArrayList(),

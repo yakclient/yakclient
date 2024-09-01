@@ -20,6 +20,10 @@
     {
       "type": "main",
       "name": "main"
+    },
+    {
+      "type": "tweaker",
+      "name": "tweaker"
     }
   ]
 }

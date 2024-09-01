@@ -7,5 +7,6 @@ public class TestInitExtension : Extension() {
     override fun init() {
         println("Testing")
         System.setProperty("tests.init", "true")
+        check(TestInitTweaker.hasTweaked) { "Hasnt tweaked?" }
     }
 }

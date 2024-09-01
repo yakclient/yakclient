@@ -99,9 +99,13 @@ public class MainPartitionLoader(
                 helper.cache(it.first, it.second)().merge()
             }
 
+        val tweaker = helper.erm.partitions.find {
+            it.type == "tweaker"
+        }?.let { helper.cache(it)().merge() }
+
         helper.newData(
             artifact.metadata.descriptor,
-            parents.awaitAll() + newPartition
+            parents.awaitAll() + newPartition + listOfNotNull(tweaker)
         )
     }
 
