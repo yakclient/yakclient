@@ -46,7 +46,7 @@ public abstract class InjectionRemapper<T : Annotation>(
         target: String
     ): TransformerConfig = TransformerConfig.of {
         transformClass { classNode ->
-            val mixinAnno = (classNode.visibleAnnotations + classNode.visibleTypeAnnotations).find {
+            val mixinAnno = (classNode.visibleAnnotations ?: listOf()).find {
                 it.desc == Type.getType(Mixin::class.java).descriptor
             }
             if (mixinAnno != null) {
@@ -100,31 +100,33 @@ public abstract class InjectionRemapper<T : Annotation>(
                     .forEach { (target, it: List<AnnotationNode>) ->
                         when (target.elementType) {
                             AnnotationTarget.ElementType.CLASS -> {
-                                target.classNode.visibleAnnotations.removeIf {
+                                (target.classNode.visibleAnnotations ?: mutableListOf()).removeIf {
                                     it.desc == annotationType.descriptor
                                 }
-                                target.classNode.visibleAnnotations.addAll(it)
+                                (target.classNode.visibleAnnotations).addAll(it)
                             }
 
                             AnnotationTarget.ElementType.METHOD -> {
-                                target.methodNode.visibleAnnotations.removeIf {
+                                (target.methodNode.visibleAnnotations ?: mutableListOf()).removeIf {
                                     it.desc == annotationType.descriptor
                                 }
-                                target.methodNode.visibleAnnotations.addAll(it)
+                                (target.methodNode.visibleAnnotations ?: mutableListOf()).addAll(it)
                             }
 
                             AnnotationTarget.ElementType.FIELD -> {
-                                target.fieldNode.visibleAnnotations.removeIf {
+                                (target.fieldNode.visibleAnnotations ?: mutableListOf()).removeIf {
                                     it.desc == annotationType.descriptor
                                 }
-                                target.fieldNode.visibleAnnotations.addAll(it)
+                                (target.fieldNode.visibleAnnotations ?: mutableListOf()).addAll(it)
                             }
 
                             AnnotationTarget.ElementType.PARAMETER -> {
-                                target.methodNode.visibleParameterAnnotations[target.parameter].removeIf {
+                                (target.methodNode.visibleParameterAnnotations
+                                    ?: arrayOf())[target.parameter].removeIf {
                                     it.desc == annotationType.descriptor
                                 }
-                                target.methodNode.visibleParameterAnnotations[target.parameter].addAll(it)
+                                (target.methodNode.visibleParameterAnnotations
+                                    ?: arrayOf())[target.parameter].addAll(it)
                             }
                         }
                     }
