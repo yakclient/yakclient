@@ -4,8 +4,8 @@ import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
 import dev.extframework.common.util.resolve
 import dev.extframework.extension.core.annotation.AnnotationProcessor
-import dev.extframework.extension.core.minecraft.environment.ApplicationMappingTarget
 import dev.extframework.extension.core.minecraft.environment.mappingProvidersAttrKey
+import dev.extframework.extension.core.minecraft.environment.mappingTargetAttrKey
 import dev.extframework.extension.core.minecraft.environment.remappersAttrKey
 import dev.extframework.extension.core.minecraft.internal.MojangMappingProvider
 import dev.extframework.extension.core.minecraft.internal.RootRemapper
@@ -29,6 +29,6 @@ public class MinecraftCoreTweaker : EnvironmentTweaker {
         remappers.add(RootRemapper())
         remappers.add(SourceInjectionRemapper(environment[AnnotationProcessor].extract()))
 
-        environment[ApplicationMappingTarget].extract()
+        environment[mappingTargetAttrKey].extract()
     }
 }

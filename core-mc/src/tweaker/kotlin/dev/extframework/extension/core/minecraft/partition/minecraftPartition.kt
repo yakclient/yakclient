@@ -10,8 +10,11 @@ import dev.extframework.archive.mapper.transform.*
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.ArchiveTree
 import dev.extframework.archives.Archives
-import dev.extframework.archives.mixin.MixinInjection
 import dev.extframework.archives.transform.TransformerConfig
+import dev.extframework.archives.transform.TransformerConfig.Companion.plus
+import dev.extframework.boot.archive.ArchiveRelationship
+import dev.extframework.boot.archive.ArchiveTarget
+import dev.extframework.boot.archive.ClassLoadedArchiveNode
 import dev.extframework.boot.loader.ArchiveSourceProvider
 import dev.extframework.common.util.LazyMap
 import dev.extframework.extension.core.annotation.AnnotationProcessor
@@ -19,17 +22,14 @@ import dev.extframework.extension.core.delegate.Delegation
 import dev.extframework.extension.core.feature.FeatureReference
 import dev.extframework.extension.core.feature.definesFeatures
 import dev.extframework.extension.core.feature.findImplementedFeatures
-import dev.extframework.extension.core.minecraft.environment.ApplicationMappingTarget
 import dev.extframework.extension.core.minecraft.environment.mappingProvidersAttrKey
+import dev.extframework.extension.core.minecraft.environment.mappingTargetAttrKey
+import dev.extframework.extension.core.minecraft.environment.remappersAttrKey
 import dev.extframework.extension.core.minecraft.remap.ExtensionRemapper
-import dev.extframework.extension.core.mixin.MixinException
-import dev.extframework.extension.core.mixin.MixinTransaction
-import dev.extframework.extension.core.mixin.ProcessedMixinContext
 import dev.extframework.extension.core.partition.TargetPartitionLoader
 import dev.extframework.extension.core.partition.TargetPartitionMetadata
 import dev.extframework.extension.core.partition.TargetPartitionNode
 import dev.extframework.extension.core.util.parseNode
-import dev.extframework.extension.core.util.withDots
 import dev.extframework.internal.api.environment.ExtensionEnvironment
 import dev.extframework.internal.api.environment.extract
 import dev.extframework.internal.api.extension.PartitionRuntimeModel
@@ -39,11 +39,6 @@ import dev.extframework.internal.api.extension.partition.artifact.partitionNamed
 import dev.extframework.internal.api.target.ApplicationTarget
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
-import dev.extframework.archives.transform.TransformerConfig.Companion.plus
-import dev.extframework.boot.archive.ArchiveRelationship
-import dev.extframework.boot.archive.ArchiveTarget
-import dev.extframework.boot.archive.ClassLoadedArchiveNode
-import dev.extframework.extension.core.minecraft.environment.remappersAttrKey
 
 public data class MinecraftPartitionMetadata(
     override val name: String,
@@ -140,7 +135,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
             run {
                 val target = environment[ApplicationTarget].extract()
 
-                val targetNS = environment[ApplicationMappingTarget].extract().namespace
+                val targetNS = environment[mappingTargetAttrKey].extract().value
                 val mappings = newMappingsGraph(environment[mappingProvidersAttrKey].extract())
                     .findShortest(metadata.mappingNamespace, targetNS)
                     .forIdentifier(target.node.descriptor.version)
