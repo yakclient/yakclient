@@ -4,7 +4,7 @@ import dev.extframework.gradle.common.dm.jobs
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 group = "dev.extframework.extension"
-version = "1.0-SNAPSHOT"
+version = "1.0.1-SNAPSHOT"
 
 sourceSets {
     create("tweaker")
