@@ -3,7 +3,7 @@ import dev.extframework.gradle.common.dm.artifactResolver
 import dev.extframework.gradle.common.dm.jobs
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
-group = "dev.extframework.extensions"
+group = "dev.extframework.extension"
 version = "1.0-SNAPSHOT"
 
 sourceSets {
@@ -22,11 +22,12 @@ dependencies {
     "tweakerImplementation"(project(":core"))
     "tweakerImplementation"(partition(":core", "tweaker"))
 
+    launcherMetaHandler(configurationName = "tweakerImplementation")
     boot(configurationName = "tweakerImplementation")
     jobs(configurationName = "tweakerImplementation")
     artifactResolver(configurationName = "tweakerImplementation")
     archives(configurationName = "tweakerImplementation", mixin = true, )
-    archiveMapper(configurationName = "tweakerImplementation", transform = true)
+    archiveMapper(configurationName = "tweakerImplementation", transform = true, proguard = true)
     commonUtil(configurationName = "tweakerImplementation")
     objectContainer(configurationName = "tweakerImplementation")
 
