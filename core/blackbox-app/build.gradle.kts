@@ -14,3 +14,6 @@ tasks.test {
 kotlin {
     jvmToolchain(17)
 }
+tasks.withType<PublishToMavenRepository>() {
+    enabled = false
+}

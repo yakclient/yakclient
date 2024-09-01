@@ -2,10 +2,9 @@ package dev.extframework.tests.core
 
 import BootLoggerFactory
 import com.durganmcbroom.jobs.launch
-import dev.extframework.common.util.resolve
-import dev.extframework.components.extloader.work
-import dev.extframework.components.extloader.workflow.DevWorkflow
-import dev.extframework.components.extloader.workflow.DevWorkflowContext
+import dev.extframework.extloader.work
+import dev.extframework.extloader.workflow.DevWorkflow
+import dev.extframework.extloader.workflow.DevWorkflowContext
 import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
 import java.nio.file.Path

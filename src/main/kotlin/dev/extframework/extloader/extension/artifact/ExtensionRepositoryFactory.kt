@@ -1,0 +1,18 @@
+package dev.extframework.extloader.extension.artifact
+
+import com.durganmcbroom.artifact.resolver.RepositoryFactory
+import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
+import dev.extframework.boot.dependency.DependencyTypeContainer
+import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
+
+public class ExtensionRepositoryFactory(
+    private val dependencyProviders: DependencyTypeContainer
+) : RepositoryFactory<ExtensionRepositorySettings, ExtensionArtifactRepository> {
+    override fun createNew(settings: SimpleMavenRepositorySettings): ExtensionArtifactRepository {
+        return ExtensionArtifactRepository(
+            settings,
+            dependencyProviders,
+            this
+        )
+    }
+}
