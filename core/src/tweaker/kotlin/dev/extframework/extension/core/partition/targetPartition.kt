@@ -85,12 +85,12 @@ public abstract class TargetPartitionLoader<T : TargetPartitionMetadata>(
             )().merge()
         }
 
-        val minecraftResolver = environment[TargetLinkerResolver].extract()
+        val targetResolver = environment[TargetLinkerResolver].extract()
 
         val target = helper.cache(
             TargetArtifactRequest,
             TargetRepositorySettings,
-            minecraftResolver
+            targetResolver
         )().merge()
 
         helper.newData(artifact.metadata.descriptor, parents.awaitAll() + listOf(target))

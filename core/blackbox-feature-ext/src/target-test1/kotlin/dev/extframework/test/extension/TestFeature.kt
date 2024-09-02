@@ -3,6 +3,7 @@
 package dev.extframework.test.extension
 
 import dev.extframework.core.api.feature.Feature
+import dev.extframework.core.api.feature.FeatureImplementationException
 import dev.extframework.core.api.feature.ImplementFeatures
 
 @Feature
@@ -43,4 +44,9 @@ public fun charReturningFeature(): Char {
     println("Char returning feature being called")
 
     return 'Z'
+}
+
+@Feature
+public fun paramFeature(int: Int): Unit {
+    println("Param ran + $int")
 }

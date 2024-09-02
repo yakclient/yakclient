@@ -2,9 +2,11 @@ import dev.extframework.gradle.common.*
 import dev.extframework.gradle.common.dm.artifactResolver
 import dev.extframework.gradle.common.dm.jobs
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.nio.file.Files
+import kotlin.io.path.writeText
 
 group = "dev.extframework.extension"
-version = "1.0.1-SNAPSHOT"
+version = "1.0.2-SNAPSHOT"
 
 sourceSets {
     create("tweaker")
@@ -68,10 +70,20 @@ val tweakerJar by tasks.registering(Jar::class) {
     archiveBaseName.set("tweaker")
 }
 
+fun setupErm(): Any {
+    val text = project.file("src/main/resources/erm.json").readText()
+    val replacedText = text.replace("<MAVEN_LOCAL>", repositories.mavenLocal().url.path)
+
+    val temp = Files.createTempFile("core-mc-erm", ".json")
+    temp.writeText(replacedText)
+
+    return temp
+}
+
 common {
     publishing {
         publication {
-            artifact(project.file("src/main/resources/erm.json")).classifier = "erm"
+            artifact(setupErm()).classifier = "erm"
             artifact(generateMainPrm).classifier = "main"
             artifact(generateTweakerPrm).classifier = "tweaker"
             artifact(tasks.jar).classifier = "main"

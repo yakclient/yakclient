@@ -1,5 +1,6 @@
 import dev.extframework.gradle.common.boot
 import dev.extframework.gradle.common.dm.artifactResolver
+import dev.extframework.gradle.common.minecraftBootstrapper
 import dev.extframework.gradle.common.objectContainer
 
 group = "dev.extframework"
@@ -15,6 +16,7 @@ dependencies {
     implementation(project(":"))
     artifactResolver()
     objectContainer()
+    minecraftBootstrapper()
 
     testImplementation(kotlin("test"))
 }
@@ -22,8 +24,19 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+tasks.compileTestKotlin {
+    kotlinOptions {
+        jvmTarget = "21"
+    }
+}
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(21)
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
 }
 
 val listDependencies by tasks.registering(ListAllDependencies::class) {
@@ -44,4 +57,5 @@ tasks.test {
     dependsOn(project(":core:core-blackbox-feature-delegation-ext").tasks.named("publishToMavenLocal"))
     dependsOn(project(":core:core-blackbox-link-ext").tasks.named("publishToMavenLocal"))
     dependsOn(project(":core:core-blackbox-app-ext").tasks.named("publishToMavenLocal"))
+    dependsOn(project(":core-mc").tasks.named("publishToMavenLocal"))
 }

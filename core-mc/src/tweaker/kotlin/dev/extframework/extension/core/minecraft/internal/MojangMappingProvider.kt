@@ -18,13 +18,13 @@ internal class MojangMappingProvider(
     private val mappingStore: DataStore<String, Resource>
 ) : MappingsProvider {
     companion object {
-        const val REAL_TYPE: String =  "mojang:deobfuscated"
-        const val FAKE_TYPE: String =  "mojang:obfuscated"
+        const val DEOBF_TYPE: String =  "mojang:deobfuscated"
+        const val OBF_TYPE: String =  "mojang:obfuscated"
     }
 
     constructor(path: Path) : this(CachingDataStore(MojangMappingAccess(path)))
 
-    override val namespaces: Set<String> = setOf(REAL_TYPE, FAKE_TYPE)
+    override val namespaces: Set<String> = setOf(DEOBF_TYPE, OBF_TYPE)
 
     override fun forIdentifier(identifier: String): ArchiveMapping {
         val mappingData = mappingStore[identifier] ?: result {
@@ -36,6 +36,6 @@ internal class MojangMappingProvider(
             m
         }.getOrThrow()
 
-        return ProGuardMappingParser(FAKE_TYPE, REAL_TYPE).parse(mappingData.openStream())
+        return ProGuardMappingParser(OBF_TYPE, DEOBF_TYPE).parse(mappingData.openStream())
     }
 }

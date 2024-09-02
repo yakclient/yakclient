@@ -84,7 +84,6 @@ public class FeatureIntrinsics {
             .find { it.first.qualifiedSignature == qualifiedSignature }
             ?: throw RuntimeException("Failed to find signature for feature: '$qualifiedSignature' when executing this feature.")
 
-        println(partitions)
         val implementingPartition = partitions[implPartitionName]
             ?: throw RuntimeException("Illegal environment! Failed to find partition: '$implPartitionName' while executing feature: '$qualifiedSignature'.")
 
@@ -178,12 +177,12 @@ public class FeaturePartitionLoader(
 
             val targetPartitions = helper.erm.partitions
                 .filter { it.type == TargetPartitionLoader.TYPE }
+                .map { helper.metadataFor(it)().merge() }
+                .filterIsInstance<TargetPartitionMetadata>()
+                .filter { it.enabled }
 
             val implementedFeatures =
                 targetPartitions
-                    .map { helper.metadataFor(it)().merge() }
-                    .filterIsInstance<TargetPartitionMetadata>()
-                    .filter { it.enabled }
                     .flatMap { metadata -> metadata.implementedFeatures.map { it to metadata } }
                     .groupBy { it.first.first.container }
 
@@ -213,7 +212,9 @@ public class FeaturePartitionLoader(
                         val implementingContainer =
                             implementedFeatures[container]
                                 ?: throw IllegalFeatureException("Feature container: '$container' is not implemented in any partitions.") {
-                                    targetPartitions.map { it.name } asContext "Target partitions"
+                                    targetPartitions.map { it.name } asContext "Enabled target partitions"
+                                    if (targetPartitions.isEmpty()) solution("You dont have any partitions enabled, make sure that you support the current target version.")
+                                    else solution("Use @ImplementFeatures to define a feature implementing container.")
                                 }
 
                         theseDefinedFeatures.forEach { def ->
@@ -437,11 +438,8 @@ public class FeaturePartitionLoader(
         }
 
         fun cast(to: Type): TypeInsnNode {
-            // TODO idk if this is right
             return TypeInsnNode(Opcodes.CHECKCAST, to.internalName)
         }
-
-
 
         when (returnType.sort) {
             Type.VOID -> {

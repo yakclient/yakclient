@@ -2,8 +2,10 @@ package dev.extframework.extension.core.target
 
 import dev.extframework.boot.loader.*
 import dev.extframework.extension.core.CoreTweaker
+import dev.extframework.internal.api.environment.DeferredValue
 import dev.extframework.internal.api.environment.EnvironmentAttribute
 import dev.extframework.internal.api.environment.EnvironmentAttributeKey
+import dev.extframework.internal.api.environment.extract
 import dev.extframework.internal.api.target.ApplicationTarget
 import java.net.URL
 import java.util.concurrent.locks.ReentrantLock
@@ -18,13 +20,13 @@ public class TargetLinker(
     private val clLock: ReentrantLock = ReentrantLock()
     private val rlLock: ReentrantLock = ReentrantLock()
 
-    internal lateinit var target: ApplicationTarget
+    internal lateinit var target: DeferredValue<ApplicationTarget>
 
     public val targetLoader: IntegratedLoader = IntegratedLoader(
         name = "Extension -> (Linker) -> App",
         classProvider = object : ClassProvider {
             override val packages: Set<String> by lazy {
-                target.node.handle!!.packages
+                target.extract().node.handle!!.packages
             }
 
             override fun findClass(name: String): Class<*>? {
@@ -75,7 +77,7 @@ public class TargetLinker(
 
             this.rlState = state
             val r = when (state) {
-                LinkerState.LOAD_TARGET -> target.node.handle!!.classloader.getResources(name).asSequence()
+                LinkerState.LOAD_TARGET -> target.extract().node.handle!!.classloader.getResources(name).asSequence()
                 LinkerState.LOAD_EXTENSION -> extensionResources.findResources(name)
                 LinkerState.NEITHER -> throw IllegalArgumentException("Cannot load linker state of neither.")
             }
@@ -98,7 +100,7 @@ public class TargetLinker(
             this.clState.add(name)
 
             val c = when (state) {
-                LinkerState.LOAD_TARGET -> target.node.handle!!.classloader.loadClass(name)
+                LinkerState.LOAD_TARGET -> target.extract().node.handle!!.classloader.loadClass(name)
                 LinkerState.LOAD_EXTENSION -> extensionClasses.findClass(name)
                 LinkerState.NEITHER -> throw IllegalArgumentException("Cannot load linker state of 'NEITHER'.")
             }

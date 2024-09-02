@@ -14,5 +14,6 @@ public class TestFeatureExtension : Extension() {
         arrayReturningFeature()
         charReturningFeature()
         doubleReturningFeature()
+        paramFeature(5)
     }
 }

@@ -21,7 +21,7 @@ internal class SourceInjectionRemapper(annotationProcessor: AnnotationProcessor)
         return SourceInjection(
             point = annotation.point,
             methodTo = Method(annotation.methodTo).let {
-                val name = mappings.mapMethodName(destClass, it.name, it.descriptor, source, target)
+                val name = mappings.mapMethodName(destClass, it.name, it.descriptor, source, target) ?: it.name
 
                 val desc = mappings.mapMethodDesc(it.descriptor, source, target)
 

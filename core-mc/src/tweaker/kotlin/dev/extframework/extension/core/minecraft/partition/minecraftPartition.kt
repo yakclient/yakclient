@@ -15,13 +15,17 @@ import dev.extframework.archives.transform.TransformerConfig.Companion.plus
 import dev.extframework.boot.archive.ArchiveRelationship
 import dev.extframework.boot.archive.ArchiveTarget
 import dev.extframework.boot.archive.ClassLoadedArchiveNode
+import dev.extframework.boot.loader.ArchiveClassProvider
 import dev.extframework.boot.loader.ArchiveSourceProvider
+import dev.extframework.boot.loader.ClassProvider
+import dev.extframework.boot.loader.DelegatingClassProvider
 import dev.extframework.common.util.LazyMap
 import dev.extframework.extension.core.annotation.AnnotationProcessor
 import dev.extframework.extension.core.delegate.Delegation
 import dev.extframework.extension.core.feature.FeatureReference
 import dev.extframework.extension.core.feature.definesFeatures
 import dev.extframework.extension.core.feature.findImplementedFeatures
+import dev.extframework.extension.core.feature.implementsFeatures
 import dev.extframework.extension.core.minecraft.environment.mappingProvidersAttrKey
 import dev.extframework.extension.core.minecraft.environment.mappingTargetAttrKey
 import dev.extframework.extension.core.minecraft.environment.remappersAttrKey
@@ -29,6 +33,7 @@ import dev.extframework.extension.core.minecraft.remap.ExtensionRemapper
 import dev.extframework.extension.core.partition.TargetPartitionLoader
 import dev.extframework.extension.core.partition.TargetPartitionMetadata
 import dev.extframework.extension.core.partition.TargetPartitionNode
+import dev.extframework.extension.core.target.TargetDescriptor
 import dev.extframework.extension.core.util.parseNode
 import dev.extframework.internal.api.environment.ExtensionEnvironment
 import dev.extframework.internal.api.environment.extract
@@ -101,11 +106,10 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
             .map {
                 it.resource.openStream().parseNode()
             }.filter {
-                it.definesFeatures(processor)
+                it.implementsFeatures(processor)
             }.flatMap {
                 it.findImplementedFeatures(partition.name, processor, delegation)
             }.toList()
-
 
         val enabled = supportedVersions.contains(
             environment[ApplicationTarget].get().getOrNull()!!.node.descriptor.version
@@ -133,12 +137,12 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
             thisDescriptor,
             metadata,
             run {
-                val target = environment[ApplicationTarget].extract()
+                val appTarget = environment[ApplicationTarget].extract()
 
                 val targetNS = environment[mappingTargetAttrKey].extract().value
                 val mappings = newMappingsGraph(environment[mappingProvidersAttrKey].extract())
                     .findShortest(metadata.mappingNamespace, targetNS)
-                    .forIdentifier(target.node.descriptor.version)
+                    .forIdentifier(appTarget.node.descriptor.version)
 
                 remap(
                     reference,
@@ -148,7 +152,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
                         .sortedBy { it.priority },
                     metadata.mappingNamespace,
                     targetNS,
-                    appInheritanceTree(target),
+                    appInheritanceTree(appTarget),
                     accessTree.targets.asSequence()
                         .map(ArchiveTarget::relationship)
                         .map(ArchiveRelationship::node)
@@ -156,13 +160,35 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
                         .mapNotNullTo(ArrayList(), ClassLoadedArchiveNode<*>::handle)
                 )().merge()
 
+                val (dependencies, target) = accessTree.targets
+                    .map { it.relationship.node }
+                    .filterIsInstance<ClassLoadedArchiveNode<*>>()
+                    .partition { it.descriptor != TargetDescriptor }
+
                 val sourceProviderDelegate = ArchiveSourceProvider(reference)
                 val cl = PartitionClassLoader(
                     thisDescriptor,
                     accessTree,
                     reference,
                     helper.parentClassLoader,
-                    sourceProvider = sourceProviderDelegate,
+                    sourceProvider = sourceProviderDelegate,classProvider = object : ClassProvider {
+                        val dependencyDelegate = DelegatingClassProvider(
+                            dependencies
+                                .mapNotNull { it.handle }
+                                .map(::ArchiveClassProvider)
+                        )
+                        val targetDelegate = target.first().handle!!.classloader
+
+                        override val packages: Set<String> = dependencyDelegate.packages + "*target*"
+
+                        override fun findClass(name: String): Class<*>? {
+                            return dev.extframework.common.util.runCatching(ClassNotFoundException::class) {
+                                targetDelegate.loadClass(
+                                    name
+                                )
+                            } ?: dependencyDelegate.findClass(name)
+                        }
+                    }
                 )
 
                 val handle = PartitionArchiveHandle(

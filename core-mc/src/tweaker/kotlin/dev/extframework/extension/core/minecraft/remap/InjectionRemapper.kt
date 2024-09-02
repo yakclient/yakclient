@@ -31,6 +31,7 @@ public abstract class InjectionRemapper<T : Annotation>(
     public abstract fun remap(
         annotation: T,
 
+        // With slashes
         destClass: String,
 
         mappings: ArchiveMapping,
@@ -54,8 +55,10 @@ public abstract class InjectionRemapper<T : Annotation>(
                 val annotations = annotationProcessor.process(classNode, annotation)
 
                 fun <A : Annotation> AnnotationVisitor.visit(annotation: A) {
-                    annotation::class.java.declaredMethods.forEach {
-                        val value = it.invoke(this)
+                    annotation::class.java.declaredFields.forEach {
+                        val value = it.apply {
+                            trySetAccessible()
+                        }.get(annotation)
                         val name = it.name
 
                         when (value) {
@@ -76,14 +79,14 @@ public abstract class InjectionRemapper<T : Annotation>(
                     }
                 }
 
-                val annotationType = Type.getType(this::class.java)
+                val annotationType = Type.getType(annotation)
 
                 annotations
                     .asSequence()
                     .map {
                         val remappedAnnotation = remap(
                             it.annotation,
-                            instantiateAnnotation(mixinAnno, Mixin::class.java).value.java.name.withSlashes(),
+                            (createValueMap(mixinAnno.values ?: listOf())["value"] as Type).className.withSlashes(),
                             mappings,
                             source,
                             target,

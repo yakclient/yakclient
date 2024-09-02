@@ -47,7 +47,7 @@ public class CoreTweaker : EnvironmentTweaker {
 
         environment += InstrumentedAppImpl(environment[ApplicationTarget].extract(), linker, mixinAgents)
 
-        linker.target = environment[ApplicationTarget].extract()
+        linker.target = environment[ApplicationTarget]
         environment += linker
 
         val targetLinkerResolver = TargetLinkerResolver(linker)
