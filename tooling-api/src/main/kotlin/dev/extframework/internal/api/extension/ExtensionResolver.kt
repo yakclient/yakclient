@@ -11,6 +11,7 @@ import dev.extframework.internal.api.extension.artifact.ExtensionArtifactRequest
 import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
 import dev.extframework.internal.api.extension.partition.PartitionResolver
+import java.io.File
 import java.nio.file.Path
 
 public interface ExtensionResolver : ArchiveNodeResolver<
@@ -50,8 +51,7 @@ public interface ExtensionResolver : ArchiveNodeResolver<
 
     override fun pathForDescriptor(descriptor: ExtensionDescriptor, classifier: String, type: String): Path {
         return Path.of(
-            "extensions",
-            descriptor.group,
+            descriptor.group.replace('.', File.separatorChar),
             descriptor.artifact,
             descriptor.version,
             "${descriptor.artifact}-${descriptor.version}-$classifier.$type"

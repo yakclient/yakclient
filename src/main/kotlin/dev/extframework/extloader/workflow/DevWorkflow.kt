@@ -32,6 +32,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 
 public data class DevWorkflowContext(
     val extension: ExtensionDescriptor,
@@ -48,10 +49,15 @@ public class DevWorkflow : Workflow<DevWorkflowContext> {
         // Create initial environment
         environment += dev.extframework.extloader.environment.CommonEnvironment(environment[wrkDirAttrKey].extract().value)
 
+        val extensionsPath = environment[wrkDirAttrKey].extract().value resolve "extensions"
+
+        extensionsPath.toFile().deleteRecursively()
+
         // Add dev graph to environment
         environment += DevExtensionResolver(
             environment[parentCLAttrKey].extract().value,
             environment,
+            extensionsPath
         )
 
         fun allExtensions(node: ExtensionNode): Set<ExtensionNode> {
@@ -144,22 +150,22 @@ public class DevWorkflow : Workflow<DevWorkflowContext> {
 }
 
 private class DevExtensionResolver(
-    parent: ClassLoader, environment: ExtensionEnvironment
+    parent: ClassLoader,
+    environment: ExtensionEnvironment,
+    private val path: Path,
 ) : DefaultExtensionResolver(
     parent, environment
 ) {
-    private val tempDir = Files.createTempDirectory("dev-extensions").toAbsolutePath()
-
     override val partitionResolver: DefaultPartitionResolver = object : DefaultPartitionResolver(
         factory,
         environment,
         { extensionLoaders[it]!! }) {
         override fun pathForDescriptor(descriptor: PartitionDescriptor, classifier: String, type: String): Path {
-            return tempDir resolve super.pathForDescriptor(descriptor, classifier, type)
+            return path resolve super.pathForDescriptor(descriptor, classifier, type)
         }
     }
 
     override fun pathForDescriptor(descriptor: ExtensionDescriptor, classifier: String, type: String): Path {
-        return tempDir resolve super.pathForDescriptor(descriptor, classifier, type)
+        return path resolve super.pathForDescriptor(descriptor, classifier, type)
     }
 }

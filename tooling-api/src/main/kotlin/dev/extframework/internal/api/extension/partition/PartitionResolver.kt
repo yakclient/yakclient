@@ -35,7 +35,6 @@ public interface PartitionResolver : ArchiveNodeResolver<
 
     override fun pathForDescriptor(descriptor: PartitionDescriptor, classifier: String, type: String): Path {
         return Path.of(
-            "extensions",
             descriptor.extension.group.replace('.', File.separatorChar),
             descriptor.extension.artifact,
             descriptor.extension.version,
