@@ -5,7 +5,7 @@ import dev.extframework.gradle.common.dm.jobs
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.21"
+    id("dev.extframework.common") version "1.0.23"
 }
 
 group = "dev.extframework"
@@ -24,7 +24,6 @@ dependencies {
     boot()
     archives(mixin=true)
     commonUtil()
-    archiveMapper(transform = true, proguard = true, tiny = true)
     objectContainer()
 
     implementation(project(":tooling-api"))
