@@ -43,7 +43,7 @@ abstract class BuildBundle : DefaultTask() {
     abstract val erm: ConfigurableFileCollection
 
     @get:Internal
-    abstract val partitions: MapProperty<String, FileCollection>
+    abstract val partitions: MapProperty<String, ConfigurableFileCollection>
 
     interface PartitionConfiguration {
         fun jar(task: Provider<out Task>)
@@ -51,25 +51,29 @@ abstract class BuildBundle : DefaultTask() {
     }
 
     fun partition(name: String, configure: Action<PartitionConfiguration>) {
-
         val configValues = object : PartitionConfiguration {
-            var jar: FileCollection? = null
-            var prm: FileCollection? = null
+            var jar: Task? = null
+            var prm: Task? = null
 
             override fun jar(task: Provider<out Task>) {
-                jar = task.get().outputs.files
+                jar = task.get()
             }
 
             override fun prm(task: Provider<out Task>) {
-                prm = task.get().outputs.files
+                prm = task.get()
             }
         }
+
         configure.execute(configValues)
 
         val prm = checkNotNull(configValues.prm) { "You must specific a PRM!" }
         val jar = checkNotNull(configValues.jar) { "You must specific a jar!" }
 
-        partitions.put(name, prm + jar)
+        val collection = project.files(jar.outputs.files + prm.outputs.files)
+        collection.builtBy(jar, prm)
+        partitions.put(name, collection)
+
+        dependsOn(jar, prm)
     }
 
     @TaskAction
