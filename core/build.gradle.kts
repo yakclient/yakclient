@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "dev.extframework.extension"
-version = "1.0.1-SNAPSHOT"
+version = "1.0.1-BETA"
 
 sourceSets {
     create("tweaker")
