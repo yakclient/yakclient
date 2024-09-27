@@ -89,6 +89,7 @@ val generateMetadata by tasks.registering(GenerateMetadata::class) {
         name.set("ExtFramework Core Minecraft")
         developers.add("Durgan McBroom")
         description.set("The core library for doing all Minecraft related things with extensions.")
+        app.set("minecraft")
     }
 }
 

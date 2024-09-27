@@ -113,6 +113,7 @@ val generateMetadata by tasks.registering(GenerateMetadata::class) {
         name.set("ExtFramework Core")
         developers.add("Durgan McBroom")
         description.set("The base extension for all mixin based application targeting. Defines fundamental features other extensions may or may not rely upon.")
+        app.set("*")
     }
 }
 
