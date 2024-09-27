@@ -1,6 +1,7 @@
 import dev.extframework.gradle.common.*
 import dev.extframework.gradle.common.dm.artifactResolver
 import dev.extframework.gradle.common.dm.jobs
+import dev.extframework.gradle.publish.ExtensionPublication
 import dev.extframework.gradle.publish.ExtensionPublishTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import publish.BuildBundle

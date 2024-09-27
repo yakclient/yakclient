@@ -25,27 +25,22 @@ abstract class ExtensionPublishTask : DefaultTask() {
 
         val repositories = ext.repositories.filterIsInstance<DefaultMavenArtifactRepository>()
 
-        val publications = ext.publications.filterIsInstance<ExtensionPublication>()
-
         repositories.forEach { repository ->
-            publications.forEach { publication ->
-                val url = URL("${repository.url}/registry")
+            val url = URL("${repository.url}/registry")
 
-                val conn = url.openConnection() as HttpURLConnection
-                conn.doOutput = true
+            val conn = url.openConnection() as HttpURLConnection
+            conn.doOutput = true
 
-                conn.requestMethod = "PUT"
-                conn.setRequestProperty("Authorization", "Bearer ${repository.credentials.password}")
+            conn.requestMethod = "PUT"
+            conn.setRequestProperty("Authorization", "Bearer ${repository.credentials.password}")
 
-                FileInputStream(bundle.get()).transferTo(conn.outputStream)
+            FileInputStream(bundle.get()).transferTo(conn.outputStream)
 
-                conn.connect()
+            conn.connect()
 
-                if (conn.responseCode != 200) {
-                    System.out.println(String(conn.errorStream.readInputStream()))
-                    throw Exception("Failed to publish. Error code: '${conn.responseCode}': '${conn.responseMessage}'")
-                }
-
+            if (conn.responseCode != 200) {
+                System.out.println(String(conn.errorStream.readInputStream()))
+                throw Exception("Failed to publish. Error code: '${conn.responseCode}': '${conn.responseMessage}'")
             }
         }
     }
