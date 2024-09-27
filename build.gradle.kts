@@ -1,6 +1,7 @@
 import dev.extframework.gradle.common.*
 import dev.extframework.gradle.common.dm.artifactResolver
 import dev.extframework.gradle.common.dm.jobs
+import dev.extframework.gradle.publish.ExtensionPublishTask
 
 plugins {
     kotlin("jvm") version "1.9.21"
@@ -9,7 +10,7 @@ plugins {
 }
 
 group = "dev.extframework"
-version = "2.1.4-SNAPSHOT"
+version = "2.1.5-SNAPSHOT"
 
 tasks.wrapper {
     gradleVersion = "8.3"
@@ -43,6 +44,35 @@ common {
     }
 }
 
+common {
+    defaultJavaSettings()
+    publishing {
+        repositories {
+            extFramework(credentials = propertyCredentialProvider)
+        }
+
+        publication {
+            withJava()
+            withSources()
+            withDokka()
+
+            commonPom {
+                packaging = "jar"
+
+                withExtFrameworkRepo()
+                defaultDevelopers()
+                gnuLicense()
+                extFrameworkScm("ext-loader")
+            }
+        }
+    }
+}
+
+val publishExtensions by tasks.registering {
+    dependsOn(project(":core").tasks.withType(ExtensionPublishTask::class))
+    dependsOn(project(":core-mc").tasks.withType(ExtensionPublishTask::class))
+}
+
 allprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "dev.extframework.common")
@@ -53,31 +83,6 @@ allprojects {
             url = uri("https://maven.fabricmc.net/")
         }
         extFramework()
-        mavenLocal()
-    }
-
-    common {
-        defaultJavaSettings()
-        publishing {
-            repositories {
-                extFramework(credentials = propertyCredentialProvider)
-            }
-
-            publication {
-                withJava()
-                withSources()
-                withDokka()
-
-                commonPom {
-                    packaging = "jar"
-
-                    withExtFrameworkRepo()
-                    defaultDevelopers()
-                    gnuLicense()
-                    extFrameworkScm("ext-loader")
-                }
-            }
-        }
     }
 
     kotlin {

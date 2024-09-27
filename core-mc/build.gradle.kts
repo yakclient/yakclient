@@ -1,7 +1,10 @@
 import dev.extframework.gradle.common.*
 import dev.extframework.gradle.common.dm.artifactResolver
 import dev.extframework.gradle.common.dm.jobs
+import dev.extframework.gradle.publish.ExtensionPublishTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import publish.BuildBundle
+import publish.GenerateMetadata
 import java.nio.file.Files
 import kotlin.io.path.writeText
 
@@ -80,14 +83,39 @@ fun setupErm(): Any {
     return temp
 }
 
-common {
-    publishing {
-        publication {
-            artifact(setupErm()).classifier = "erm"
-            artifact(generateMainPrm).classifier = "main"
-            artifact(generateTweakerPrm).classifier = "tweaker"
-            artifact(tasks.jar).classifier = "main"
-            artifact(tweakerJar).classifier = "tweaker"
+val generateMetadata by tasks.registering(GenerateMetadata::class) {
+    metadata {
+        name.set("ExtFramework Core Minecraft")
+        developers.add("Durgan McBroom")
+        description.set("The core library for doing all Minecraft related things with extensions.")
+    }
+}
+
+val buildBundle by tasks.registering(BuildBundle::class) {
+    partition("main") {
+        jar(tasks.jar)
+        prm(generateTweakerPrm)
+    }
+    partition("tweaker") {
+        jar(tweakerJar)
+        prm(generateTweakerPrm)
+    }
+
+    erm.from(setupErm())
+    metadata.from(generateMetadata.get().outputs.files)
+}
+
+val publishExtension by tasks.registering(ExtensionPublishTask::class) {
+    bundle.set(buildBundle.map { it.bundlePath })
+}
+
+publishing {
+    repositories {
+        maven {
+            url = uri("https://repo.extframework.dev")
+            credentials {
+                password = property("creds.ext.key") as? String
+            }
         }
     }
 }

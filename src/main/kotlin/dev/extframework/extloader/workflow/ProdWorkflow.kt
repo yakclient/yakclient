@@ -1,10 +1,30 @@
 package dev.extframework.extloader.workflow
 
-import com.durganmcbroom.jobs.Job
-import com.durganmcbroom.jobs.job
-import dev.extframework.internal.api.environment.ExtensionEnvironment
+import com.durganmcbroom.artifact.resolver.Artifact
+import com.durganmcbroom.jobs.*
+import com.durganmcbroom.jobs.async.AsyncJob
+import com.durganmcbroom.jobs.async.asyncJob
+import com.durganmcbroom.jobs.async.mapAsync
+import dev.extframework.boot.archive.ArchiveException
+import dev.extframework.extloader.extension.DefaultExtensionResolver
+import dev.extframework.extloader.extension.ExtensionLoadException
+import dev.extframework.extloader.extension.partition.TweakerPartitionLoader
+import dev.extframework.extloader.extension.partition.TweakerPartitionNode
+import dev.extframework.internal.api.environment.*
+import dev.extframework.internal.api.extension.ExtensionNode
+import dev.extframework.internal.api.extension.ExtensionNodeObserver
+import dev.extframework.internal.api.extension.ExtensionResolver
+import dev.extframework.internal.api.extension.ExtensionRunner
+import dev.extframework.internal.api.extension.artifact.ExtensionArtifactMetadata
+import dev.extframework.internal.api.extension.artifact.ExtensionArtifactRequest
 import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
+import dev.extframework.internal.api.extension.partition.ExtensionPartitionContainer
+import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactRequest
+import dev.extframework.internal.api.extension.partition.artifact.PartitionDescriptor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
 
 public data class ProdWorkflowContext(
     val extensions: Map<ExtensionDescriptor, ExtensionRepositorySettings>
@@ -14,143 +34,110 @@ public class ProdWorkflow : Workflow<ProdWorkflowContext> {
     override val name: String = "production"
 
     override fun work(context: ProdWorkflowContext, environment: ExtensionEnvironment): Job<Unit> = job {
-//        environment += CommonEnvironment(environment[WorkingDirectoryAttribute].extract().path)
-//        environment += ApplicationMappingTarget(MojangExtensionMappingProvider.OBFUSCATED)
-//
-//        // Add dev graph to environment
-//        environment += ExtensionResolver(
-//            Archives.Finders.ZIP_FINDER,
-//            environment[ParentClassloaderAttribute].extract().cl,
-//            environment,
-//        )
-//
-//        val appTarget = environment[ApplicationTarget].extract()
-//
-//        fun allExtensions(node: ExtensionNode): Set<ExtensionNode> {
-//            return node.parents.flatMapTo(HashSet(), ::allExtensions) + node
-//        }
-//
-//        // Get extension resolver
-//        val extensionResolver = environment[ExtensionResolver].extract()
-//
-//        // Load a cacher and attempt to cache the extension request
-//        val extensionNodes = job(JobName("Load extensions")) {
-//            context.extensions.map { (extension, repository) ->
-//                job(JobName("Load extension: '$extension'")) {
-//                    environment.archiveGraph.cache(
-//                        ExtensionArtifactRequest(
-//                            extension, includeScopes = setOf("compile", "runtime", "import")
-//                        ),
-//                        repository,
-//                        extensionResolver
-//                    )().merge()
-//                    environment.archiveGraph.get(
-//                        extension,
-//                        extensionResolver
-//                    )().merge()
-//                }().mapException {
-//                    ExtensionLoadException(extension, it) {
-//                        extension asContext "Extension"
-//                        this@ProdWorkflow.name asContext "Workflow/Environment"
-//                    }
-//                }.merge()
-//            }
-//        }().merge()
-//
-//        val extensions = extensionNodes
-//            .asSequence()
-//            .flatMap { allExtensions(it) }
-//
-//
-//        val tweakers = extensions
-//            .flatMap(ExtensionNode::partitions)
-//            .filter { it.metadata is TweakerPartitionMetadata }
-//            .map(ExtensionPartitionContainer<*, *>::node)
-//            .filterIsInstance<TweakerPartitionNode>().toList()
-//
-//        tweakers.forEach {
-//            it.tweaker.tweak(environment)().merge()
-//        }
-//
-//        // TODO duplicate
-//        // Get extension observer (if there is one after tweaker application) and observer each node
-//        environment[ExtensionNodeObserver].getOrNull()?.let { extensions.forEach(it::observe) }
-//
-//        val appHandle = classLoaderToArchive(appTarget.classloader)
-//
-//        extensions.forEach {
-//            it.container?.injectMixins { metadata ->
-//                appTarget.addTransformer(metadata.destination) { node ->
-//                    val transformer =
-//                        (metadata.injection as MixinInjection<MixinInjection.InjectionData>).apply(metadata.data)
-//
-//                    transformer.ct(node)
-//                    node.methods.forEach(transformer.mt::invoke)
-//                    node.fields.forEach(transformer.ft::invoke)
-//
-//                    AwareClassWriter(
-//                        handles = listOf(appHandle),
-//                        flags = ClassWriter.COMPUTE_MAXS
-//                    ).also(node::accept).toByteArray()
-//                }
-//            }?.invoke()?.merge()
-//        }
-//
-//        var targetClassProvider: ClassProvider by immutableLateInit()
-//        var targetResourceProvider: ResourceProvider by immutableLateInit()
-//
-//        // Create linker with delegating to the uninitialized class providers
-//        val linker = TargetLinker(
-//            targetDescriptor = appTarget.descriptor,
-//            target = object : ClassProvider {
-//                override val packages: Set<String> by lazy { targetClassProvider.packages }
-//
-//                override fun findClass(name: String): Class<*>? = targetClassProvider.findClass(name)
-//            },
-//            targetResources = object : ResourceProvider {
-//                override fun findResources(name: String): Sequence<URL> {
-//                    return targetResourceProvider.findResources(name)
-//                }
-//            },
-//        )
-//        environment += linker
-//
-//        // Initialize the first clas provider to allow extensions access to minecraft
-//        targetClassProvider = ArchiveClassProvider(appHandle)
-//        targetResourceProvider = ArchiveResourceProvider(appHandle)
-//
-//        // Setup extensions, dont init yet
-//        extensions.forEach { n ->
-//            val container = n.container
-//            container?.setup(linker)?.invoke()?.mapException {
-//                StructuredException(
-//                    ExtLoaderExceptions.ExtensionSetupException,
-//                    it
-//                ) {
-//                    n.erm.name asContext "Extension name"
-//                }
-//            }?.merge()
-//
-//            n.partitions.forEach {
-//                linker.addExtensionClasses(ArchiveClassProvider(it.node.archive))
-//            }
-//            linker.addExtensionResources(object : ResourceProvider {
-//                override fun findResources(name: String): Sequence<URL> {
-//                    return n.archive?.classloader?.getResource(name)?.let { sequenceOf(it) } ?: emptySequence()
-//                }
-//            })
-//        }
-//
-//        // Specifically NOT adding tweaker resources.
-//        tweakers.forEach {
-//            it.archive.let { a ->
-//                linker.addExtensionClasses(
-//                    ArchiveClassProvider(a)
-//                )
-//            }
-//        }
-//
-//        // Call init on all extensions, this is ordered correctly
-//        extensions.forEach(environment[ExtensionRunner].extract()::init)
+        // Create initial environment
+        environment += dev.extframework.extloader.environment.CommonEnvironment(environment[wrkDirAttrKey].extract().value)
+
+        // Add dev graph to environment
+        environment += DefaultExtensionResolver(
+            environment[parentCLAttrKey].extract().value,
+            environment,
+        )
+
+        fun allExtensions(node: ExtensionNode): Set<ExtensionNode> {
+            return node.access.targets.map { it.relationship.node }
+                .filterIsInstance<ExtensionNode>()
+                .flatMapTo(HashSet(), ::allExtensions) + node
+        }
+
+        // Get extension resolver
+        val extensionResolver = environment[ExtensionResolver].extract()
+
+        fun loadTweakers(
+            artifact: Artifact<ExtensionArtifactMetadata>
+        ): AsyncJob<List<ExtensionPartitionContainer<TweakerPartitionNode, *>>> = asyncJob {
+            val parents =
+                artifact.parents.mapAsync {
+                    loadTweakers(it)().merge()
+                }
+
+            val tweakerContainer: ExtensionPartitionContainer<TweakerPartitionNode, *>? = run {
+                val descriptor = PartitionDescriptor(artifact.metadata.descriptor, TweakerPartitionLoader.TYPE)
+
+                val cacheResult = environment.archiveGraph.cacheAsync(
+                    PartitionArtifactRequest(descriptor),
+                    artifact.metadata.repository,
+                    extensionResolver.partitionResolver,
+                )()
+                if (cacheResult.isFailure && cacheResult.exceptionOrNull() is ArchiveException.ArchiveNotFound) return@run null
+                else cacheResult.merge()
+
+                environment.archiveGraph.get(
+                    descriptor,
+                    extensionResolver.partitionResolver,
+                )().merge()
+            } as? ExtensionPartitionContainer<TweakerPartitionNode, *>
+
+            parents.awaitAll().flatten() + listOfNotNull(tweakerContainer)
+        }
+
+        val tweakers = job(JobName("Load tweakers")) {
+            runBlocking(Dispatchers.IO) {
+                context.extensions.flatMap { (ext, repo) ->
+                    asyncJob {
+                        val artifact = extensionResolver.createContext(repo)
+                            .getAndResolveAsync(
+                                ExtensionArtifactRequest(ext)
+                            )().merge()
+
+                        loadTweakers(artifact)().merge()
+                    }().mapException {
+                        ExtensionLoadException(ext, it) {
+                            ext asContext "Extension"
+                            this@ProdWorkflow.name asContext "Workflow/Environment"
+                        }
+                    }.merge()
+                }
+            }
+        }().merge()
+
+        tweakers.map { it.node }.forEach {
+            it.tweaker.tweak(environment)().merge()
+        }
+
+        val extensionNodes = job(JobName("Load extensions")) {
+            context.extensions.map { (ext, repo) ->
+                job {
+                    environment.archiveGraph.cache(
+                        ExtensionArtifactRequest(
+                            ext,
+                        ),
+                        repo,
+                        extensionResolver
+                    )().merge()
+
+                    environment.archiveGraph.get(
+                        ext,
+                        extensionResolver
+                    )().merge()
+                }().mapException {
+                    ExtensionLoadException(ext, it) {
+                        ext asContext "Extension"
+                        this@ProdWorkflow.name asContext "Workflow/Environment"
+                    }
+                }.merge()
+            }
+        }().merge()
+
+        // Get all extension nodes in order
+        val extensions = extensionNodes.flatMap(::allExtensions)
+
+        // Get extension observer (if there is one after tweaker application) and observer each node
+        environment[ExtensionNodeObserver].getOrNull()?.let { extensions.forEach(it::observe) }
+
+        // Call init on all extensions, this is ordered correctly
+        extensions.forEach {
+            environment[ExtensionRunner].extract().init(it)().merge()
+        }
+
     }
 }

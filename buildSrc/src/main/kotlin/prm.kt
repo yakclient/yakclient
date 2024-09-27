@@ -44,7 +44,6 @@ abstract class GeneratePrm : DefaultTask() {
 
     @TaskAction
     fun generate() {
-
         val sourceSets = project.extensions.getByType(SourceSetContainer::class.java)
 
         val basePrm = prm.get()

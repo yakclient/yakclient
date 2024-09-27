@@ -1,8 +1,10 @@
 import dev.extframework.gradle.common.*
 import dev.extframework.gradle.common.dm.artifactResolver
 import dev.extframework.gradle.common.dm.jobs
+import dev.extframework.gradle.publish.ExtensionPublishTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import java.nio.file.Files
+import publish.BuildBundle
+import publish.GenerateMetadata
 
 plugins {
 }
@@ -105,20 +107,42 @@ tasks.test {
     dependsOn(copyDescriptorToResources)
 }
 
-common {
-    publishing {
-        publication {
-            artifact(project.file("src/main/resources/erm.json")).classifier = "erm"
-            artifact(generateMainPrm).classifier = "main"
-            artifact(generateTweakerPrm).classifier = "tweaker"
-            artifact(tasks.jar).classifier = "main"
-            artifact(tweakerJar).classifier = "tweaker"
-        }
+val generateMetadata by tasks.registering(GenerateMetadata::class) {
+    metadata {
+        name.set("ExtFramework Core")
+        developers.add("Durgan McBroom")
+        description.set("The base extension for all mixin based application targeting. Defines fundamental features other extensions may or may not rely upon.")
     }
 }
 
-afterEvaluate {
-    tasks.named("generateMetadataFileForCore-releasePublication").get().dependsOn(tweakerJar)
+val buildBundle by tasks.registering(BuildBundle::class) {
+    partition("main") {
+        jar(tasks.jar)
+        prm(generateTweakerPrm)
+    }
+
+    partition("tweaker") {
+        jar(tweakerJar)
+        prm(generateTweakerPrm)
+    }
+
+    erm.from(project.files("src/main/resources/erm.json"))
+    metadata.from(generateMetadata.get().outputs.files)
+}
+
+val publishExtension by tasks.registering(ExtensionPublishTask::class) {
+    bundle.set(buildBundle.map { it.bundlePath })
+}
+
+publishing {
+    repositories {
+        maven {
+            url = uri("https://repo.extframework.dev")
+            credentials {
+                password = property("creds.ext.key") as? String
+            }
+        }
+    }
 }
 
 tasks.named<KotlinCompile>("compileTweakerKotlin") {

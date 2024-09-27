@@ -44,11 +44,12 @@ public open class BasicExceptionPrinter : StackTracePrinter {
         }
         if (framesInCommon != 0) s.println("$prefix\t... $framesInCommon more")
 
+        // TODO
         // Print suppressed exceptions, if any
-        for (se in throwable.suppressed) printStacktrace(
-            s, se, trace, "Suppressed by: ",
-            prefix + "\t"
-        )
+//        for (se in throwable.suppressed) printStacktrace(
+//            s, se, trace, "Suppressed by: ",
+//            prefix + "\t"
+//        )
 
         // Print cause, if any
         val ourCause: Throwable? = throwable.cause
