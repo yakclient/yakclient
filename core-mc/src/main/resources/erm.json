@@ -10,7 +10,7 @@
     },
     {
       "type": "default",
-      "location": "https://maven.extframework.dev/snapshots"
+      "location": "https://repo.extframework.dev/registry"
     }
   ],
   "parents": [
