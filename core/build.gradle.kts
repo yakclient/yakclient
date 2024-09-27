@@ -139,7 +139,7 @@ publishing {
         maven {
             url = uri("https://repo.extframework.dev")
             credentials {
-                password = property("creds.ext.key") as? String
+                password = project.properties.get("creds.ext.key") as? String
             }
         }
     }
