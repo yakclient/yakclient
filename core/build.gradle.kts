@@ -120,7 +120,7 @@ val generateMetadata by tasks.registering(GenerateMetadata::class) {
 val buildBundle by tasks.registering(BuildBundle::class) {
     partition("main") {
         jar(tasks.jar)
-        prm(generateTweakerPrm)
+        prm(generateMainPrm)
     }
 
     partition("tweaker") {

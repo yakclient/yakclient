@@ -39,7 +39,7 @@ public interface PartitionResolver : ArchiveNodeResolver<
             descriptor.extension.artifact,
             descriptor.extension.version,
             descriptor.partition,
-            "${descriptor.extension.artifact}${descriptor.extension.version}-${descriptor.partition}-$classifier.$type"
+            "${descriptor.extension.artifact}-${descriptor.extension.version}-${descriptor.partition}-$classifier.$type"
         )
     }
 }

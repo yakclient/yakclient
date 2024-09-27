@@ -126,7 +126,7 @@ class BlackboxTest {
                 path,
                 graph, types,
                 DevWorkflowContext(
-                    ExtensionDescriptor.parseDescriptor("dev.extframework.extension:example-extension:1.0-SNAPSHOT"),
+                    ExtensionDescriptor.parseDescriptor("dev.extframework.extension:example-extension:1.0-BETA"),
                     ExtensionRepositorySettings.local()
                 ),
                 DevWorkflow(),
