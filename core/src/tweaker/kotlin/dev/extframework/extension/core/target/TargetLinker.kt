@@ -64,6 +64,11 @@ public class TargetLinker(
     public fun addExtensionClasses(provider: ClassProvider): Unit = extensionClasses.add(provider)
     public fun addExtensionResources(provider: ResourceProvider): Unit = extensionResources.add(provider)
 
+    public fun findResources(name: String): Sequence<URL> {
+        return findResourceInternal(name, LinkerState.LOAD_TARGET) +
+                findResourceInternal(name, LinkerState.LOAD_EXTENSION)
+    }
+
     // Dont need the same approach as class loading because loading one resource should never trigger the loading of another.
     private fun findResourceInternal(name: String, state: LinkerState): Sequence<URL> {
         return rlLock.withLock {
@@ -86,6 +91,11 @@ public class TargetLinker(
 
             r
         }
+    }
+
+    public fun findClass(name: String): Class<*>? {
+        return findClassInternal(name, LinkerState.LOAD_TARGET)
+            ?: findClassInternal(name, LinkerState.LOAD_EXTENSION)
     }
 
     private fun findClassInternal(name: String, state: LinkerState): Class<*>? {

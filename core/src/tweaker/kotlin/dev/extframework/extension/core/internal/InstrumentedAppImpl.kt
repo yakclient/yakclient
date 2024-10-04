@@ -6,6 +6,7 @@ import dev.extframework.archives.zip.classLoaderToArchive
 import dev.extframework.boot.archive.ArchiveAccessTree
 import dev.extframework.boot.archive.ClassLoadedArchiveNode
 import dev.extframework.boot.loader.*
+import dev.extframework.common.util.runCatching
 import dev.extframework.extension.core.mixin.MixinAgent
 import dev.extframework.extension.core.target.InstrumentedApplicationTarget
 import dev.extframework.extension.core.target.TargetLinker
@@ -16,7 +17,6 @@ import dev.extframework.internal.api.target.ApplicationTarget
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
 import java.io.InputStream
-import java.net.URL
 import java.nio.ByteBuffer
 
 public class InstrumentedAppImpl(
@@ -27,12 +27,12 @@ public class InstrumentedAppImpl(
     override val node: ClassLoadedArchiveNode<ApplicationDescriptor> =
         object : ClassLoadedArchiveNode<ApplicationDescriptor> {
             // TODO do mixins in resources?
-            private val resourceProvider = object : ResourceProvider {
-                private val resourceDelegate = ArchiveResourceProvider(delegate.node.handle)
-                override fun findResources(name: String): Sequence<URL> {
-                    TODO("Not yet implemented")
-                }
-            }
+//            private val resourceProvider = object : ResourceProvider {
+//                private val resourceDelegate = ArchiveResourceProvider(delegate.node.handle)
+//                override fun findResources(name: String): Sequence<URL> {
+//                    TODO("Not yet implemented")
+//                }
+//            }
 
             override val access: ArchiveAccessTree = delegate.node.access
             override val descriptor: ApplicationDescriptor = delegate.node.descriptor
@@ -52,7 +52,6 @@ public class InstrumentedAppImpl(
                         return node
                     }
 
-                    // TODO merging
                     override fun findSource(name: String): ByteBuffer? {
                         val reader = delegate.node.handle!!.getResource(name.withSlashes() + ".class")
                             ?.let { resource -> ClassReader(resource) }
@@ -62,20 +61,10 @@ public class InstrumentedAppImpl(
                             node
                         }
 
+                        // TODO merging
                         val transformedNode = agents.fold(node) { acc, it ->
                             it.transformClass(name, acc)
                         } ?: return null
-
-                        //AwareClassWriter(
-                        //                            listOf(object : ArchiveTree {
-                        //                                override fun getResource(name: String): InputStream? {
-                        //                                    return findSource(name.withDots().removeSuffix(".class"))?.toBytes()
-                        //                                        ?.let(::ByteArrayInputStream)
-                        //                                }
-                        //                            }, classLoaderToArchive(linker.extensionLoader)),
-                        //                            ClassWriter.COMPUTE_FRAMES,
-                        //                            reader
-                        //                        )
 
                         val writer = object : AwareClassWriter(
                             listOf(),
@@ -83,16 +72,29 @@ public class InstrumentedAppImpl(
                             reader
                         ) {
                             override fun loadType(name: String): HierarchyNode {
-                                return UnloadedClassNode(
-//                                    name.takeUnless { it == currentName }?.let {
-//                                        findSource(it)
-//                                    }?.let {
-//                                        ByteArrayInputStream(it.toBytes()).classNode()
-//                                    } ?:
-                                    this@InstrumentedAppImpl.delegate.node.handle?.classloader?.getResource(
-                                        "$name.class"
-                                    )?.openStream()?.classNode() ?: return super.loadType(name),
+                                val resourceName = "$name.class"
+                                val resource = this@InstrumentedAppImpl.delegate.node.handle?.classloader?.getResource(
+                                    resourceName
+                                ) ?: linker.extensionLoader.getResource(
+                                    resourceName
                                 )
+
+                                return resource?.openStream()?.classNode()
+                                    ?.let(::UnloadedClassNode)
+                                    ?: runCatching(ClassNotFoundException::class) {
+                                        LoadedClassNode(Class.forName(name.replace('/', '.')))
+                                    } ?: run {
+                                        System.err.println("Recomputing stack frames and asked for super type information about class: '$name'. This class could not be loaded so a stub (inheriting from java/lang/Object) was returned.")
+                                        // This is confusing. The only really that we do this is because it's better to return a type than not.
+                                        // Often a class not being found in this stage is more an issue with the app we are targeting than anything
+                                        // the user can control. We set isInterface to true so that java/lang/Object is returned.
+                                        object : HierarchyNode {
+                                            override val interfaceNodes: List<HierarchyNode> = listOf()
+                                            override val isInterface: Boolean = true
+                                            override val name: String = name
+                                            override val superNode: HierarchyNode? = null
+                                        }
+                                    }
                             }
                         }
 

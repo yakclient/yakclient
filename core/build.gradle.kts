@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "dev.extframework.extension"
-version = "1.0.1-BETA"
+version = "1.0.2-BETA"
 
 sourceSets {
     create("tweaker")
@@ -136,6 +136,17 @@ val publishExtension by tasks.registering(ExtensionPublishTask::class) {
     bundle.set(buildBundle.map { it.bundlePath })
 }
 
+common {
+    publishing {
+        publication {
+            artifact(project.file("src/main/resources/erm.json")).classifier = "erm"
+            artifact(generateMainPrm).classifier = "main"
+            artifact(generateTweakerPrm).classifier = "tweaker"
+            artifact(tasks.jar).classifier = "main"
+            artifact(tweakerJar).classifier = "tweaker"
+        }
+    }
+}
 publishing {
     repositories {
         maven {

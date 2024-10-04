@@ -10,7 +10,7 @@ import java.nio.file.Files
 import kotlin.io.path.writeText
 
 group = "dev.extframework.extension"
-version = "1.0.4-BETA"
+version = "1.0.5-BETA"
 
 sourceSets {
     create("tweaker")
@@ -32,7 +32,7 @@ dependencies {
     boot(configurationName = "tweakerImplementation")
     jobs(configurationName = "tweakerImplementation")
     artifactResolver(configurationName = "tweakerImplementation")
-    archives(configurationName = "tweakerImplementation", mixin = true, )
+    archives(configurationName = "tweakerImplementation", mixin = true)
     archiveMapper(configurationName = "tweakerImplementation", transform = true, proguard = true)
     commonUtil(configurationName = "tweakerImplementation")
     objectContainer(configurationName = "tweakerImplementation")
@@ -74,15 +74,6 @@ val tweakerJar by tasks.registering(Jar::class) {
     archiveBaseName.set("tweaker")
 }
 
-fun setupErm(): Any {
-    val text = project.file("src/main/resources/erm.json").readText()
-    val replacedText = text.replace("<MAVEN_LOCAL>", repositories.mavenLocal().url.path)
-
-    val temp = Files.createTempFile("core-mc-erm", ".json")
-    temp.writeText(replacedText)
-
-    return temp
-}
 
 val generateMetadata by tasks.registering(GenerateMetadata::class) {
     metadata {
@@ -103,7 +94,7 @@ val buildBundle by tasks.registering(BuildBundle::class) {
         prm(generateTweakerPrm)
     }
 
-    erm.from(setupErm())
+    erm.from("src/main/resources/erm.json")
     metadata.from(generateMetadata.get().outputs.files)
 }
 
@@ -111,7 +102,31 @@ val publishExtension by tasks.registering(ExtensionPublishTask::class) {
     bundle.set(buildBundle.map { it.bundlePath })
 }
 
+
+common {
+    fun setupErm(): Any {
+        val text = project.file("src/main/resources/erm-DEV.json").readText()
+        val replacedText = text.replace("<MAVEN_LOCAL>", repositories.mavenLocal().url.path)
+
+        val temp = Files.createTempFile("core-mc-erm", ".json")
+        temp.writeText(replacedText)
+
+        return temp
+    }
+
+    publishing {
+        publication {
+            artifact(setupErm()).classifier = "erm"
+            artifact(generateMainPrm).classifier = "main"
+            artifact(generateTweakerPrm).classifier = "tweaker"
+            artifact(tasks.jar).classifier = "main"
+            artifact(tweakerJar).classifier = "tweaker"
+        }
+    }
+}
+
 publishing {
+
     repositories {
         maven {
             url = uri("https://repo.extframework.dev")

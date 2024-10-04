@@ -40,8 +40,8 @@ public class SourceInjectionProvider(
             ): TransformerConfig.Mutable = TransformerConfig.of {
                 val source = AlterThisReference(
                     data.instructionResolver,
-                    data.classTo.replace('.', '/'),
-                    data.classSelf.replace('.', '/')
+                    data.classTo.withSlashes(),
+                    data.classSelf.withSlashes()
                 )
 
                 val continuationResultType = Type.getType(InjectionContinuation.Result::class.java)
@@ -290,7 +290,7 @@ public class MethodInjectionProvider :
                         "as method: '${methodNode.name}'"
             )
         ) {
-            val self = classNode.name.replace('/', '.')
+            val self = classNode.name.withDots()
 
             val to = context.targetNode.name
             val annotation: MethodInjection = context.element.annotation

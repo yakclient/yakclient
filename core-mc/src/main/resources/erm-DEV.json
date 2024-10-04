@@ -5,6 +5,10 @@
   "version": "1.0.4-BETA",
   "repositories": [
     {
+      "type": "local",
+      "location": "<MAVEN_LOCAL>"
+    },
+    {
       "type": "default",
       "location": "https://repo.extframework.dev/registry"
     }

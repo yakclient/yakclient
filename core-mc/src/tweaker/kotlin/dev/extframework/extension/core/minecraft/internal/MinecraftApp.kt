@@ -23,7 +23,9 @@ import dev.extframework.internal.api.environment.wrkDirAttrKey
 import dev.extframework.internal.api.target.ApplicationDescriptor
 import dev.extframework.internal.api.target.ApplicationTarget
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.tree.ClassNode
+import java.io.File
 import java.io.InputStream
 import java.net.URL
 import java.nio.ByteBuffer
@@ -35,8 +37,10 @@ internal class MinecraftApp(
     private val appDelegate: ApplicationTarget,
     private val environment: ExtensionEnvironment
 ) : ApplicationTarget by appDelegate {
-    private val path: Path =
-        environment[wrkDirAttrKey].extract().value resolve "minecraft" resolve appDelegate.node.descriptor.version resolve "classes"
+    private val path: Path by lazy {
+        // TODO replacing : with / is lazy. Mapping targets should either be completely standardized or something else needs to happen.
+        environment[wrkDirAttrKey].extract().value resolve "minecraft" resolve appDelegate.node.descriptor.version resolve "classes" resolve (destination.replace(':', File.separatorChar))
+    }
     private val mappings: ArchiveMapping by lazy {
         newMappingsGraph(environment[mappingProvidersAttrKey].extract())
             .findShortest(source, destination)
@@ -78,31 +82,33 @@ internal class MinecraftApp(
             )
         }
 
-
         val obfInheritanceTree: ClassInheritanceTree = LazyMap(lazyImpl = ::obfuscatedPathFor)
 
         val config = mappingTransformConfigFor(
             mappings, source, destination, obfInheritanceTree
         )
 
+        val reader = ClassReader(initial.openStream())
         val bytes = Archives.resolve(
-            ClassReader(initial.openStream()),
+            reader,
             config,
-            writer = object : AwareClassWriter(
-                listOf(),
-                Archives.WRITER_FLAGS
-            ) {
-                override fun loadType(name: String): HierarchyNode {
-                    val node = appDelegate.node.handle?.classloader?.getResource(
-                        // Map back to source then query
-                        (mappings.mapClassName(name, destination, source) ?: name) + ".class"
-                    )?.openStream()?.classNode() ?: return super.loadType(name)
+            writer = ClassWriter(reader ,0)
 
-                    return UnloadedClassNode(
-                        node,
-                    )
-                }
-            }
+//            object : AwareClassWriter(
+//                listOf(),
+//                0
+//            ) {
+//                override fun loadType(name: String): HierarchyNode {
+//                    val node = appDelegate.node.handle?.classloader?.getResource(
+//                        // Map back to source then query
+//                        (mappings.mapClassName(name, destination, source) ?: name) + ".class"
+//                    )?.openStream()?.classNode() ?: return super.loadType(name)
+//
+//                    return UnloadedClassNode(
+//                        node,
+//                    )
+//                }
+//            }
         )
 
         path.make()
