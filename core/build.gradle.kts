@@ -136,8 +136,13 @@ val publishExtension by tasks.registering(ExtensionPublishTask::class) {
     bundle.set(buildBundle.map { it.bundlePath })
 }
 
+tasks.withType<PublishToMavenRepository>().configureEach {
+    isEnabled = false
+}
+
 common {
     publishing {
+
         publication {
             artifact(project.file("src/main/resources/erm.json")).classifier = "erm"
             artifact(generateMainPrm).classifier = "main"
@@ -147,13 +152,13 @@ common {
         }
     }
 }
+
 publishing {
     repositories {
         maven {
             url = uri("https://repo.extframework.dev")
             credentials {
-                password = project.properties.get("creds.ext.key") as? String
-                username = ""
+                password = project.properties["creds.ext.key"] as? String
             }
         }
     }

@@ -102,6 +102,9 @@ val publishExtension by tasks.registering(ExtensionPublishTask::class) {
     bundle.set(buildBundle.map { it.bundlePath })
 }
 
+tasks.withType<PublishToMavenRepository>().configureEach {
+    isEnabled = false
+}
 
 common {
     fun setupErm(): Any {
@@ -132,7 +135,6 @@ publishing {
             url = uri("https://repo.extframework.dev")
             credentials {
                 password = project.properties["creds.ext.key"] as? String
-                username = ""
             }
         }
     }
