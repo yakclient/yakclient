@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "dev.extframework.extension"
-version = "1.0.2-BETA"
+version = "1.0.3-BETA"
 
 sourceSets {
     create("tweaker")
@@ -117,6 +117,13 @@ val generateMetadata by tasks.registering(GenerateMetadata::class) {
     }
 }
 
+val generateErm by tasks.registering(GenerateErm::class) {
+    partitions {
+        add(generateMainPrm)
+        add(generateTweakerPrm)
+    }
+}
+
 val buildBundle by tasks.registering(BuildBundle::class) {
     partition("main") {
         jar(tasks.jar)
@@ -128,8 +135,8 @@ val buildBundle by tasks.registering(BuildBundle::class) {
         prm(generateTweakerPrm)
     }
 
-    erm.from(project.files("src/main/resources/erm.json"))
-    metadata.from(generateMetadata.get().outputs.files)
+    erm.from(generateErm)
+    metadata.from(generateMetadata)
 }
 
 val publishExtension by tasks.registering(ExtensionPublishTask::class) {
@@ -142,9 +149,8 @@ tasks.withType<PublishToMavenRepository>().configureEach {
 
 common {
     publishing {
-
         publication {
-            artifact(project.file("src/main/resources/erm.json")).classifier = "erm"
+            artifact(generateErm).classifier = "erm"
             artifact(generateMainPrm).classifier = "main"
             artifact(generateTweakerPrm).classifier = "tweaker"
             artifact(tasks.jar).classifier = "main"

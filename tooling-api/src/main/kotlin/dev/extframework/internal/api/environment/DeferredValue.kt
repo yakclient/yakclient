@@ -1,11 +1,17 @@
 package dev.extframework.internal.api.environment
 
+import kotlin.reflect.KProperty
+
 public interface DeferredValue<T> {
     public val name: String
 
     public fun get(): Result<T>
 
     public fun listen(listener: (T) -> Unit)
+
+    public operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
+        return extract()
+    }
 }
 
 public inline fun <T> defer(name: String, crossinline provider: () -> T?): DeferredValue<T> {

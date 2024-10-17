@@ -25,4 +25,4 @@ public fun doubleReturningFeature(): Double = throw FeatureImplementationExcepti
 public fun charReturningFeature(): Char = throw FeatureImplementationException()
 
 @Feature
-public fun paramFeature(int: Int): Unit = throw FeatureImplementationException()
+public fun paramFeature(int: Int?): Unit = throw FeatureImplementationException()

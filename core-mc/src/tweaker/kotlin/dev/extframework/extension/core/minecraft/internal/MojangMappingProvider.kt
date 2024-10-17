@@ -8,6 +8,7 @@ import dev.extframework.archive.mapper.MappingsProvider
 import dev.extframework.archive.mapper.parsers.proguard.ProGuardMappingParser
 import dev.extframework.boot.store.CachingDataStore
 import dev.extframework.boot.store.DataStore
+import dev.extframework.extension.core.minecraft.environment.MappingNamespace
 import dev.extframework.launchermeta.handler.clientMappings
 import dev.extframework.launchermeta.handler.loadVersionManifest
 import dev.extframework.launchermeta.handler.metadata
@@ -18,13 +19,13 @@ internal class MojangMappingProvider(
     private val mappingStore: DataStore<String, Resource>
 ) : MappingsProvider {
     companion object {
-        const val DEOBF_TYPE: String =  "mojang:deobfuscated"
-        const val OBF_TYPE: String =  "mojang:obfuscated"
+        val DEOBF_TYPE = MappingNamespace("mojang", "deobfuscated")
+        val OBF_TYPE = MappingNamespace("mojang","obfuscated")
     }
 
     constructor(path: Path) : this(CachingDataStore(MojangMappingAccess(path)))
 
-    override val namespaces: Set<String> = setOf(DEOBF_TYPE, OBF_TYPE)
+    override val namespaces: Set<String> = setOf(DEOBF_TYPE.identifier, OBF_TYPE.identifier)
 
     override fun forIdentifier(identifier: String): ArchiveMapping {
         val mappingData = mappingStore[identifier] ?: result {
@@ -36,6 +37,6 @@ internal class MojangMappingProvider(
             m
         }.getOrThrow()
 
-        return ProGuardMappingParser(OBF_TYPE, DEOBF_TYPE).parse(mappingData.openStream())
+        return ProGuardMappingParser(OBF_TYPE.identifier, DEOBF_TYPE.identifier).parse(mappingData.openStream())
     }
 }

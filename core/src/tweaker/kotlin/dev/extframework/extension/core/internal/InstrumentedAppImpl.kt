@@ -18,6 +18,7 @@ import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
 import java.io.InputStream
 import java.nio.ByteBuffer
+import java.nio.file.Path
 
 public class InstrumentedAppImpl(
     override val delegate: ApplicationTarget,
@@ -26,7 +27,7 @@ public class InstrumentedAppImpl(
 ) : InstrumentedApplicationTarget {
     override val node: ClassLoadedArchiveNode<ApplicationDescriptor> =
         object : ClassLoadedArchiveNode<ApplicationDescriptor> {
-            // TODO do mixins in resources?
+//            TODO do mixins in resources?
 //            private val resourceProvider = object : ResourceProvider {
 //                private val resourceDelegate = ArchiveResourceProvider(delegate.node.handle)
 //                override fun findResources(name: String): Sequence<URL> {
@@ -107,6 +108,7 @@ public class InstrumentedAppImpl(
             )
             )
         }
+    override val path: Path by delegate::path
 
     override fun registerAgent(agent: MixinAgent) {
         agents.add(agent)

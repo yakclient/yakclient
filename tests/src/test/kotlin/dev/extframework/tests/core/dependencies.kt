@@ -4,10 +4,13 @@ import com.durganmcbroom.artifact.resolver.ArtifactMetadata
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
 import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
+import com.durganmcbroom.jobs.map
 import dev.extframework.boot.archive.*
 import dev.extframework.boot.audit.Auditors
 import dev.extframework.boot.audit.chain
+import dev.extframework.boot.constraint.Constrained
 import dev.extframework.boot.constraint.ConstraintArchiveAuditor
+import dev.extframework.boot.constraint.ConstraintNegotiator
 import dev.extframework.boot.dependency.BasicDependencyNode
 import dev.extframework.boot.dependency.DependencyTypeContainer
 import dev.extframework.boot.maven.MavenConstraintNegotiator
@@ -15,6 +18,7 @@ import dev.extframework.boot.maven.MavenDependencyResolver
 import dev.extframework.boot.maven.MavenResolverProvider
 import dev.extframework.boot.monad.removeIf
 import dev.extframework.common.util.readInputStream
+import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
 import java.nio.file.Path
 
 private class THIS
@@ -50,7 +54,9 @@ fun setupBoot(path: Path): Pair<ArchiveGraph, DependencyTypeContainer> {
         override val auditors: Auditors
             get() = super.auditors.replace(
                 ConstraintArchiveAuditor(
-                    listOf(MavenConstraintNegotiator()),
+                    listOf(
+                        MavenConstraintNegotiator()
+                    ),
                 ).chain(object : ArchiveTreeAuditor {
                     override fun audit(event: ArchiveTreeAuditContext): Job<ArchiveTreeAuditContext> = job {
                         event.copy(tree = event.tree.removeIf {

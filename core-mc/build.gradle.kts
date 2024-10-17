@@ -10,7 +10,7 @@ import java.nio.file.Files
 import kotlin.io.path.writeText
 
 group = "dev.extframework.extension"
-version = "1.0.5-BETA"
+version = "1.0.6-BETA"
 
 sourceSets {
     create("tweaker")
@@ -84,6 +84,28 @@ val generateMetadata by tasks.registering(GenerateMetadata::class) {
     }
 }
 
+val generateErm by tasks.registering(GenerateErm::class) {
+    partitions {
+        add(generateMainPrm)
+        add(generateTweakerPrm)
+    }
+    parents {
+        add(project(":core"))
+    }
+}
+
+val generateDevErm by tasks.registering(GenerateErm::class) {
+    partitions {
+        add(generateMainPrm)
+        add(generateTweakerPrm)
+    }
+    parents {
+        add(project(":core"))
+    }
+    includeMavenLocal = true
+    outputFile.set(project.layout.buildDirectory.file("libs/erm-dev.json"))
+}
+
 val buildBundle by tasks.registering(BuildBundle::class) {
     partition("main") {
         jar(tasks.jar)
@@ -94,8 +116,8 @@ val buildBundle by tasks.registering(BuildBundle::class) {
         prm(generateTweakerPrm)
     }
 
-    erm.from("src/main/resources/erm.json")
-    metadata.from(generateMetadata.get().outputs.files)
+    erm.from(generateErm)
+    metadata.from(generateMetadata)
 }
 
 val publishExtension by tasks.registering(ExtensionPublishTask::class) {
@@ -107,19 +129,9 @@ tasks.withType<PublishToMavenRepository>().configureEach {
 }
 
 common {
-    fun setupErm(): Any {
-        val text = project.file("src/main/resources/erm-DEV.json").readText()
-        val replacedText = text.replace("<MAVEN_LOCAL>", repositories.mavenLocal().url.path)
-
-        val temp = Files.createTempFile("core-mc-erm", ".json")
-        temp.writeText(replacedText)
-
-        return temp
-    }
-
     publishing {
         publication {
-            artifact(setupErm()).classifier = "erm"
+            artifact(generateDevErm).classifier = "erm"
             artifact(generateMainPrm).classifier = "main"
             artifact(generateTweakerPrm).classifier = "tweaker"
             artifact(tasks.jar).classifier = "main"

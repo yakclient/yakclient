@@ -47,6 +47,6 @@ public fun charReturningFeature(): Char {
 }
 
 @Feature
-public fun paramFeature(int: Int): Unit {
+public fun paramFeature(int: Int?): Unit {
     println("Param ran + $int")
 }

@@ -2,7 +2,7 @@
   "apiVersion": 1,
   "groupId": "dev.extframework.extension",
   "name": "core-mc",
-  "version": "1.0.5-BETA",
+  "version": "1.0.6-BETA",
   "repositories": [
     {
       "type": "local",
@@ -17,7 +17,7 @@
     {
       "group": "dev.extframework.extension",
       "extension": "core",
-      "version": "1.0.2-BETA"
+      "version": "1.0.3-BETA"
     }
   ],
   "partitions": [

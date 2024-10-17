@@ -4,6 +4,7 @@ import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
 import dev.extframework.boot.archive.ClassLoadedArchiveNode
 import dev.extframework.internal.api.environment.EnvironmentAttribute
 import dev.extframework.internal.api.environment.EnvironmentAttributeKey
+import java.nio.file.Path
 
 public typealias ApplicationDescriptor = SimpleMavenDescriptor
 
@@ -12,16 +13,7 @@ public interface ApplicationTarget : EnvironmentAttribute {
         get() = ApplicationTarget
 
     public val node: ClassLoadedArchiveNode<ApplicationDescriptor>
+    public val path: Path
 
     public companion object : EnvironmentAttributeKey<ApplicationTarget>
 }
-
-//public inline fun ApplicationTarget.addTransformer(classname: String, crossinline transformer:  (ClassNode) -> ByteArray) {
-//    addTransformer {
-//        val node = ClassNode()
-//        ClassReader(it).accept(node, 0)
-//
-//        if (node.name.replace('/', '.') == classname) transformer(node)
-//        else it
-//    }
-//}

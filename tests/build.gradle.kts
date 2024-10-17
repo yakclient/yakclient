@@ -16,7 +16,7 @@ dependencies {
     implementation(project(":"))
     artifactResolver()
     objectContainer()
-    minecraftBootstrapper()
+    minecraftBootstrapper(version = "2.0.8-SNAPSHOT")
 
     testImplementation(kotlin("test"))
 }

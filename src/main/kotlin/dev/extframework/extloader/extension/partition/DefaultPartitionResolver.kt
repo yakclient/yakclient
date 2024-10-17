@@ -44,7 +44,8 @@ public open class DefaultPartitionResolver(
     private val parentClassLoaderProvider: (ExtensionDescriptor) -> ExtensionClassLoader
 ) : PartitionResolver {
     private val factory = PartitionRepositoryFactory(extensionRepositoryFactory)
-    private val partitionLoaders = environment[partitionLoadersAttrKey].extract().container
+    private val partitionLoaders
+        get() = environment[partitionLoadersAttrKey].extract().container
 
     override fun createContext(
         settings: ExtensionRepositorySettings

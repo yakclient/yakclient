@@ -25,12 +25,22 @@ public open class ExtensionEnvironment {
         get(key).getOrNull()?.let(update)
     }
 
-    public operator fun <T : EnvironmentAttribute> plusAssign(attribute: T) {
+    public fun <T : EnvironmentAttribute> add(attribute: T) {
         updates[attribute.key]?.forEach {
             (it as EnvironmentAttributeUpdater<T>)(attribute)
         }
 
         attributes[attribute.key] = attribute
+    }
+
+    public fun <T : EnvironmentAttribute> addUnless(attribute: T) {
+        if (!attributes.containsKey(attribute.key)) {
+            this += attribute
+        }
+    }
+
+    public operator fun <T : EnvironmentAttribute> plusAssign(attribute: T) {
+        add(attribute)
     }
 
     public operator fun plusAssign(other: ExtensionEnvironment) {

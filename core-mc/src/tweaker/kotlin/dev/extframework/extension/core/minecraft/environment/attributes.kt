@@ -11,4 +11,4 @@ public val mappingProvidersAttrKey: MutableObjectSetAttribute.Key<MappingsProvid
     MutableObjectSetAttribute.Key("mapping-providers")
 public val remappersAttrKey: MutableObjectSetAttribute.Key<ExtensionRemapper> =
     MutableObjectSetAttribute.Key("remappers")
-public val mappingTargetAttrKey : ValueAttribute.Key<String> = ValueAttribute.Key("mapping-target")
+public val mappingTargetAttrKey : ValueAttribute.Key<MappingNamespace> = ValueAttribute.Key("mapping-target")

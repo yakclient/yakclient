@@ -32,6 +32,7 @@ fun createEmptyApp(): ApplicationTarget {
                 override val descriptor: ApplicationDescriptor = appDesc
                 override val handle: ArchiveHandle? = null
             }
+        override val path: Path = Path.of("")
     }
 }
 
@@ -54,6 +55,7 @@ fun createBlackboxApp(path: Path): ApplicationTarget {
                     ).archive
                 }
             }
+        override val path: Path = path
     }
 }
 
@@ -65,7 +67,7 @@ fun createMinecraftApp(
 ): Job<ApplicationTarget> = job {
     class AppTarget(
         private val delegate: ClassLoader,
-        version: String,
+        version: String, override val path: Path,
     ) : ApplicationTarget {
         override val node: ClassLoadedArchiveNode<ApplicationDescriptor> =
             object : ClassLoadedArchiveNode<ApplicationDescriptor> {
@@ -124,20 +126,10 @@ fun createMinecraftApp(
 
     val loader = IntegratedLoader(
         name = "Minecraft",
-        sourceProvider = object : SourceProvider {
-            override val packages: Set<String> = setOf()
-
-            override fun findSource(name: String): ByteBuffer? {
-                return node.resources.findResources(name.replace('.', '/') + ".class")
-                    .firstOrNull()
-                    ?.openStream()
-                    ?.readInputStream()
-                    ?.let(ByteBuffer::wrap)
-            }
-        },
-        resourceProvider = node.resources,
+        sourceProvider = ArchiveSourceProvider(node.archive),
+        resourceProvider = ArchiveResourceProvider(node.archive),
         parent = ClassLoader.getPlatformClassLoader(),
     )
 
-    AppTarget(loader, version)
+    AppTarget(loader, version, path)
 }

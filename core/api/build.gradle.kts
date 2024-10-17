@@ -1,5 +1,3 @@
-import dev.extframework.gradle.common.boot
-
 group = "dev.extframework"
 version = "1.0-SNAPSHOT"
 

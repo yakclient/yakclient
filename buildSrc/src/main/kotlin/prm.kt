@@ -76,7 +76,6 @@ abstract class GeneratePrm : DefaultTask() {
         )
 
         val repositories = project.repositories
-            .toSet()
             .map {
                 when (it) {
                     is DefaultMavenLocalArtifactRepository -> {

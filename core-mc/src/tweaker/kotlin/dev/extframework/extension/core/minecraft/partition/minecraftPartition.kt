@@ -26,6 +26,7 @@ import dev.extframework.extension.core.feature.FeatureReference
 import dev.extframework.extension.core.feature.definesFeatures
 import dev.extframework.extension.core.feature.findImplementedFeatures
 import dev.extframework.extension.core.feature.implementsFeatures
+import dev.extframework.extension.core.minecraft.environment.MappingNamespace
 import dev.extframework.extension.core.minecraft.environment.mappingProvidersAttrKey
 import dev.extframework.extension.core.minecraft.environment.mappingTargetAttrKey
 import dev.extframework.extension.core.minecraft.environment.remappersAttrKey
@@ -52,7 +53,7 @@ public data class MinecraftPartitionMetadata(
 
     override val enabled: Boolean,
     internal val supportedVersions: List<String>,
-    internal val mappingNamespace: String
+    internal val mappingNamespace: MappingNamespace,
 ) : TargetPartitionMetadata
 
 public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
@@ -97,6 +98,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
         val delegation = environment[Delegation].extract()
 
         val srcNS = partition.options["mappingNS"]
+            ?.let(MappingNamespace::parse)
             ?: throw IllegalArgumentException("No mappings type (property name: 'mappingNS') specified in the partition: '${partition.name}' in ext: '${helper.erm.descriptor}}.")
         val supportedVersions = partition.options["versions"]?.split(",")
             ?: throw IllegalArgumentException("Partition: '${partition.name}' in extension: '${helper.erm.descriptor} does not support any versions!")
@@ -141,7 +143,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
 
                 val targetNS = environment[mappingTargetAttrKey].extract().value
                 val mappings = newMappingsGraph(environment[mappingProvidersAttrKey].extract())
-                    .findShortest(metadata.mappingNamespace, targetNS)
+                    .findShortest(metadata.mappingNamespace.identifier, targetNS.identifier)
                     .forIdentifier(appTarget.node.descriptor.version)
 
                 remap(
@@ -211,8 +213,8 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
         reference: ArchiveReference,
         mappings: ArchiveMapping,
         remappers: List<ExtensionRemapper>,
-        source: String,
-        target: String,
+        source: MappingNamespace,
+        target: MappingNamespace,
         appTree: ClassInheritanceTree,
         dependencies: List<ArchiveTree>
     ) = job {
@@ -224,8 +226,8 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
 
                 val treeFromApp = appTree[mappings.mapClassName(
                     name,
-                    source,
-                    target
+                    source.identifier,
+                    target.identifier
                 ) ?: name]
 
                 val treeFromRef = reference.reader["$name.class"]?.let { e ->
@@ -268,8 +270,8 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
             val config: TransformerConfig = it.remap(
                 mappings,
                 tree,
-                source,
-                target
+                source.identifier,
+                target.identifier
             )
 
             config + acc

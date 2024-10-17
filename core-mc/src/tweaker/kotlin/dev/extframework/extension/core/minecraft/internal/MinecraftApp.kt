@@ -3,159 +3,108 @@ package dev.extframework.extension.core.minecraft.internal
 import dev.extframework.archive.mapper.ArchiveMapping
 import dev.extframework.archive.mapper.findShortest
 import dev.extframework.archive.mapper.newMappingsGraph
-import dev.extframework.archive.mapper.transform.ClassInheritancePath
-import dev.extframework.archive.mapper.transform.ClassInheritanceTree
-import dev.extframework.archive.mapper.transform.mapClassName
-import dev.extframework.archive.mapper.transform.mappingTransformConfigFor
+import dev.extframework.archive.mapper.transform.transformArchive
 import dev.extframework.archives.ArchiveHandle
+import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.Archives
-import dev.extframework.archives.transform.AwareClassWriter
-import dev.extframework.archives.zip.classLoaderToArchive
+import dev.extframework.boot.archive.ArchiveAccessTree
 import dev.extframework.boot.archive.ClassLoadedArchiveNode
 import dev.extframework.boot.loader.*
-import dev.extframework.common.util.*
+import dev.extframework.common.util.make
+import dev.extframework.common.util.resolve
+import dev.extframework.extension.core.environment.mixinAgentsAttrKey
+import dev.extframework.extension.core.internal.InstrumentedAppImpl
 import dev.extframework.extension.core.minecraft.environment.mappingProvidersAttrKey
 import dev.extframework.extension.core.minecraft.environment.mappingTargetAttrKey
-import dev.extframework.extension.core.util.withSlashes
+import dev.extframework.extension.core.minecraft.util.write
+import dev.extframework.extension.core.target.TargetLinker
 import dev.extframework.internal.api.environment.ExtensionEnvironment
 import dev.extframework.internal.api.environment.extract
 import dev.extframework.internal.api.environment.wrkDirAttrKey
 import dev.extframework.internal.api.target.ApplicationDescriptor
 import dev.extframework.internal.api.target.ApplicationTarget
-import org.objectweb.asm.ClassReader
-import org.objectweb.asm.ClassWriter
-import org.objectweb.asm.tree.ClassNode
-import java.io.File
-import java.io.InputStream
-import java.net.URL
-import java.nio.ByteBuffer
 import java.nio.file.Path
-import kotlin.io.path.exists
-import kotlin.io.path.writeBytes
+
+public fun MinecraftApp(
+    delegate: ApplicationTarget,
+    environment: ExtensionEnvironment
+): ApplicationTarget {
+    val dir by environment[wrkDirAttrKey]
+
+    val source = MojangMappingProvider.OBF_TYPE
+    val destination = environment[mappingTargetAttrKey].extract().value
+
+    val remappedPath: Path =
+        dir.value resolve "remapped" resolve "minecraft" resolve destination.path resolve "minecraft.jar"
+
+    if (source == destination) return delegate
+
+    val targetHandles = delegate.node.access.targets
+        .map { it.relationship.node }
+        .filterIsInstance<ClassLoadedArchiveNode<*>>()
+        .mapNotNull { it.handle }
+
+    val reference: ArchiveReference = if (remappedPath.make()) {
+        val mappings: ArchiveMapping by lazy {
+            newMappingsGraph(environment[mappingProvidersAttrKey].extract())
+                .findShortest(source.identifier, destination.identifier)
+                .forIdentifier(delegate.node.descriptor.version)
+        }
+
+        val archive = Archives.find(delegate.path, Archives.Finders.ZIP_FINDER)
+
+        transformArchive(
+            archive,
+            targetHandles,
+            mappings,
+            source.identifier,
+            destination.identifier,
+        )
+
+        archive.write(remappedPath)
+
+        archive
+    } else Archives.find(delegate.path, Archives.Finders.ZIP_FINDER)
+
+    val classLoader = IntegratedLoader(
+        "Minecraft",
+        sourceProvider = ArchiveSourceProvider(reference),
+        classProvider = DelegatingClassProvider(targetHandles.map { ArchiveClassProvider(it) }),
+        resourceProvider = DelegatingResourceProvider(
+            listOf(ArchiveResourceProvider(reference)) + targetHandles.map {
+                ArchiveResourceProvider(it)
+            }
+        ),
+        parent = delegate.node.handle?.classloader?.parent ?: ClassLoader.getPlatformClassLoader()
+    )
+
+    val mcApp = MinecraftApp(
+        remappedPath,
+        delegate,
+        Archives.resolve(
+            reference,
+            classLoader,
+            Archives.Resolvers.ZIP_RESOLVER,
+            targetHandles.toSet(),
+        ).archive
+    )
+
+    return InstrumentedAppImpl(
+        mcApp,
+        environment[TargetLinker].extract(),
+        environment[mixinAgentsAttrKey].extract()
+    )
+}
 
 internal class MinecraftApp(
-    private val appDelegate: ApplicationTarget,
-    private val environment: ExtensionEnvironment
-) : ApplicationTarget by appDelegate {
-    private val path: Path by lazy {
-        // TODO replacing : with / is lazy. Mapping targets should either be completely standardized or something else needs to happen.
-        environment[wrkDirAttrKey].extract().value resolve "minecraft" resolve appDelegate.node.descriptor.version resolve "classes" resolve (destination.replace(':', File.separatorChar))
-    }
-    private val mappings: ArchiveMapping by lazy {
-        newMappingsGraph(environment[mappingProvidersAttrKey].extract())
-            .findShortest(source, destination)
-            .forIdentifier(appDelegate.node.descriptor.version)
-    }
-    private val source: String = MojangMappingProvider.OBF_TYPE
-    private val destination: String by lazy {
-        environment[mappingTargetAttrKey].extract().value
-    }
-
-    private fun getMappedClassFile(
-        internalName: String,
-        initial: URL,
-    ): URL {
-        val path = path resolve ("$internalName.class")
-
-        if (path.exists()) return path.toUrl()
-
-        fun InputStream.classNode(parsingOptions: Int = 0): ClassNode {
-            val node = ClassNode()
-            ClassReader(this).accept(node, parsingOptions)
-            return node
-        }
-
-        fun obfuscatedPathFor(
-            name: String
-        ): ClassInheritancePath {
-            val node =
-                appDelegate.node.handle?.classloader?.getResource(name.withSlashes() + ".class")?.openStream()
-                    ?.classNode()
-                    ?: return ClassInheritancePath(name, null, listOf())
-
-            return ClassInheritancePath(
-                node.name,
-                node.superName?.let(::obfuscatedPathFor),
-                node.interfaces?.mapNotNull { n ->
-                    obfuscatedPathFor(n)
-                } ?: listOf()
-            )
-        }
-
-        val obfInheritanceTree: ClassInheritanceTree = LazyMap(lazyImpl = ::obfuscatedPathFor)
-
-        val config = mappingTransformConfigFor(
-            mappings, source, destination, obfInheritanceTree
-        )
-
-        val reader = ClassReader(initial.openStream())
-        val bytes = Archives.resolve(
-            reader,
-            config,
-            writer = ClassWriter(reader ,0)
-
-//            object : AwareClassWriter(
-//                listOf(),
-//                0
-//            ) {
-//                override fun loadType(name: String): HierarchyNode {
-//                    val node = appDelegate.node.handle?.classloader?.getResource(
-//                        // Map back to source then query
-//                        (mappings.mapClassName(name, destination, source) ?: name) + ".class"
-//                    )?.openStream()?.classNode() ?: return super.loadType(name)
-//
-//                    return UnloadedClassNode(
-//                        node,
-//                    )
-//                }
-//            }
-        )
-
-        path.make()
-        path.writeBytes(bytes)
-
-        return path.toUrl()
-    }
-
+    override val path: Path,
+    val delegate: ApplicationTarget,
+    val archive: ArchiveHandle,
+) : ApplicationTarget {
     override val node: ClassLoadedArchiveNode<ApplicationDescriptor> =
-        object : ClassLoadedArchiveNode<ApplicationDescriptor> by appDelegate.node {
-            val delegateClasses = access.targets
-                .map { it.relationship.node }
-                .filterIsInstance<ClassLoadedArchiveNode<*>>()
-
-            private val delegateResources = ArchiveResourceProvider(appDelegate.node.handle)
-
-            private val resourceProvider = object : ResourceProvider {
-                override fun findResources(name: String): Sequence<URL> {
-                    return if (name.endsWith(".class")) {
-                        val internalName = name.removeSuffix(".class")
-                        val obfuscatedName = mappings.mapClassName(internalName, destination, source) ?: internalName
-
-                        delegateResources.findResources("$obfuscatedName.class").map {
-                            getMappedClassFile(internalName, it)
-                        }
-                    } else delegateResources.findResources(name)
-                }
-            }
-
-            override val handle: ArchiveHandle = classLoaderToArchive(
-                IntegratedLoader(
-                    name = "Minecraft @ ${appDelegate.node.handle?.classloader?.name ?: "app"}",
-                    classProvider = DelegatingClassProvider(delegateClasses.map { ArchiveClassProvider(it.handle) }),
-                    resourceProvider = resourceProvider,
-                    sourceProvider = object : SourceProvider {
-                        override val packages: Set<String> = setOf("*")
-
-                        override fun findSource(name: String): ByteBuffer? {
-                            return resourceProvider.findResources(name.withSlashes() + ".class")
-                                .firstOrNull()
-                                ?.openStream()
-                                ?.readInputStream()
-                                ?.let(ByteBuffer::wrap)
-                        }
-                    },
-                    parent = ClassLoader.getSystemClassLoader(),
-                )
-            )
+        object : ClassLoadedArchiveNode<ApplicationDescriptor> {
+            override val access: ArchiveAccessTree = delegate.node.access
+            override val descriptor: ApplicationDescriptor = delegate.node.descriptor
+            override val handle: ArchiveHandle = archive
         }
 }
