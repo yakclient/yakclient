@@ -135,5 +135,5 @@ fun createMinecraftApp(
         parent = ClassLoader.getPlatformClassLoader(),
     )
 
-    AppTarget(loader, version, path, node.access)
+    AppTarget(loader, version,Path.of(node.archive.location), node.access)
 }

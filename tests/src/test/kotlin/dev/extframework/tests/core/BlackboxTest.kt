@@ -131,10 +131,11 @@ class BlackboxTest {
                     graph, types,
                 )().merge()
             )
+            System.setProperty("mapping.target", "mojang:deobfuscated")
             initExtensions(
                 mapOf(
                     ExtensionDescriptor.parseDescriptor(
-                        "dev.extframework.extension:extframework-ext-test-2:1.0-BETA"
+                        "dev.extframework.extension:example-extension:1.0.2-BETA"
                     ) to ExtensionRepositorySettings.local()
                 ),
                 environment

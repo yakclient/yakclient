@@ -1,5 +1,8 @@
 package dev.extframework.extension.core.minecraft.internal
 
+import com.durganmcbroom.jobs.Job
+import com.durganmcbroom.jobs.job
+import com.durganmcbroom.jobs.logging.info
 import dev.extframework.archive.mapper.ArchiveMapping
 import dev.extframework.archive.mapper.findShortest
 import dev.extframework.archive.mapper.newMappingsGraph
@@ -9,10 +12,7 @@ import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.Archives
 import dev.extframework.boot.archive.ArchiveAccessTree
 import dev.extframework.boot.archive.ClassLoadedArchiveNode
-import dev.extframework.boot.loader.ArchiveResourceProvider
-import dev.extframework.boot.loader.ArchiveSourceProvider
-import dev.extframework.boot.loader.IntegratedLoader
-import dev.extframework.boot.loader.SourceProvider
+import dev.extframework.boot.loader.*
 import dev.extframework.common.util.make
 import dev.extframework.common.util.readInputStream
 import dev.extframework.common.util.resolve
@@ -28,44 +28,54 @@ import dev.extframework.internal.api.environment.extract
 import dev.extframework.internal.api.environment.wrkDirAttrKey
 import dev.extframework.internal.api.target.ApplicationDescriptor
 import dev.extframework.internal.api.target.ApplicationTarget
+import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.file.Path
 
 public fun MinecraftApp(
     delegate: ApplicationTarget,
     environment: ExtensionEnvironment
-): ApplicationTarget {
+): Job<ApplicationTarget> = job {
     val dir by environment[wrkDirAttrKey]
 
     val source = MojangMappingProvider.OBF_TYPE
     val destination by environment[mappingTargetAttrKey]
 
     val remappedPath: Path =
-        dir.value resolve "remapped" resolve "minecraft" resolve destination.value.path resolve "minecraft.jar"
+        dir.value resolve "remapped" resolve "minecraft" resolve destination.value.path resolve "minecraft-${delegate.node.descriptor.version}.jar"
 
-    if (source == destination.value) return delegate
+    if (source == destination.value) return@job delegate
 
-    val reference: ArchiveReference = if (remappedPath.make()) {
+    if (remappedPath.make()) {
         val mappings: ArchiveMapping by lazy {
             newMappingsGraph(environment[mappingProvidersAttrKey].extract())
                 .findShortest(source.identifier, destination.value.identifier)
                 .forIdentifier(delegate.node.descriptor.version)
         }
 
-        val archive = Archives.find(delegate.path, Archives.Finders.ZIP_FINDER)
+        Archives.find(delegate.path, Archives.Finders.ZIP_FINDER).use { archive ->
+            info("Remapping Minecraft from: '$source' to '${destination.value}'. This may take a second.")
+            transformArchive(
+                archive,
+                listOf(delegate.node.handle!!),
+                mappings,
+                source.identifier,
+                destination.value.identifier,
+            )
 
-        transformArchive(
-            archive,
-            listOf(delegate.node.handle!!),
-            mappings,
-            source.identifier,
-            destination.value.identifier,
-        )
+            val toRemove = ArrayList<String>()
+            archive.reader.entries()
+                .filter { it.name.startsWith("META-INF") }
+                .forEach { toRemove.add(it.name) }
 
-        archive.write(remappedPath)
+            toRemove.forEach(archive.writer::remove)
 
-        archive
-    } else Archives.find(delegate.path, Archives.Finders.ZIP_FINDER)
+            archive.write(remappedPath)
+        }
+
+    }
+
+    val reference = Archives.find(remappedPath, Archives.Finders.ZIP_FINDER)
 
     val sources = object : SourceProvider {
         override val packages: Set<String> = setOf()
@@ -81,7 +91,15 @@ public fun MinecraftApp(
     val classLoader = IntegratedLoader(
         "Minecraft",
         sourceProvider = sources,
-        resourceProvider = ArchiveResourceProvider(delegate.node.handle!!),
+        resourceProvider = object : ResourceProvider {
+            val mappedResourceDelegate = ArchiveResourceProvider(reference)
+            val resourceDelegate = ArchiveResourceProvider(delegate.node.handle!!)
+            override fun findResources(name: String): Sequence<URL> {
+                return mappedResourceDelegate.findResources(name)
+                    .takeUnless { it.toList().isEmpty() }
+                    ?: resourceDelegate.findResources(name)
+            }
+        },
         parent = delegate.node.handle?.classloader?.parent ?: ClassLoader.getPlatformClassLoader()
     )
 
@@ -96,7 +114,7 @@ public fun MinecraftApp(
         ).archive
     )
 
-    return InstrumentedAppImpl(
+   InstrumentedAppImpl(
         mcApp,
         environment[TargetLinker].extract(),
         environment[mixinAgentsAttrKey].extract()

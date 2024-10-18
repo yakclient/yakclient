@@ -10,7 +10,7 @@ import java.nio.file.Files
 import kotlin.io.path.writeText
 
 group = "dev.extframework.extension"
-version = "1.0.7-BETA"
+version = "1.0.8-BETA"
 
 sourceSets {
     create("tweaker")

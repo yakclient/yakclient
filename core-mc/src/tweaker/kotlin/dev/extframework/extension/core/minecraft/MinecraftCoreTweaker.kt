@@ -46,7 +46,7 @@ public class MinecraftCoreTweaker : EnvironmentTweaker {
         environment += MinecraftApp(
             (environment[ApplicationTarget].extract() as InstrumentedApplicationTarget).delegate,
             environment
-        )
+        )().merge()
 
         // Minecraft partition
         val partitionContainer = environment[partitionLoadersAttrKey].extract().container
