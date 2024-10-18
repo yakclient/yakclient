@@ -63,19 +63,12 @@ abstract class GenerateErm : DefaultTask() {
 
     @TaskAction
     fun generate() {
-        val repositories = project.repositories
-            .mapNotNullTo(ArrayList()) {
-                when (it) {
-                    is DefaultMavenArtifactRepository -> {
-                        mapOf(
-                            "type" to "default",
-                            "location" to it.url.toString()
-                        )
-                    }
-
-                    else -> null
-                }
-            }
+        val repositories = arrayListOf(
+            mapOf(
+                "type" to "default",
+                "location" to "https://repo.extframework.dev/registry"
+            )
+        )
 
         if (includeMavenLocal.get()) repositories.add(
             0,
@@ -84,7 +77,6 @@ abstract class GenerateErm : DefaultTask() {
                 "location" to Path.of(project.repositories.mavenLocal().url).toString()
             )
         )
-
 
         val model = ExtensionRuntimeModel(
             1,
