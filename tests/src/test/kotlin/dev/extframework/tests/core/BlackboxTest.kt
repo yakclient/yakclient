@@ -123,24 +123,21 @@ class BlackboxTest {
         launch(BootLoggerFactory()) {
             val (graph, types) = setupBoot(path)
 
-            val environment = ExtensionEnvironment()
+            val environment = InternalExtensionEnvironment(
+                path, graph, types,
+                createMinecraftApp(
+                    path resolve "minecraft",
+                    "1.21",
+                    graph, types,
+                )().merge()
+            )
             initExtensions(
                 mapOf(
                     ExtensionDescriptor.parseDescriptor(
-                        "dev.extframework.extension:example-extension:1.0-BETA"
-                    ) to ExtensionRepositorySettings.default(url = "https://repo.extframework.dev/registry")
+                        "dev.extframework.extension:extframework-ext-test-2:1.0-BETA"
+                    ) to ExtensionRepositorySettings.local()
                 ),
-
-                InternalExtensionEnvironment(
-                    path, graph, types,
-                    createMinecraftApp(
-                        path resolve "minecraft",
-                        "1.21",
-                        graph, types
-                    )().merge()
-                ).apply {
-                    plusAssign(ValueAttribute("mojang:deobfuscated", ValueAttribute.Key("mapping-target")))
-                }
+                environment
             )().merge()
 
             val app = environment[ApplicationTarget].extract().node.handle!!.classloader

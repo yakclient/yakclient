@@ -17,10 +17,21 @@ import dev.extframework.internal.api.tweaker.EnvironmentTweaker
 
 public class MinecraftCoreTweaker : EnvironmentTweaker {
     override fun tweak(environment: ExtensionEnvironment): Job<Unit> = job {
-        // Minecraft app
-        environment += MinecraftApp(
-            (environment[ApplicationTarget].extract() as InstrumentedApplicationTarget).delegate,
-            environment
+        // TODO this is sloppy, there should be an actual way to set the mapping target from non
+        //    extension contexts (such as the client)
+        val sysMappingTarget = System.getProperty("mapping.target")
+        if (sysMappingTarget != null) {
+            environment.addUnless(
+                ValueAttribute(
+                    MappingNamespace.parse(sysMappingTarget),
+                    mappingTargetAttrKey
+                )
+            )
+        } else environment.addUnless(
+            ValueAttribute(
+                MojangMappingProvider.OBF_TYPE,
+                mappingTargetAttrKey
+            )
         )
 
         // Mapping providers
@@ -31,6 +42,12 @@ public class MinecraftCoreTweaker : EnvironmentTweaker {
             )
         )
 
+        // Minecraft app
+        environment += MinecraftApp(
+            (environment[ApplicationTarget].extract() as InstrumentedApplicationTarget).delegate,
+            environment
+        )
+
         // Minecraft partition
         val partitionContainer = environment[partitionLoadersAttrKey].extract().container
         partitionContainer.register("target", MinecraftPartitionLoader(environment))
@@ -38,11 +55,5 @@ public class MinecraftCoreTweaker : EnvironmentTweaker {
         // Remappers
         val remappers = MutableObjectSetAttribute(remappersAttrKey)
         environment += remappers
-//        remappers.add(RootRemapper())
-//        remappers.add(SourceInjectionRemapper(environment[AnnotationProcessor].extract()))
-
-        environment.addUnless(ValueAttribute(
-            MojangMappingProvider.OBF_TYPE,
-            mappingTargetAttrKey))
     }
 }

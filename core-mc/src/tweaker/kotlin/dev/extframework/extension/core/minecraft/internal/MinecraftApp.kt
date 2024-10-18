@@ -9,8 +9,12 @@ import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.Archives
 import dev.extframework.boot.archive.ArchiveAccessTree
 import dev.extframework.boot.archive.ClassLoadedArchiveNode
-import dev.extframework.boot.loader.*
+import dev.extframework.boot.loader.ArchiveResourceProvider
+import dev.extframework.boot.loader.ArchiveSourceProvider
+import dev.extframework.boot.loader.IntegratedLoader
+import dev.extframework.boot.loader.SourceProvider
 import dev.extframework.common.util.make
+import dev.extframework.common.util.readInputStream
 import dev.extframework.common.util.resolve
 import dev.extframework.extension.core.environment.mixinAgentsAttrKey
 import dev.extframework.extension.core.internal.InstrumentedAppImpl
@@ -18,11 +22,13 @@ import dev.extframework.extension.core.minecraft.environment.mappingProvidersAtt
 import dev.extframework.extension.core.minecraft.environment.mappingTargetAttrKey
 import dev.extframework.extension.core.minecraft.util.write
 import dev.extframework.extension.core.target.TargetLinker
+import dev.extframework.extension.core.util.withSlashes
 import dev.extframework.internal.api.environment.ExtensionEnvironment
 import dev.extframework.internal.api.environment.extract
 import dev.extframework.internal.api.environment.wrkDirAttrKey
 import dev.extframework.internal.api.target.ApplicationDescriptor
 import dev.extframework.internal.api.target.ApplicationTarget
+import java.nio.ByteBuffer
 import java.nio.file.Path
 
 public fun MinecraftApp(
@@ -32,22 +38,17 @@ public fun MinecraftApp(
     val dir by environment[wrkDirAttrKey]
 
     val source = MojangMappingProvider.OBF_TYPE
-    val destination = environment[mappingTargetAttrKey].extract().value
+    val destination by environment[mappingTargetAttrKey]
 
     val remappedPath: Path =
-        dir.value resolve "remapped" resolve "minecraft" resolve destination.path resolve "minecraft.jar"
+        dir.value resolve "remapped" resolve "minecraft" resolve destination.value.path resolve "minecraft.jar"
 
-    if (source == destination) return delegate
-
-    val targetHandles = delegate.node.access.targets
-        .map { it.relationship.node }
-        .filterIsInstance<ClassLoadedArchiveNode<*>>()
-        .mapNotNull { it.handle }
+    if (source == destination.value) return delegate
 
     val reference: ArchiveReference = if (remappedPath.make()) {
         val mappings: ArchiveMapping by lazy {
             newMappingsGraph(environment[mappingProvidersAttrKey].extract())
-                .findShortest(source.identifier, destination.identifier)
+                .findShortest(source.identifier, destination.value.identifier)
                 .forIdentifier(delegate.node.descriptor.version)
         }
 
@@ -55,10 +56,10 @@ public fun MinecraftApp(
 
         transformArchive(
             archive,
-            targetHandles,
+            listOf(delegate.node.handle!!),
             mappings,
             source.identifier,
-            destination.identifier,
+            destination.value.identifier,
         )
 
         archive.write(remappedPath)
@@ -66,15 +67,21 @@ public fun MinecraftApp(
         archive
     } else Archives.find(delegate.path, Archives.Finders.ZIP_FINDER)
 
+    val sources = object : SourceProvider {
+        override val packages: Set<String> = setOf()
+
+        private val delegateSources = ArchiveSourceProvider(reference)
+        override fun findSource(name: String): ByteBuffer? {
+            return delegateSources.findSource(name) ?: delegate.node.handle?.classloader?.getResourceAsStream(
+                "${name.withSlashes()}.class"
+            )?.let { ByteBuffer.wrap(it.readInputStream()) }
+        }
+    }
+
     val classLoader = IntegratedLoader(
         "Minecraft",
-        sourceProvider = ArchiveSourceProvider(reference),
-        classProvider = DelegatingClassProvider(targetHandles.map { ArchiveClassProvider(it) }),
-        resourceProvider = DelegatingResourceProvider(
-            listOf(ArchiveResourceProvider(reference)) + targetHandles.map {
-                ArchiveResourceProvider(it)
-            }
-        ),
+        sourceProvider = sources,
+        resourceProvider = ArchiveResourceProvider(delegate.node.handle!!),
         parent = delegate.node.handle?.classloader?.parent ?: ClassLoader.getPlatformClassLoader()
     )
 
@@ -85,7 +92,7 @@ public fun MinecraftApp(
             reference,
             classLoader,
             Archives.Resolvers.ZIP_RESOLVER,
-            targetHandles.toSet(),
+            setOf(),
         ).archive
     )
 

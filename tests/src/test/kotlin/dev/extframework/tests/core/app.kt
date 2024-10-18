@@ -63,11 +63,12 @@ fun createMinecraftApp(
     path: Path,
     version: String,
     archiveGraph: ArchiveGraph,
-    dependencyTypes: DependencyTypeContainer
+    dependencyTypes: DependencyTypeContainer,
 ): Job<ApplicationTarget> = job {
     class AppTarget(
         private val delegate: ClassLoader,
         version: String, override val path: Path,
+        access: ArchiveAccessTree,
     ) : ApplicationTarget {
         override val node: ClassLoadedArchiveNode<ApplicationDescriptor> =
             object : ClassLoadedArchiveNode<ApplicationDescriptor> {
@@ -78,10 +79,7 @@ fun createMinecraftApp(
                     "client"
                 )
                 override val descriptor: ApplicationDescriptor = appDesc
-                override val access: ArchiveAccessTree = object : ArchiveAccessTree {
-                    override val descriptor: ArtifactMetadata.Descriptor = appDesc
-                    override val targets: List<ArchiveTarget> = listOf()
-                }
+                override val access: ArchiveAccessTree = access
                 override val handle: ArchiveHandle = classLoaderToArchive(
                     MutableClassLoader(
                         name = "minecraft-loader",
@@ -126,10 +124,16 @@ fun createMinecraftApp(
 
     val loader = IntegratedLoader(
         name = "Minecraft",
-        sourceProvider = ArchiveSourceProvider(node.archive),
-        resourceProvider = ArchiveResourceProvider(node.archive),
+        resourceProvider = MutableResourceProvider(
+            (node.libraries.map { it.archive } + node.archive)
+                .mapTo(ArrayList()) { ArchiveResourceProvider(it) }
+        ),
+        sourceProvider = MutableSourceProvider(
+            (node.libraries.map { it.archive } + node.archive)
+                .mapTo(ArrayList()) { ArchiveSourceProvider(it) }
+        ),
         parent = ClassLoader.getPlatformClassLoader(),
     )
 
-    AppTarget(loader, version, path)
+    AppTarget(loader, version, path, node.access)
 }

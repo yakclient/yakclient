@@ -2,9 +2,6 @@ package dev.extframework.extension.core.minecraft.environment
 
 import java.nio.file.Path
 
-private val ns_regex = Regex("[a-zA-Z0-9_-]+")
-
-
 public data class MappingNamespace(
     val organization: String,
     val name: String
