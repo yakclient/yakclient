@@ -18,4 +18,24 @@ abstract class AppMixin {
         println("Mixin here")
         return continuation.resume()
     }
+
+    @SourceInjection(
+        point = "before-end",
+        methodTo = "test()Ljava/lang/String;",
+    )
+    fun `Inject into test func`(
+        continuation: InjectionContinuation,
+    ) : InjectionContinuation.Result {
+        return continuation.returnEarly("This is injected actually")
+    }
+
+    @SourceInjection(
+        point = "before-end",
+        methodTo = "primitiveTest()I",
+    )
+    fun `Inject into primitive test func`(
+        continuation: InjectionContinuation,
+    ) : InjectionContinuation.Result {
+        return continuation.returnEarly(66)
+    }
 }

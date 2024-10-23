@@ -2,7 +2,7 @@ package dev.extframework.core.api.mixin;
 
 public class InjectionContinuation {
     public Result returnEarly() {
-        return new EarlyObjReturn(null);
+        return new EarlyVoidReturn();
     }
 
     public Result returnEarly(Object t) {
@@ -43,6 +43,11 @@ public class InjectionContinuation {
 
     public sealed interface Result {
         int getOrdinance();
+    }
+
+    void adsf() {
+        var a = new EarlyObjReturn("");
+        a.value();
     }
 
     public record EarlyVoidReturn() implements Result {

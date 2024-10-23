@@ -6,11 +6,11 @@ import dev.extframework.gradle.publish.ExtensionPublishTask
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.23"
+    id("dev.extframework.common") version "1.0.26"
 }
 
 group = "dev.extframework"
-version = "2.1.6-SNAPSHOT"
+version = "2.1.7-SNAPSHOT"
 
 tasks.wrapper {
     gradleVersion = "8.3"

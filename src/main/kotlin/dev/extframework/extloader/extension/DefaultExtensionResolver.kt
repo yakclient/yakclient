@@ -38,7 +38,7 @@ import java.nio.file.Files
 
 public open class DefaultExtensionResolver(
     parent: ClassLoader,
-    environment: ExtensionEnvironment,
+    private val environment: ExtensionEnvironment,
 ) : ExtensionResolver {
     private val layerLoader = ExtensionLayerClassLoader(parent)
     protected val factory: ExtensionRepositoryFactory = ExtensionRepositoryFactory(environment[dependencyTypesAttrKey].extract().container)
@@ -58,7 +58,15 @@ public open class DefaultExtensionResolver(
         extensionLoaders[it]!!
     }
 
-    override val auditors: Auditors = environment[ExtraAuditorsAttribute].getOrNull()?.auditors ?: Auditors()
+    override val auditors: Auditors
+        get() = (environment[dependencyTypesAttrKey]
+            .extract().container.objects().values
+            .map { it.resolver.auditors } + (environment[ExtraAuditorsAttribute].getOrNull()?.auditors ?: Auditors()))
+        .fold(Auditors()) { acc, it ->
+            it.auditors.values.fold(acc) { innerAcc, innerIt ->
+                innerAcc.chain(innerIt)
+            }
+        }
 
     override fun createContext(settings: SimpleMavenRepositorySettings): ResolutionContext<ExtensionRepositorySettings, ExtensionArtifactRequest, ExtensionArtifactMetadata> {
         return factory.createContext(settings)

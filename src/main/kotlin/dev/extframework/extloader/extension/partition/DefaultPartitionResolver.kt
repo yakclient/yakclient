@@ -14,10 +14,12 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.Archives
 import dev.extframework.boot.archive.*
+import dev.extframework.boot.audit.Auditors
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
 import dev.extframework.boot.util.basicObjectMapper
 import dev.extframework.common.util.filterDuplicates
+import dev.extframework.extloader.environment.ExtraAuditorsAttribute
 import dev.extframework.extloader.extension.ExtensionLoadException
 import dev.extframework.extloader.extension.artifact.ExtensionRepositoryFactory
 import dev.extframework.extloader.extension.partition.artifact.PartitionRepositoryFactory
@@ -46,6 +48,16 @@ public open class DefaultPartitionResolver(
     private val factory = PartitionRepositoryFactory(extensionRepositoryFactory)
     private val partitionLoaders
         get() = environment[partitionLoadersAttrKey].extract().container
+
+    override val auditors: Auditors
+        get() = (environment[dependencyTypesAttrKey]
+            .extract().container.objects().values
+            .map { it.resolver.auditors } + (environment[ExtraAuditorsAttribute].getOrNull()?.auditors ?: Auditors()))
+            .fold(Auditors()) { acc, it ->
+                it.auditors.values.fold(acc) { innerAcc, innerIt ->
+                    innerAcc.chain(innerIt)
+                }
+            }
 
     override fun createContext(
         settings: ExtensionRepositorySettings

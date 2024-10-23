@@ -65,7 +65,6 @@ public class SourceInjectionProvider(
                     injectedMethod.access =
                         if (data.isStatic) Opcodes.ACC_STATIC.or(Opcodes.ACC_PRIVATE) else Opcodes.ACC_PRIVATE
 
-
                     it.methods.add(injectedMethod)
 
                     it
@@ -150,7 +149,7 @@ public class SourceInjectionProvider(
                         // Default label
                         insn.add(defaultLabel)
                         insn.add(FieldInsnNode(Opcodes.GETSTATIC, "java/lang/System", "err", "Ljava/io/PrintStream;"))
-                        insn.add(LdcInsnNode("Error encountered in post mixin injection result handling. Expected a result with ordinance of either 0 (early return), or 1 (resume), found neither."))
+                        insn.add(LdcInsnNode("Error encountered in post mixin injection result handling. Expected a result with ordinance of 0-11, found something else."))
                         insn.add(
                             MethodInsnNode(
                                 Opcodes.INVOKEVIRTUAL,
@@ -166,8 +165,8 @@ public class SourceInjectionProvider(
 
                         fun getEarlyReturnWrapperForType(type: Type): String =
                             if (type.isPrimitive)
-                                "dev/extframework/client/api/InjectionContinuation\$Early${type.internalName}Return"
-                            else "dev/extframework/client/api/InjectionContinuation\$EarlyObjReturn"
+                                "dev/extframework/core/api/mixin/InjectionContinuation\$Early${type.internalName}Return"
+                            else "dev/extframework/core/api/mixin/InjectionContinuation\$EarlyObjReturn"
 
                         val returnOpcode = data.methodTo.returnType.getOpcode(Opcodes.IRETURN)
 
@@ -178,14 +177,32 @@ public class SourceInjectionProvider(
                                 getEarlyReturnWrapperForType(data.methodTo.returnType)
                             insn.add(TypeInsnNode(Opcodes.CHECKCAST, injectedReturnType))
 
-                            insn.add(
-                                MethodInsnNode(
-                                    Opcodes.INVOKEVIRTUAL,
-                                    injectedReturnType,
-                                    "value",
-                                    "()${data.methodTo.returnType.descriptor}"
+                            if (data.methodTo.returnType.isPrimitive) {
+                                insn.add(
+                                    MethodInsnNode(
+                                        Opcodes.INVOKEVIRTUAL,
+                                        injectedReturnType,
+                                        "value",
+                                        "()${data.methodTo.returnType.descriptor}"
+                                    )
                                 )
-                            )
+                            } else {
+                                insn.add(
+                                    MethodInsnNode(
+                                        Opcodes.INVOKEVIRTUAL,
+                                        injectedReturnType,
+                                        "value",
+                                        "()Ljava/lang/Object;"
+                                    )
+                                )
+
+                                insn.add(
+                                    TypeInsnNode(
+                                        Opcodes.CHECKCAST,
+                                        data.methodTo.returnType.internalName
+                                    )
+                                )
+                            }
                             insn.add(InsnNode(returnOpcode))
                         }
 

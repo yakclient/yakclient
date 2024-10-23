@@ -4,6 +4,7 @@ import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
 import com.durganmcbroom.resources.openStream
 import dev.extframework.archive.mapper.ArchiveMapping
+import dev.extframework.archive.mapper.MappingsProvider
 import dev.extframework.archive.mapper.findShortest
 import dev.extframework.archive.mapper.newMappingsGraph
 import dev.extframework.archive.mapper.transform.*
@@ -89,6 +90,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
         return appInheritanceTree!!
     }
 
+    //asdfasdf
     override fun parseMetadata(
         partition: PartitionRuntimeModel,
         reference: ArchiveReference,
@@ -173,7 +175,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
                     accessTree,
                     reference,
                     helper.parentClassLoader,
-                    sourceProvider = sourceProviderDelegate,classProvider = object : ClassProvider {
+                    sourceProvider = sourceProviderDelegate, classProvider = object : ClassProvider {
                         val dependencyDelegate = DelegatingClassProvider(
                             dependencies
                                 .mapNotNull { it.handle }
