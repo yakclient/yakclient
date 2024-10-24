@@ -47,7 +47,7 @@ public class MinecraftCoreTweaker : EnvironmentTweaker {
 
         // Minecraft app
         environment += MinecraftApp(
-            (environment[ApplicationTarget].extract() as InstrumentedApplicationTarget).delegate,
+            (environment[ApplicationTarget].extract() as InstrumentedApplicationTarget),
             environment
         )().merge()
 

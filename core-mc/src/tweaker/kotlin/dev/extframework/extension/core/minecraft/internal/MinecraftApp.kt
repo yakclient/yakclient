@@ -8,7 +8,6 @@ import dev.extframework.archive.mapper.findShortest
 import dev.extframework.archive.mapper.newMappingsGraph
 import dev.extframework.archive.mapper.transform.transformArchive
 import dev.extframework.archives.ArchiveHandle
-import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.Archives
 import dev.extframework.boot.archive.ArchiveAccessTree
 import dev.extframework.boot.archive.ClassLoadedArchiveNode
@@ -21,6 +20,7 @@ import dev.extframework.extension.core.internal.InstrumentedAppImpl
 import dev.extframework.extension.core.minecraft.environment.mappingProvidersAttrKey
 import dev.extframework.extension.core.minecraft.environment.mappingTargetAttrKey
 import dev.extframework.extension.core.minecraft.util.write
+import dev.extframework.extension.core.target.InstrumentedApplicationTarget
 import dev.extframework.extension.core.target.TargetLinker
 import dev.extframework.extension.core.util.withSlashes
 import dev.extframework.internal.api.environment.ExtensionEnvironment
@@ -33,9 +33,11 @@ import java.nio.ByteBuffer
 import java.nio.file.Path
 
 public fun MinecraftApp(
-    delegate: ApplicationTarget,
+    instrumentedApp: InstrumentedApplicationTarget,
     environment: ExtensionEnvironment
 ): Job<ApplicationTarget> = job {
+    val delegate = instrumentedApp.delegate
+
     val dir by environment[wrkDirAttrKey]
 
     val source = MojangMappingProvider.OBF_TYPE
@@ -44,7 +46,7 @@ public fun MinecraftApp(
     val remappedPath: Path =
         dir.value resolve "remapped" resolve "minecraft" resolve destination.value.path resolve "minecraft-${delegate.node.descriptor.version}.jar"
 
-    if (source == destination.value) return@job delegate
+    if (source == destination.value) return@job instrumentedApp
 
     if (remappedPath.make()) {
         val mappings: ArchiveMapping by lazy {
