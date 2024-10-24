@@ -1,16 +1,13 @@
 import dev.extframework.gradle.common.*
 import dev.extframework.gradle.common.dm.artifactResolver
 import dev.extframework.gradle.common.dm.jobs
-import dev.extframework.gradle.publish.ExtensionPublication
 import dev.extframework.gradle.publish.ExtensionPublishTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import publish.BuildBundle
 import publish.GenerateMetadata
-import java.nio.file.Files
-import kotlin.io.path.writeText
 
 group = "dev.extframework.extension"
-version = "1.0.8-BETA"
+version = "1.0.9-BETA"
 
 sourceSets {
     create("tweaker")

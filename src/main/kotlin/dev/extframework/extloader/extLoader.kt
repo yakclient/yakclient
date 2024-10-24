@@ -71,7 +71,7 @@ public class InternalExtensionEnvironment private constructor() : ExtensionEnvir
         add(ArchiveGraphAttribute(archiveGraph))
         add(DependencyTypeContainerAttribute(dependencyTypes))
         add(applicationTarget)
-        add(DefaultExtensionResolver(ClassLoader.getPlatformClassLoader(), this))
+        add(DefaultExtensionResolver(ClassLoader.getSystemClassLoader(), this))
     }
 }
 

@@ -282,11 +282,11 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
         reference.reader.entries()
             .filter { it.name.endsWith(".class") }
             .forEach { entry ->
-                // TODO, this will recompute frames, see if we need to do that or not.
-                Archives.resolve(
-                    ClassReader(entry.resource.openStream()),
-                    config,
-                )
+//                // TODO, this will recompute frames, see if we need to do that or not.
+//                Archives.resolve(
+//                    ClassReader(entry.resource.openStream()),
+//                    config,
+//                )
 
                 reference.writer.put(
                     entry.transform(

@@ -60,7 +60,7 @@ fun setupBoot(path: Path): Pair<ArchiveGraph, DependencyTypeContainer> {
                 ).chain(object : ArchiveTreeAuditor {
                     override fun audit(event: ArchiveTreeAuditContext): Job<ArchiveTreeAuditContext> = job {
                         event.copy(tree = event.tree.removeIf {
-                            alreadyLoaded.contains(negotiator.classify(it.value.descriptor as SimpleMavenDescriptor))
+                            alreadyLoaded.contains(negotiator.classify(it.value.descriptor as? SimpleMavenDescriptor ?: return@removeIf false))
                         }!!)
                     }
                 })
