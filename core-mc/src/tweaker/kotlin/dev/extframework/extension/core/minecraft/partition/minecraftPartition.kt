@@ -4,13 +4,11 @@ import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
 import com.durganmcbroom.resources.openStream
 import dev.extframework.archive.mapper.ArchiveMapping
-import dev.extframework.archive.mapper.MappingsProvider
 import dev.extframework.archive.mapper.findShortest
 import dev.extframework.archive.mapper.newMappingsGraph
 import dev.extframework.archive.mapper.transform.*
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.ArchiveTree
-import dev.extframework.archives.Archives
 import dev.extframework.archives.transform.TransformerConfig
 import dev.extframework.archives.transform.TransformerConfig.Companion.plus
 import dev.extframework.boot.archive.ArchiveRelationship
@@ -24,7 +22,6 @@ import dev.extframework.common.util.LazyMap
 import dev.extframework.extension.core.annotation.AnnotationProcessor
 import dev.extframework.extension.core.delegate.Delegation
 import dev.extframework.extension.core.feature.FeatureReference
-import dev.extframework.extension.core.feature.definesFeatures
 import dev.extframework.extension.core.feature.findImplementedFeatures
 import dev.extframework.extension.core.feature.implementsFeatures
 import dev.extframework.extension.core.minecraft.environment.MappingNamespace
@@ -220,6 +217,20 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
         appTree: ClassInheritanceTree,
         dependencies: List<ArchiveTree>
     ) = job {
+        fun remapTargetToSourcePath(
+            path: ClassInheritancePath,
+        ): ClassInheritancePath {
+            return ClassInheritancePath(
+                mappings.mapClassName(
+                    path.name,
+                    target.identifier,
+                    source.identifier,
+                ) ?: path.name,
+                path.superClass?.let(::remapTargetToSourcePath),
+                path.interfaces.map(::remapTargetToSourcePath)
+            )
+        }
+
         fun inheritancePathFor(
             node: ClassNode
         ): Job<ClassInheritancePath> = job {
@@ -230,7 +241,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
                     name,
                     source.identifier,
                     target.identifier
-                ) ?: name]
+                ) ?: name]?.let(::remapTargetToSourcePath)
 
                 val treeFromRef = reference.reader["$name.class"]?.let { e ->
                     inheritancePathFor(
@@ -260,10 +271,14 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
                 path.name to path
             }
 
-        val tree = object : Map<String, ClassInheritancePath> by treeInternal {
-            override fun get(key: String): ClassInheritancePath? {
-                return treeInternal[key] ?: appTree[key]
-            }
+        val tree = LazyMap { key: String ->
+            treeInternal[key] ?: appTree[
+                mappings.mapClassName(
+                    key,
+                    source.identifier,
+                    target.identifier
+                ) ?: key
+            ]?.let(::remapTargetToSourcePath)
         }
 
         val config: TransformerConfig = remappers.fold(

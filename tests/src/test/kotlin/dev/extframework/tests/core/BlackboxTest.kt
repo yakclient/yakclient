@@ -135,7 +135,7 @@ class BlackboxTest {
             initExtensions(
                 mapOf(
                     ExtensionDescriptor.parseDescriptor(
-                        "org.example:portfolio-extension:1.0.1-BETA"
+                        "org.example:portfolio-extension:1.0.2-BETA"
                     ) to ExtensionRepositorySettings.local()
                 ),
                 environment
