@@ -38,7 +38,7 @@ public class InstrumentedAppImpl(
             override val access: ArchiveAccessTree = delegate.node.access
             override val descriptor: ApplicationDescriptor = delegate.node.descriptor
             override val handle: ArchiveHandle = classLoaderToArchive(IntegratedLoader(
-                name = "Mixins @ ${delegate.node.handle?.classloader?.name ?: "app"}",
+                name = "Mixins @ app",
                 classProvider = DelegatingClassProvider(access.targets
                     .map { it.relationship.node }
                     .filterIsInstance<ClassLoadedArchiveNode<*>>()

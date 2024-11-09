@@ -5,20 +5,18 @@ import com.durganmcbroom.jobs.launch
 import dev.extframework.common.util.resolve
 import dev.extframework.extloader.InternalExtensionEnvironment
 import dev.extframework.extloader.initExtensions
-import dev.extframework.internal.api.environment.ExtensionEnvironment
-import dev.extframework.internal.api.environment.ValueAttribute
 import dev.extframework.internal.api.environment.extract
 import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
 import dev.extframework.internal.api.target.ApplicationTarget
-import java.nio.file.Path
+import kotlin.io.path.Path
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class BlackboxTest {
     @Test
     fun `Test extension init`() {
-        val path = Path.of("tests", "core", "test-extension-init").toAbsolutePath()
+        val path = Path("tests", "core", "test-extension-init").toAbsolutePath()
 
         launch(BootLoggerFactory()) {
             val (graph, types) = setupBoot(path)
@@ -40,7 +38,7 @@ class BlackboxTest {
 
     @Test
     fun `Test extension feature`() {
-        val path = Path.of("tests", "core", "test-extension-feature").toAbsolutePath()
+        val path = Path("tests", "core", "test-extension-feature").toAbsolutePath()
 
         launch(BootLoggerFactory()) {
             val (graph, types) = setupBoot(path)
@@ -64,7 +62,7 @@ class BlackboxTest {
 
     @Test
     fun `Test extension feature delegation`() {
-        val path = Path.of("tests", "core", "test-extension-delegation").toAbsolutePath()
+        val path = Path("tests", "core", "test-extension-delegation").toAbsolutePath()
 
         launch(BootLoggerFactory()) {
             val (graph, types) = setupBoot(path)
@@ -88,7 +86,7 @@ class BlackboxTest {
 
     @Test
     fun `Test extension app mixin and link`() {
-        val path = Path.of("tests", "core", "test-extension-link").toAbsolutePath()
+        val path = Path("tests", "core", "test-extension-link").toAbsolutePath()
 
         launch(BootLoggerFactory()) {
             val (graph, types) = setupBoot(path)
@@ -102,7 +100,7 @@ class BlackboxTest {
                 InternalExtensionEnvironment(
                     path, graph, types,
                     createBlackboxApp(
-                        Path.of("")
+                        Path("")
                             .toAbsolutePath()
                             .parent
                             .resolve("core/blackbox-app/build/libs/core-blackbox-app-1.0-SNAPSHOT.jar")
@@ -118,7 +116,7 @@ class BlackboxTest {
 
     @Test
     fun `Test minecraft core`() {
-        val path = Path.of("tests", "core-mc", "test-minecraft-core").toAbsolutePath()
+        val path = Path("tests", "core-mc", "test-minecraft-core").toAbsolutePath()
 
         launch(BootLoggerFactory()) {
             val (graph, types) = setupBoot(path)

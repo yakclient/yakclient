@@ -17,6 +17,10 @@ public class InjectionContinuation {
         return new EarlyCReturn(t);
     }
 
+    public Result returnEarly(byte t) {
+        return new EarlyBReturn(t);
+    }
+
     public Result returnEarly(short t) {
         return new EarlySReturn(t);
     }
@@ -30,7 +34,7 @@ public class InjectionContinuation {
     }
 
     public Result returnEarly(long t) {
-        return new EarlyLReturn(t);
+        return new EarlyJReturn(t);
     }
 
     public Result returnEarly(double t) {
@@ -41,86 +45,164 @@ public class InjectionContinuation {
         return new Resume();
     }
 
-    public sealed interface Result {
+    public interface Result {
         int getOrdinance();
     }
 
-    void adsf() {
-        var a = new EarlyObjReturn("");
-        a.value();
-    }
-
-    public record EarlyVoidReturn() implements Result {
+    public static class EarlyVoidReturn implements Result {
         @Override
         public int getOrdinance() {
             return 0;
         }
     }
 
-    public record EarlyObjReturn(Object value) implements Result {
+    public static class EarlyObjReturn implements Result {
+        private final Object value;
+
+        public EarlyObjReturn(Object value) {
+            this.value = value;
+        }
+
+        public Object getValue() {
+            return value;
+        }
+
         @Override
         public int getOrdinance() {
             return 1;
         }
     }
 
-    public record EarlyZReturn(boolean value) implements Result {
+    public static class EarlyZReturn implements Result {
+        private final boolean value;
+
+        public EarlyZReturn(boolean value) {
+            this.value = value;
+        }
+
+        public boolean getValue() {
+            return value;
+        }
+
         @Override
         public int getOrdinance() {
             return 2;
         }
     }
 
-    public record EarlyCReturn(char value) implements Result {
+    public static class EarlyCReturn implements Result {
+        private final char value;
+
+        public EarlyCReturn(char value) {
+            this.value = value;
+        }
+
+        public char getValue() {
+            return value;
+        }
+
         @Override
         public int getOrdinance() {
             return 3;
         }
     }
 
-    public record EarlyBReturn(byte value) implements Result {
+    public static class EarlyBReturn implements Result {
+        private final byte value;
+
+        public EarlyBReturn(byte value) {
+            this.value = value;
+        }
+
+        public byte getValue() {
+            return value;
+        }
+
         @Override
         public int getOrdinance() {
             return 4;
         }
     }
 
-    public record EarlySReturn(short value) implements Result {
+    public static class EarlySReturn implements Result {
+        private final short value;
+
+        public EarlySReturn(short value) {
+            this.value = value;
+        }
+
+        public short getValue() {
+            return value;
+        }
+
         @Override
         public int getOrdinance() {
             return 5;
         }
     }
 
-    public record EarlyIReturn(int value) implements Result {
+    public static class EarlyIReturn implements Result {
+        private final int value;
+
+        public EarlyIReturn(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return value;
+        }
+
         @Override
         public int getOrdinance() {
             return 6;
         }
     }
 
-    public record EarlyFReturn(float value) implements Result {
+    public static class EarlyFReturn implements Result {
+        private final float value;
+
+        public EarlyFReturn(float value) {
+            this.value = value;
+        }
+
+        public float getValue() {
+            return value;
+        }
+
         @Override
         public int getOrdinance() {
             return 7;
         }
     }
 
-    public record EarlyLReturn(long value) implements Result {
-        @Override
-        public int getOrdinance() {
-            return 8;
-        }
-    }
+    public static class EarlyJReturn implements Result {
+        private final long value;
 
-    public record EarlyJReturn(long value) implements Result {
+        public EarlyJReturn(long value) {
+            this.value = value;
+        }
+
+        public long getValue() {
+            return value;
+        }
+
         @Override
         public int getOrdinance() {
             return 9;
         }
     }
 
-    public record EarlyDReturn(double value) implements Result {
+    public static class EarlyDReturn implements Result {
+        private final double value;
+
+        public EarlyDReturn(double value) {
+            this.value = value;
+        }
+
+        public double getValue() {
+            return value;
+        }
+
         @Override
         public int getOrdinance() {
             return 10;

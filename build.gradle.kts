@@ -6,11 +6,11 @@ import dev.extframework.gradle.publish.ExtensionPublishTask
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.26"
+    id("dev.extframework.common") version "1.0.33"
 }
 
 group = "dev.extframework"
-version = "2.1.7-SNAPSHOT"
+version = "2.1.8-SNAPSHOT"
 
 tasks.wrapper {
     gradleVersion = "8.3"
@@ -87,6 +87,7 @@ allprojects {
 
     kotlin {
         explicitApi()
+        jvmToolchain(8)
         compilerOptions {
             freeCompilerArgs.addAll(listOf("-Xjvm-default", "all"))
         }
@@ -100,7 +101,7 @@ allprojects {
 
     java {
         toolchain {
-            languageVersion.set(JavaLanguageVersion.of(17))
+            languageVersion.set(JavaLanguageVersion.of(8))
         }
     }
 }

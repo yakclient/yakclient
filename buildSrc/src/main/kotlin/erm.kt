@@ -16,6 +16,8 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.TaskProvider
 import java.io.Serializable
 import java.nio.file.Path
+import java.nio.file.Paths
+import kotlin.io.path.Path
 
 abstract class GenerateErm : DefaultTask() {
     @get:Input
@@ -74,7 +76,7 @@ abstract class GenerateErm : DefaultTask() {
             0,
             mapOf(
                 "type" to "local",
-                "location" to Path.of(project.repositories.mavenLocal().url).toString()
+                "location" to Paths.get(project.repositories.mavenLocal().url).toString()
             )
         )
 

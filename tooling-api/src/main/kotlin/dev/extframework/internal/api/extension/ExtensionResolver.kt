@@ -13,6 +13,7 @@ import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySetti
 import dev.extframework.internal.api.extension.partition.PartitionResolver
 import java.io.File
 import java.nio.file.Path
+import kotlin.io.path.Path
 
 public interface ExtensionResolver : ArchiveNodeResolver<
         ExtensionDescriptor,
@@ -50,7 +51,7 @@ public interface ExtensionResolver : ArchiveNodeResolver<
     }
 
     override fun pathForDescriptor(descriptor: ExtensionDescriptor, classifier: String, type: String): Path {
-        return Path.of(
+        return Path(
             descriptor.group.replace('.', File.separatorChar),
             descriptor.artifact,
             descriptor.version,

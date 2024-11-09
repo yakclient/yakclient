@@ -182,7 +182,7 @@ public class SourceInjectionProvider(
                                     MethodInsnNode(
                                         Opcodes.INVOKEVIRTUAL,
                                         injectedReturnType,
-                                        "value",
+                                        "getValue",
                                         "()${data.methodTo.returnType.descriptor}"
                                     )
                                 )
@@ -191,7 +191,7 @@ public class SourceInjectionProvider(
                                     MethodInsnNode(
                                         Opcodes.INVOKEVIRTUAL,
                                         injectedReturnType,
-                                        "value",
+                                        "getValue",
                                         "()Ljava/lang/Object;"
                                     )
                                 )

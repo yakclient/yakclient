@@ -57,7 +57,7 @@ public abstract class InjectionRemapper<T : Annotation>(
                 fun <A : Annotation> AnnotationVisitor.visit(annotation: A) {
                     annotation::class.java.declaredFields.forEach {
                         val value = it.apply {
-                            trySetAccessible()
+                            isAccessible = true
                         }.get(annotation)
                         val name = it.name
 

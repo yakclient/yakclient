@@ -7,7 +7,7 @@ import publish.BuildBundle
 import publish.GenerateMetadata
 
 group = "dev.extframework.extension"
-version = "1.0.11-BETA"
+version = "1.0.12-BETA"
 
 sourceSets {
     create("tweaker")
@@ -15,6 +15,7 @@ sourceSets {
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
 dependencies {
@@ -30,7 +31,7 @@ dependencies {
     jobs(configurationName = "tweakerImplementation")
     artifactResolver(configurationName = "tweakerImplementation")
     archives(configurationName = "tweakerImplementation", mixin = true)
-    archiveMapper(configurationName = "tweakerImplementation", transform = true, proguard = true)
+    archiveMapper(configurationName = "tweakerImplementation", transform = true, proguard = true, version = "1.3.2-SNAPSHOT")
     commonUtil(configurationName = "tweakerImplementation")
     objectContainer(configurationName = "tweakerImplementation")
 

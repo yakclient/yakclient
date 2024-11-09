@@ -1,5 +1,6 @@
 import dev.extframework.gradle.common.boot
 import dev.extframework.gradle.common.dm.artifactResolver
+import dev.extframework.gradle.common.extFramework
 import dev.extframework.gradle.common.minecraftBootstrapper
 import dev.extframework.gradle.common.objectContainer
 
@@ -8,6 +9,7 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    extFramework()
 }
 
 dependencies {
@@ -16,7 +18,7 @@ dependencies {
     implementation(project(":"))
     artifactResolver()
     objectContainer()
-    minecraftBootstrapper(version = "2.0.8-SNAPSHOT")
+    minecraftBootstrapper()
 
     testImplementation(kotlin("test"))
 }
@@ -58,4 +60,6 @@ tasks.test {
     dependsOn(project(":core:core-blackbox-link-ext").tasks.named("publishToMavenLocal"))
     dependsOn(project(":core:core-blackbox-app-ext").tasks.named("publishToMavenLocal"))
     dependsOn(project(":core-mc").tasks.named("publishToMavenLocal"))
+    dependsOn(project(":tooling-api").tasks.named("publishToMavenLocal"))
+    dependsOn(project(":core:core-api").tasks.named("publishToMavenLocal"))
 }

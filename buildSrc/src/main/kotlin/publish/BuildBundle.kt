@@ -3,6 +3,7 @@ package publish
 import com.durganmcbroom.resources.Resource
 import com.durganmcbroom.resources.openStream
 import dev.extframework.archives.ArchiveReference
+import dev.extframework.common.util.Hex
 import dev.extframework.common.util.readInputStream
 import org.gradle.api.Action
 import org.gradle.api.DefaultTask
@@ -143,7 +144,7 @@ abstract class BuildBundle : DefaultTask() {
                     ArchiveReference.Entry(
                         entry.name + "." + hashType,
                         Resource("<heap>") {
-                            HexFormat.of().formatHex(digest).byteInputStream()
+                            Hex.formatHex(digest).byteInputStream()
                         },
                         false,
                         entry.handle

@@ -5,7 +5,7 @@ import dev.extframework.gradle.common.extFramework
 
 plugins {
     `kotlin-dsl`
-    id("dev.extframework.common") version "1.0.10"
+    id("dev.extframework.common") version "1.0.31"
 }
 
 repositories {
@@ -24,4 +24,6 @@ dependencies {
 common {
     defaultJavaSettings()
 }
+
+
 

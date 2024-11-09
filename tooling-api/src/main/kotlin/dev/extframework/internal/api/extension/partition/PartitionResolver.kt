@@ -11,6 +11,7 @@ import dev.extframework.internal.api.extension.partition.artifact.PartitionArtif
 import dev.extframework.internal.api.extension.partition.artifact.PartitionDescriptor
 import java.io.File
 import java.nio.file.Path
+import kotlin.io.path.Path
 
 public interface PartitionResolver : ArchiveNodeResolver<
         PartitionDescriptor, PartitionArtifactRequest, ExtensionPartitionContainer<*, *>, ExtensionRepositorySettings, PartitionArtifactMetadata> {
@@ -34,7 +35,7 @@ public interface PartitionResolver : ArchiveNodeResolver<
     }
 
     override fun pathForDescriptor(descriptor: PartitionDescriptor, classifier: String, type: String): Path {
-        return Path.of(
+        return Path(
             descriptor.extension.group.replace('.', File.separatorChar),
             descriptor.extension.artifact,
             descriptor.extension.version,

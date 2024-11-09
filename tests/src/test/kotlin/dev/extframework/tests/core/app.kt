@@ -18,6 +18,8 @@ import dev.extframework.internal.api.target.ApplicationTarget
 import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.file.Path
+import java.nio.file.Paths
+import kotlin.io.path.Path
 
 fun createEmptyApp(): ApplicationTarget {
     return object : ApplicationTarget {
@@ -32,7 +34,7 @@ fun createEmptyApp(): ApplicationTarget {
                 override val descriptor: ApplicationDescriptor = appDesc
                 override val handle: ArchiveHandle? = null
             }
-        override val path: Path = Path.of("")
+        override val path: Path = Path("")
     }
 }
 
@@ -108,7 +110,7 @@ fun createMinecraftApp(
                                     ?: listOf()) +
                                         (packageMap["*"] ?: listOf())).firstNotNullOfOrNull { it.findSource(name) }
                         },
-                        parent = ClassLoader.getPlatformClassLoader(),
+                        parent = ClassLoader.getSystemClassLoader(),
                     )
                 )
             }
@@ -132,8 +134,8 @@ fun createMinecraftApp(
             (node.libraries.map { it.archive } + node.archive)
                 .mapTo(ArrayList()) { ArchiveSourceProvider(it) }
         ),
-        parent = ClassLoader.getPlatformClassLoader(),
+        parent = ClassLoader.getSystemClassLoader(),
     )
 
-    AppTarget(loader, version,Path.of(node.archive.location), node.access)
+    AppTarget(loader, version, Paths.get(node.archive.location), node.access)
 }

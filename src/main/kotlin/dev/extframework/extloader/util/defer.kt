@@ -23,11 +23,11 @@ public fun DeferredValue<out ClassLoader>.defer(): ClassLoader = object : ClassL
 
     override fun loadClass(name: String): Class<*> = extract().loadClass(name)
 
-    override fun getName(): String {
-        return getOrNull()?.name ?: "uninitialized"
+    override fun toString(): String {
+        return getOrNull()?.toString() ?: "uninitialized"
     }
 
-    override fun resources(name: String?): Stream<URL> = extract().resources(name)
+    override fun findResources(name: String?): Enumeration<URL> = extract().getResources(name)
 }
 
 public fun DeferredValue<ArchiveTarget>.defer(descriptor: ArtifactMetadata.Descriptor) : ArchiveTarget {

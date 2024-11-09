@@ -34,7 +34,12 @@ abstract class ExtensionPublishTask : DefaultTask() {
             conn.requestMethod = "PUT"
             conn.setRequestProperty("Authorization", "Bearer ${repository.credentials.password}")
 
-            FileInputStream(bundle.get()).transferTo(conn.outputStream)
+            val fin = FileInputStream(bundle.get())
+            val buffer = ByteArray(1024)
+            var len: Int
+            while ((fin.read(buffer).also { len = it }) != -1) {
+                conn.outputStream.write(buffer, 0, len)
+            }
 
             conn.connect()
 

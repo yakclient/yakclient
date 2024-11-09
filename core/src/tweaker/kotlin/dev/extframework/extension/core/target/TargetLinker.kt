@@ -38,7 +38,9 @@ public class TargetLinker(
                 return findResourceInternal(name, LinkerState.LOAD_TARGET)
             }
         },
-        parent = ClassLoader.getPlatformClassLoader(),
+
+        // TODO replacement for platform class loader?
+        parent = ClassLoader.getSystemClassLoader(),
     )
 
     private val extensionClasses: MutableClassProvider = MutableClassProvider(ArrayList())

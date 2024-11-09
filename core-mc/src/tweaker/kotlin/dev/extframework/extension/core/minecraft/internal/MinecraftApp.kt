@@ -102,7 +102,9 @@ public fun MinecraftApp(
                     ?: resourceDelegate.findResources(name)
             }
         },
-        parent = delegate.node.handle?.classloader?.parent ?: ClassLoader.getPlatformClassLoader()
+
+        // TODO platform class loader?
+        parent = delegate.node.handle?.classloader?.parent ?: ClassLoader.getSystemClassLoader()
     )
 
     val mcApp = MinecraftApp(

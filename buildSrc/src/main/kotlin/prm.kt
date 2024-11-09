@@ -6,6 +6,8 @@ import org.gradle.api.internal.artifacts.repositories.DefaultMavenLocalArtifactR
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.SetProperty
 import org.gradle.api.tasks.*
+import java.nio.file.Paths
+import java.util.ArrayList
 
 data class ExtensionRepository(
     val type: String,
@@ -26,6 +28,9 @@ data class PartitionRuntimeModel(
 abstract class GeneratePrm : DefaultTask() {
     @get:Input
     abstract val sourceSetName: Property<String>
+
+    @get:Input
+    val includeMavenLocal: Property<Boolean> = project.objects.property(Boolean::class.java).convention(false)
 
     @get:Internal
     abstract val prm: Property<PartitionRuntimeModel>
@@ -70,24 +75,14 @@ abstract class GeneratePrm : DefaultTask() {
         if (modulesToIgnore.isNotEmpty()) throw Exception(
             "Told to ignore the following modules however they did not " +
                     "appear in the resolved dependencies: \n" +
-                    modulesToIgnore.joinToString(separator = "")  { " - $it\n" } +
+                    modulesToIgnore.joinToString(separator = "") { " - $it\n" } +
                     "Resolved dependencies:\n${dependencyDescriptors.joinToString(separator = "") { " - $it\n" }}" +
-            "Project: '${project.name}'"
+                    "Project: '${project.name}'"
         )
 
         val repositories = project.repositories
-            .map {
+            .mapTo(ArrayList()) {
                 when (it) {
-                    is DefaultMavenLocalArtifactRepository -> {
-                        ExtensionRepository(
-                            "simple-maven",
-                            mapOf(
-                                "type" to "local",
-                                "location" to it.url.path
-                            )
-                        )
-                    }
-
                     is DefaultMavenArtifactRepository -> {
                         ExtensionRepository(
                             "simple-maven",
@@ -101,6 +96,17 @@ abstract class GeneratePrm : DefaultTask() {
                     else -> throw IllegalArgumentException("Unknown repository type: '$it'")
                 }
             }
+
+        if (includeMavenLocal.get()) repositories.add(
+            0,
+            ExtensionRepository(
+                "simple-maven",
+                mapOf(
+                    "type" to "local",
+                    "location" to Paths.get(project.repositories.mavenLocal().url).toString()
+                )
+            )
+        )
 
         basePrm.repositories.addAll(repositories)
         basePrm.dependencies.addAll(dependencies)

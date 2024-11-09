@@ -1,7 +1,7 @@
 import dev.extframework.gradle.common.extFramework
 
 group = "dev.extframework"
-version = "1.0.1-SNAPSHOT"
+version = "1.0.2-SNAPSHOT"
 
 dependencies {
     testImplementation(kotlin("test"))
@@ -11,7 +11,7 @@ tasks.test {
     useJUnitPlatform()
 }
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(8)
 }
 
 common {

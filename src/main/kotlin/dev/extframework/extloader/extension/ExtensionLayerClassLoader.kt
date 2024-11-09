@@ -5,7 +5,7 @@ public class ExtensionLayerClassLoader(
 ) : ClassLoader(
     parent
 ) {
-    override fun getName(): String {
+    override fun toString(): String {
         return "Extension Layer"
     }
 }

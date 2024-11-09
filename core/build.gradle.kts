@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "dev.extframework.extension"
-version = "1.0.4-BETA"
+version = "1.0.5-BETA"
 
 sourceSets {
     create("tweaker")
@@ -28,9 +28,8 @@ dependencies {
     "tweakerImplementation"(project("core-api"))
     boot(configurationName = "tweakerImplementation")
     jobs(configurationName = "tweakerImplementation")
-    artifactResolver(configurationName = "tweakerImplementation", )
+    artifactResolver(configurationName = "tweakerImplementation")
     archives(configurationName = "tweakerImplementation", mixin = true)
-    archiveMapper(configurationName = "tweakerImplementation", transform = true)
     commonUtil(configurationName = "tweakerImplementation")
     objectContainer(configurationName = "tweakerImplementation")
 
@@ -41,7 +40,6 @@ dependencies {
     jobs()
     artifactResolver()
     archives(mixin = true)
-    archiveMapper(transform = true)
     commonUtil()
     objectContainer()
 
@@ -74,6 +72,32 @@ val generateTweakerPrm by tasks.registering(GeneratePrm::class) {
             )
         )
     )
+}
+
+val generateTestTweakerPrm by tasks.registering(GeneratePrm::class) {
+    sourceSetName = "tweaker"
+    includeMavenLocal = true
+
+    prm = PartitionRuntimeModel(
+        "tweaker", "tweaker",
+        options = mutableMapOf(
+            "tweaker-class" to "dev.extframework.extension.core.CoreTweaker"
+        )
+    )
+}
+
+val generateTestMainPrm by tasks.registering(GeneratePrm::class) {
+    sourceSetName = "main"
+    includeMavenLocal = true
+
+    prm =
+        PartitionRuntimeModel(
+            "main", "main",
+            options = mutableMapOf(
+                "extension-class" to "dev.extframework.extension.core.CoreExtension"
+            )
+        )
+
 }
 
 val createDescriptorResource by tasks.registering {
@@ -111,7 +135,7 @@ tasks.test {
 val generateMetadata by tasks.registering(GenerateMetadata::class) {
     metadata {
         name.set("ExtFramework Core")
-        developers.add("Durgan McBroom")
+        developers.add("extframework")
         description.set("The base extension for all mixin based application targeting. Defines fundamental features other extensions may or may not rely upon.")
         app.set("*")
     }
@@ -148,11 +172,12 @@ tasks.withType<PublishToMavenRepository>().configureEach {
 }
 
 common {
+    // This will only ever be used in publishing to maven local.
     publishing {
         publication {
             artifact(generateErm).classifier = "erm"
-            artifact(generateMainPrm).classifier = "main"
-            artifact(generateTweakerPrm).classifier = "tweaker"
+            artifact(generateTestMainPrm).classifier = "main"
+            artifact(generateTestTweakerPrm).classifier = "tweaker"
             artifact(tasks.jar).classifier = "main"
             artifact(tweakerJar).classifier = "tweaker"
         }
@@ -160,6 +185,15 @@ common {
 }
 
 publishing {
+//    publications {
+//        create("local", MavenPublication::class) {
+//            artifact(generateLocalErm).classifier = "erm"
+//            artifact(generateMainPrm).classifier = "main"
+//            artifact(generateTweakerPrm).classifier = "tweaker"
+//            artifact(tasks.jar).classifier = "main"
+//            artifact(tweakerJar).classifier = "tweaker"
+//        }
+//    }
     repositories {
         maven {
             url = uri("https://repo.extframework.dev")
