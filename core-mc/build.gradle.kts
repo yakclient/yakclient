@@ -7,7 +7,7 @@ import publish.BuildBundle
 import publish.GenerateMetadata
 
 group = "dev.extframework.extension"
-version = "1.0.12-BETA"
+version = "1.0.13-BETA"
 
 sourceSets {
     create("tweaker")
@@ -27,11 +27,11 @@ dependencies {
     "tweakerImplementation"(partition(":core", "tweaker"))
 
     launcherMetaHandler(configurationName = "tweakerImplementation")
-    boot(configurationName = "tweakerImplementation")
+    boot(configurationName = "tweakerImplementation", version = "3.4-SNAPSHOT")
     jobs(configurationName = "tweakerImplementation")
     artifactResolver(configurationName = "tweakerImplementation")
     archives(configurationName = "tweakerImplementation", mixin = true)
-    archiveMapper(configurationName = "tweakerImplementation", transform = true, proguard = true, version = "1.3.2-SNAPSHOT")
+    archiveMapper(configurationName = "tweakerImplementation", transform = true, proguard = true)
     commonUtil(configurationName = "tweakerImplementation")
     objectContainer(configurationName = "tweakerImplementation")
 

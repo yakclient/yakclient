@@ -18,6 +18,7 @@ import dev.extframework.archives.extension.overloads
 import dev.extframework.archives.transform.Sources
 import dev.extframework.boot.archive.ArchiveData
 import dev.extframework.boot.archive.ArchiveNodeResolver
+import dev.extframework.boot.archive.IArchive
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
 import dev.extframework.extension.core.THIS_DESCRIPTOR
@@ -27,14 +28,14 @@ import dev.extframework.extension.core.feature.IllegalFeatureException
 import dev.extframework.extension.core.util.currentCFVersion
 import dev.extframework.extension.core.util.withDots
 import dev.extframework.extension.core.util.withSlashes
-import dev.extframework.internal.api.extension.ExtensionClassLoader
-import dev.extframework.internal.api.extension.PartitionRuntimeModel
-import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
-import dev.extframework.internal.api.extension.descriptor
-import dev.extframework.internal.api.extension.partition.*
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactMetadata
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactRequest
-import dev.extframework.internal.api.extension.partition.artifact.partitionNamed
+import dev.extframework.tooling.api.extension.ExtensionClassLoader
+import dev.extframework.tooling.api.extension.PartitionRuntimeModel
+import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
+import dev.extframework.tooling.api.extension.descriptor
+import dev.extframework.tooling.api.extension.partition.*
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactMetadata
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactRequest
+import dev.extframework.tooling.api.extension.partition.artifact.partitionNamed
 import kotlinx.coroutines.runBlocking
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassWriter
@@ -137,7 +138,7 @@ public class FeaturePartitionLoader(
     override fun cache(
         artifact: Artifact<PartitionArtifactMetadata>,
         helper: PartitionCacheHelper
-    ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
+    ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
         check(artifact.metadata.extension.erm.partitions.none {
             it.name == type
         }) { "Erm: '${artifact.metadata.extension.erm.name}' contains a reserved partition name: '$type'" }

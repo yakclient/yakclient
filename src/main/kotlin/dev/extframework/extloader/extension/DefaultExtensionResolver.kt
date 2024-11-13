@@ -21,17 +21,17 @@ import dev.extframework.common.util.LazyMap
 import dev.extframework.extloader.environment.ExtraAuditorsAttribute
 import dev.extframework.extloader.extension.artifact.*
 import dev.extframework.extloader.extension.partition.DefaultPartitionResolver
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactRequest
-import dev.extframework.internal.api.environment.*
-import dev.extframework.internal.api.extension.ExtensionClassLoader
-import dev.extframework.internal.api.extension.ExtensionNode
-import dev.extframework.internal.api.extension.ExtensionResolver
-import dev.extframework.internal.api.extension.ExtensionRuntimeModel
-import dev.extframework.internal.api.extension.artifact.ExtensionArtifactMetadata
-import dev.extframework.internal.api.extension.artifact.ExtensionArtifactRequest
-import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
-import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
-import dev.extframework.internal.api.extension.partition.artifact.PartitionDescriptor
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactRequest
+import dev.extframework.tooling.api.environment.*
+import dev.extframework.tooling.api.extension.ExtensionClassLoader
+import dev.extframework.tooling.api.extension.ExtensionNode
+import dev.extframework.tooling.api.extension.ExtensionResolver
+import dev.extframework.tooling.api.extension.ExtensionRuntimeModel
+import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactMetadata
+import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactRequest
+import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
+import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionDescriptor
 import kotlinx.coroutines.awaitAll
 import java.io.ByteArrayInputStream
 import java.nio.file.Files
@@ -101,7 +101,7 @@ public open class DefaultExtensionResolver(
     override fun cache(
         artifact: Artifact<ExtensionArtifactMetadata>,
         helper: CacheHelper<ExtensionDescriptor>
-    ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
+    ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
         helper.withResource(
             "erm.json",
             DelegatingResource("<heap>") {

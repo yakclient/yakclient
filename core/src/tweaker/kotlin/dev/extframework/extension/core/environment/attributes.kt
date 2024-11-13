@@ -4,9 +4,8 @@ import dev.extframework.archives.mixin.SourceInjectionPoint
 import dev.extframework.extension.core.delegate.DelegationProvider
 import dev.extframework.extension.core.mixin.MixinAgent
 import dev.extframework.extension.core.mixin.MixinInjectionProvider
-import dev.extframework.extension.core.mixin.MixinSubsystem
-import dev.extframework.internal.api.environment.MutableObjectContainerAttribute
-import dev.extframework.internal.api.environment.MutableObjectSetAttribute
+import dev.extframework.tooling.api.environment.MutableObjectContainerAttribute
+import dev.extframework.tooling.api.environment.MutableObjectSetAttribute
 
 public val mixinTypesAttrKey: MutableObjectContainerAttribute.Key<MixinInjectionProvider<*, *>> =
     MutableObjectContainerAttribute.Key("mixin-types")

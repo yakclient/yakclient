@@ -34,13 +34,13 @@ import dev.extframework.extension.core.partition.TargetPartitionMetadata
 import dev.extframework.extension.core.partition.TargetPartitionNode
 import dev.extframework.extension.core.target.TargetDescriptor
 import dev.extframework.extension.core.util.parseNode
-import dev.extframework.internal.api.environment.ExtensionEnvironment
-import dev.extframework.internal.api.environment.extract
-import dev.extframework.internal.api.extension.PartitionRuntimeModel
-import dev.extframework.internal.api.extension.descriptor
-import dev.extframework.internal.api.extension.partition.*
-import dev.extframework.internal.api.extension.partition.artifact.partitionNamed
-import dev.extframework.internal.api.target.ApplicationTarget
+import dev.extframework.tooling.api.environment.ExtensionEnvironment
+import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.extension.PartitionRuntimeModel
+import dev.extframework.tooling.api.extension.descriptor
+import dev.extframework.tooling.api.extension.partition.*
+import dev.extframework.tooling.api.extension.partition.artifact.partitionNamed
+import dev.extframework.tooling.api.target.ApplicationTarget
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
 

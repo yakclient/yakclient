@@ -23,14 +23,15 @@ import dev.extframework.extension.core.minecraft.util.write
 import dev.extframework.extension.core.target.InstrumentedApplicationTarget
 import dev.extframework.extension.core.target.TargetLinker
 import dev.extframework.extension.core.util.withSlashes
-import dev.extframework.internal.api.environment.ExtensionEnvironment
-import dev.extframework.internal.api.environment.extract
-import dev.extframework.internal.api.environment.wrkDirAttrKey
-import dev.extframework.internal.api.target.ApplicationDescriptor
-import dev.extframework.internal.api.target.ApplicationTarget
+import dev.extframework.tooling.api.environment.ExtensionEnvironment
+import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.environment.wrkDirAttrKey
+import dev.extframework.tooling.api.target.ApplicationDescriptor
+import dev.extframework.tooling.api.target.ApplicationTarget
 import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.file.Path
+import kotlin.io.path.exists
 
 public fun MinecraftApp(
     instrumentedApp: InstrumentedApplicationTarget,
@@ -48,7 +49,7 @@ public fun MinecraftApp(
 
     if (source == destination.value) return@job instrumentedApp
 
-    if (remappedPath.make()) {
+    if (!remappedPath.exists()) {
         val mappings: ArchiveMapping by lazy {
             newMappingsGraph(environment[mappingProvidersAttrKey].extract())
                 .findShortest(source.identifier, destination.value.identifier)
@@ -72,9 +73,9 @@ public fun MinecraftApp(
 
             toRemove.forEach(archive.writer::remove)
 
+            remappedPath.make()
             archive.write(remappedPath)
         }
-
     }
 
     val reference = Archives.find(remappedPath, Archives.Finders.ZIP_FINDER)

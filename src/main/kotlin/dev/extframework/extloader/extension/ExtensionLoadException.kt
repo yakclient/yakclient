@@ -1,9 +1,9 @@
 package dev.extframework.extloader.extension
 
 import dev.extframework.extloader.exception.ExtLoaderExceptions
-import dev.extframework.internal.api.exception.ExceptionConfiguration
-import dev.extframework.internal.api.exception.StructuredException
-import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
+import dev.extframework.tooling.api.exception.ExceptionConfiguration
+import dev.extframework.tooling.api.exception.StructuredException
+import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
 
 public fun ExtensionLoadException(
     descriptor: ExtensionDescriptor,

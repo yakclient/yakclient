@@ -21,7 +21,7 @@ dependencies {
     "tweakerImplementation"(coreTweaker)
     "tweakerImplementation"("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     "tweakerImplementation"(project(":tooling-api"))
-    boot(configurationName = "tweakerImplementation")
+    boot(configurationName = "tweakerImplementation", version = "3.4-SNAPSHOT")
     jobs(configurationName = "tweakerImplementation")
     artifactResolver(configurationName = "tweakerImplementation")
     archives(configurationName = "tweakerImplementation", mixin = true)

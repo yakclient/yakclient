@@ -1,6 +1,6 @@
 package dev.extframework.extloader.exception
 
-import dev.extframework.internal.api.exception.StackTracePrinter
+import dev.extframework.tooling.api.exception.StackTracePrinter
 import java.io.PrintWriter
 
 public open class BasicExceptionPrinter : StackTracePrinter {

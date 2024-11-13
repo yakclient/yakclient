@@ -1,8 +1,8 @@
 package dev.extframework.extloader.exception
 
-import dev.extframework.internal.api.exception.ExceptionContextSerializer
-import dev.extframework.internal.api.exception.StackTracePrinter
-import dev.extframework.internal.api.exception.StructuredException
+import dev.extframework.tooling.api.exception.ExceptionContextSerializer
+import dev.extframework.tooling.api.exception.StackTracePrinter
+import dev.extframework.tooling.api.exception.StructuredException
 import java.io.OutputStream
 import java.io.PrintWriter
 import java.lang.StringBuilder

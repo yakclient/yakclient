@@ -2,11 +2,11 @@ package dev.extframework.extension.core.target
 
 import dev.extframework.boot.loader.*
 import dev.extframework.extension.core.CoreTweaker
-import dev.extframework.internal.api.environment.DeferredValue
-import dev.extframework.internal.api.environment.EnvironmentAttribute
-import dev.extframework.internal.api.environment.EnvironmentAttributeKey
-import dev.extframework.internal.api.environment.extract
-import dev.extframework.internal.api.target.ApplicationTarget
+import dev.extframework.tooling.api.environment.DeferredValue
+import dev.extframework.tooling.api.environment.EnvironmentAttribute
+import dev.extframework.tooling.api.environment.EnvironmentAttributeKey
+import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.target.ApplicationTarget
 import java.net.URL
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock

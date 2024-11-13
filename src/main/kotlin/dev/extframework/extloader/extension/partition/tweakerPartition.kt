@@ -13,12 +13,12 @@ import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
 import dev.extframework.common.util.runCatching
 import dev.extframework.extloader.util.toOrNull
-import dev.extframework.internal.api.extension.PartitionRuntimeModel
-import dev.extframework.internal.api.extension.descriptor
-import dev.extframework.internal.api.extension.partition.*
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactMetadata
-import dev.extframework.internal.api.extension.partition.artifact.partitionNamed
-import dev.extframework.internal.api.tweaker.EnvironmentTweaker
+import dev.extframework.tooling.api.extension.PartitionRuntimeModel
+import dev.extframework.tooling.api.extension.descriptor
+import dev.extframework.tooling.api.extension.partition.*
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactMetadata
+import dev.extframework.tooling.api.extension.partition.artifact.partitionNamed
+import dev.extframework.tooling.api.tweaker.EnvironmentTweaker
 import kotlinx.coroutines.awaitAll
 
 public class TweakerPartitionLoader : ExtensionPartitionLoader<TweakerPartitionMetadata> {
@@ -86,7 +86,7 @@ public class TweakerPartitionLoader : ExtensionPartitionLoader<TweakerPartitionM
     override fun cache(
         artifact: Artifact<PartitionArtifactMetadata>,
         helper: PartitionCacheHelper
-    ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
+    ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
         val parents = helper.parents
             .mapNotNull {
                 it.key toOrNull it.value.erm.partitions.find { p -> p.type == TYPE }

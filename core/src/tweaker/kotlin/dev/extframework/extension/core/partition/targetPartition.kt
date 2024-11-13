@@ -9,10 +9,7 @@ import com.durganmcbroom.jobs.async.mapAsync
 import com.durganmcbroom.jobs.job
 import dev.extframework.archives.ArchiveHandle
 import dev.extframework.archives.ArchiveReference
-import dev.extframework.boot.archive.ArchiveData
-import dev.extframework.boot.archive.ArchiveNodeResolver
-import dev.extframework.boot.archive.ArchiveTarget
-import dev.extframework.boot.archive.ClassLoadedArchiveNode
+import dev.extframework.boot.archive.*
 import dev.extframework.boot.loader.ArchiveClassProvider
 import dev.extframework.boot.loader.ArchiveSourceProvider
 import dev.extframework.boot.loader.ClassProvider
@@ -26,13 +23,13 @@ import dev.extframework.extension.core.target.TargetDescriptor
 import dev.extframework.extension.core.target.TargetLinkerResolver
 import dev.extframework.extension.core.target.TargetRepositorySettings
 import dev.extframework.extension.core.util.emptyArchiveHandle
-import dev.extframework.internal.api.environment.ExtensionEnvironment
-import dev.extframework.internal.api.environment.extract
-import dev.extframework.internal.api.extension.PartitionRuntimeModel
-import dev.extframework.internal.api.extension.descriptor
-import dev.extframework.internal.api.extension.partition.*
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactMetadata
-import dev.extframework.internal.api.extension.partition.artifact.partitionNamed
+import dev.extframework.tooling.api.environment.ExtensionEnvironment
+import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.extension.PartitionRuntimeModel
+import dev.extframework.tooling.api.extension.descriptor
+import dev.extframework.tooling.api.extension.partition.*
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactMetadata
+import dev.extframework.tooling.api.extension.partition.artifact.partitionNamed
 import kotlinx.coroutines.awaitAll
 
 public interface TargetPartitionMetadata : ContingentPartitionMetadata {
@@ -76,7 +73,7 @@ public abstract class TargetPartitionLoader<T : TargetPartitionMetadata>(
     override fun cache(
         artifact: Artifact<PartitionArtifactMetadata>,
         helper: PartitionCacheHelper
-    ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
+    ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
         val parents = helper.parents.mapValues { (_, erm) ->
             erm.erm.partitions.find { it.type == MainPartitionLoader.TYPE } ?: noMainPartition(erm.erm, helper)
         }.toList().mapAsync { (parent, partition) ->

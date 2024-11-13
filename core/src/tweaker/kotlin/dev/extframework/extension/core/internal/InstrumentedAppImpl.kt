@@ -11,9 +11,9 @@ import dev.extframework.extension.core.mixin.MixinAgent
 import dev.extframework.extension.core.target.InstrumentedApplicationTarget
 import dev.extframework.extension.core.target.TargetLinker
 import dev.extframework.extension.core.util.withSlashes
-import dev.extframework.internal.api.environment.MutableObjectSetAttribute
-import dev.extframework.internal.api.target.ApplicationDescriptor
-import dev.extframework.internal.api.target.ApplicationTarget
+import dev.extframework.tooling.api.environment.MutableObjectSetAttribute
+import dev.extframework.tooling.api.target.ApplicationDescriptor
+import dev.extframework.tooling.api.target.ApplicationTarget
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
 import java.io.InputStream

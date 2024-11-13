@@ -9,16 +9,13 @@ import dev.extframework.extension.core.delegate.Delegation
 import dev.extframework.extension.core.feature.FeatureReference
 import dev.extframework.extension.core.feature.findImplementedFeatures
 import dev.extframework.extension.core.feature.implementsFeatures
-import dev.extframework.extension.core.mixin.MixinTransaction
 import dev.extframework.extension.core.partition.TargetPartitionLoader
 import dev.extframework.extension.core.partition.TargetPartitionMetadata
 import dev.extframework.extension.core.util.parseNode
-import dev.extframework.extension.core.util.withDots
-import dev.extframework.internal.api.environment.ExtensionEnvironment
-import dev.extframework.internal.api.environment.extract
-import dev.extframework.internal.api.extension.PartitionRuntimeModel
-import dev.extframework.internal.api.extension.descriptor
-import dev.extframework.internal.api.extension.partition.PartitionMetadataHelper
+import dev.extframework.tooling.api.environment.ExtensionEnvironment
+import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.extension.PartitionRuntimeModel
+import dev.extframework.tooling.api.extension.partition.PartitionMetadataHelper
 
 public data class TestAppPartitionMetadata(
     override val implementedFeatures: List<Pair<FeatureReference, String>>,

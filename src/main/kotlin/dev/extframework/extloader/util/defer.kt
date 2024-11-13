@@ -4,15 +4,12 @@ import com.durganmcbroom.artifact.resolver.ArtifactMetadata
 import dev.extframework.boot.archive.ArchiveNode
 import dev.extframework.boot.archive.ArchiveRelationship
 import dev.extframework.boot.archive.ArchiveTarget
-import dev.extframework.boot.loader.ClassProvider
-import dev.extframework.boot.loader.ResourceProvider
-import dev.extframework.internal.api.environment.DeferredValue
-import dev.extframework.internal.api.environment.extract
-import dev.extframework.internal.api.environment.getOrNull
+import dev.extframework.tooling.api.environment.DeferredValue
+import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.environment.getOrNull
 import java.io.InputStream
 import java.net.URL
 import java.util.*
-import java.util.stream.Stream
 
 public fun DeferredValue<out ClassLoader>.defer(): ClassLoader = object : ClassLoader() {
     override fun getResource(name: String): URL? = extract().getResource(name)

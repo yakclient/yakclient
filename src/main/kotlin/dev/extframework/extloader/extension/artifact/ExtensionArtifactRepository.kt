@@ -12,14 +12,14 @@ import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
 import dev.extframework.boot.dependency.DependencyTypeContainer
 import dev.extframework.extloader.exception.ExtLoaderExceptions
-import dev.extframework.internal.api.TOOLING_API_VERSION
-import dev.extframework.internal.api.exception.StructuredException
-import dev.extframework.internal.api.extension.ExtensionRuntimeModel
-import dev.extframework.internal.api.extension.artifact.ExtensionArtifactMetadata
-import dev.extframework.internal.api.extension.artifact.ExtensionArtifactRequest
-import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
-import dev.extframework.internal.api.extension.artifact.ExtensionParentInfo
-import dev.extframework.internal.api.extension.descriptor
+import dev.extframework.tooling.api.TOOLING_API_VERSION
+import dev.extframework.tooling.api.exception.StructuredException
+import dev.extframework.tooling.api.extension.ExtensionRuntimeModel
+import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactMetadata
+import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactRequest
+import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
+import dev.extframework.tooling.api.extension.artifact.ExtensionParentInfo
+import dev.extframework.tooling.api.extension.descriptor
 
 
 public open class ExtensionArtifactRepository(

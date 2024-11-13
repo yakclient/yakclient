@@ -25,16 +25,16 @@ import dev.extframework.extloader.extension.artifact.ExtensionRepositoryFactory
 import dev.extframework.extloader.extension.partition.artifact.PartitionRepositoryFactory
 import dev.extframework.extloader.util.emptyArchiveReference
 import dev.extframework.extloader.util.toInputStream
-import dev.extframework.internal.api.environment.*
-import dev.extframework.internal.api.extension.*
-import dev.extframework.internal.api.extension.artifact.ExtensionArtifactMetadata
-import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
-import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
-import dev.extframework.internal.api.extension.partition.*
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactMetadata
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactRequest
-import dev.extframework.internal.api.extension.partition.artifact.PartitionDescriptor
-import dev.extframework.internal.api.extension.partition.artifact.partitionNamed
+import dev.extframework.tooling.api.environment.*
+import dev.extframework.tooling.api.extension.*
+import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactMetadata
+import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
+import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
+import dev.extframework.tooling.api.extension.partition.*
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactMetadata
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactRequest
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionDescriptor
+import dev.extframework.tooling.api.extension.partition.artifact.partitionNamed
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayInputStream
@@ -152,11 +152,19 @@ public open class DefaultPartitionResolver(
                                 this@DefaultPartitionResolver
                             )().merge()
 
-                            val (prm2, erm2, archive2) = readData(result.item.value)
+                            val resultValue = result.item.value
 
-                            val loader2 = getLoader(prm2)
+                            if (resultValue is ArchiveData<*, *>) {
+                                val (prm2, erm2, archive2) = readData(resultValue as ArchiveData<*, CachedArchiveResource>)
 
-                            parseMetadata(loader2, prm2, erm2, archive2)().merge()
+                                val loader2 = getLoader(prm2)
+
+                                parseMetadata(loader2, prm2, erm2, archive2)().merge()
+                            } else {
+                                resultValue as ExtensionPartitionContainer<*, *>
+
+                                resultValue.metadata
+                            }
                         }
                     }
 
@@ -172,7 +180,7 @@ public open class DefaultPartitionResolver(
     override fun cache(
         artifact: Artifact<PartitionArtifactMetadata>,
         helper: CacheHelper<PartitionDescriptor>
-    ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
+    ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
         val loader = partitionLoaders.get(artifact.metadata.prm.type) ?: throw IllegalArgumentException(
             "Illegal partition type: '${artifact.metadata.prm.type}', only accepted ones are: '${
                 partitionLoaders.objects().map(
@@ -286,7 +294,7 @@ public open class DefaultPartitionResolver(
 
                 override fun newPartition(
                     partition: PartitionRuntimeModel
-                ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> {
+                ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> {
                     return cache(
                         Artifact(
                             PartitionArtifactMetadata(
@@ -319,7 +327,7 @@ public open class DefaultPartitionResolver(
 
                 override fun cache(
                     reference: PartitionModelReference
-                ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> {
+                ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> {
                     return cache(
                         PartitionArtifactRequest(
                             PartitionDescriptor(
@@ -335,7 +343,7 @@ public open class DefaultPartitionResolver(
                 override fun cache(
                     parent: ExtensionParent,
                     partition: PartitionModelReference
-                ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob cacheJob@{
+                ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob cacheJob@{
                     val parentInfo = artifact.metadata.extension.parents.find {
                         it.request.descriptor == parent.toDescriptor()
                     }
@@ -372,21 +380,21 @@ public open class DefaultPartitionResolver(
                     request: T,
                     repository: R,
                     resolver: ArchiveNodeResolver<D, T, *, R, M>
-                ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> {
+                ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> {
                     return helper.cache(request, repository, resolver)
                 }
 
                 override fun <D : ArtifactMetadata.Descriptor, M : ArtifactMetadata<D, *>> cache(
                     artifact: Artifact<M>,
                     resolver: ArchiveNodeResolver<D, *, *, *, M>
-                ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> {
+                ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> {
                     return helper.cache(artifact, resolver)
                 }
 
                 override fun newData(
                     descriptor: PartitionDescriptor,
-                    parents: List<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>>
-                ): Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>> {
+                    parents: List<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>>
+                ): Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>> {
                     return runBlocking { // Decide if it is needed to await for dependencies here or if the await should be moved to the initializer.
                         val fullParents = (parents + dependencies.awaitAll()).filterDuplicates()
 

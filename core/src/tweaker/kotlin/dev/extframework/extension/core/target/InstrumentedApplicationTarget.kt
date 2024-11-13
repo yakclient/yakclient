@@ -1,7 +1,7 @@
 package dev.extframework.extension.core.target
 
 import dev.extframework.extension.core.mixin.MixinAgent
-import dev.extframework.internal.api.target.ApplicationTarget
+import dev.extframework.tooling.api.target.ApplicationTarget
 
 public interface InstrumentedApplicationTarget : ApplicationTarget {
     public val delegate: ApplicationTarget

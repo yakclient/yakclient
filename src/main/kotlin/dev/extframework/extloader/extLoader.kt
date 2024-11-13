@@ -19,18 +19,18 @@ import dev.extframework.extloader.extension.DefaultExtensionResolver
 import dev.extframework.extloader.extension.ExtensionLoadException
 import dev.extframework.extloader.extension.partition.TweakerPartitionLoader
 import dev.extframework.extloader.extension.partition.TweakerPartitionNode
-import dev.extframework.internal.api.environment.*
-import dev.extframework.internal.api.exception.StackTracePrinter
-import dev.extframework.internal.api.exception.StructuredException
-import dev.extframework.internal.api.extension.*
-import dev.extframework.internal.api.extension.artifact.ExtensionArtifactMetadata
-import dev.extframework.internal.api.extension.artifact.ExtensionArtifactRequest
-import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
-import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
-import dev.extframework.internal.api.extension.partition.ExtensionPartitionContainer
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactRequest
-import dev.extframework.internal.api.extension.partition.artifact.PartitionDescriptor
-import dev.extframework.internal.api.target.ApplicationTarget
+import dev.extframework.tooling.api.environment.*
+import dev.extframework.tooling.api.exception.StackTracePrinter
+import dev.extframework.tooling.api.exception.StructuredException
+import dev.extframework.tooling.api.extension.*
+import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactMetadata
+import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactRequest
+import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
+import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
+import dev.extframework.tooling.api.extension.partition.ExtensionPartitionContainer
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactRequest
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionDescriptor
+import dev.extframework.tooling.api.target.ApplicationTarget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
@@ -54,11 +54,11 @@ public class InternalExtensionEnvironment private constructor() : ExtensionEnvir
         applicationTarget: ApplicationTarget,
         extensionResolver: ExtensionResolver,
     ) : this() {
-        add(ValueAttribute(workingDir, wrkDirAttrKey))
-        add(ArchiveGraphAttribute(archiveGraph))
-        add(DependencyTypeContainerAttribute(dependencyTypes))
-        add(applicationTarget)
-        add(extensionResolver)
+        set(ValueAttribute(workingDir, wrkDirAttrKey))
+        set(ArchiveGraphAttribute(archiveGraph))
+        set(DependencyTypeContainerAttribute(dependencyTypes))
+        set(applicationTarget)
+        set(extensionResolver)
     }
 
     public constructor(
@@ -67,11 +67,11 @@ public class InternalExtensionEnvironment private constructor() : ExtensionEnvir
         dependencyTypes: DependencyTypeContainer,
         applicationTarget: ApplicationTarget,
     ) : this() {
-        add(ValueAttribute(workingDir, wrkDirAttrKey))
-        add(ArchiveGraphAttribute(archiveGraph))
-        add(DependencyTypeContainerAttribute(dependencyTypes))
-        add(applicationTarget)
-        add(DefaultExtensionResolver(ClassLoader.getSystemClassLoader(), this))
+        set(ValueAttribute(workingDir, wrkDirAttrKey))
+        set(ArchiveGraphAttribute(archiveGraph))
+        set(DependencyTypeContainerAttribute(dependencyTypes))
+        set(applicationTarget)
+        set(DefaultExtensionResolver(ClassLoader.getSystemClassLoader(), this))
     }
 }
 
@@ -85,15 +85,15 @@ public fun initExtensions(
         parentCLAttrKey
     )
 
-    environment.addUnless(object : ExtensionClassLoaderProvider {})
+    environment.setUnless(object : ExtensionClassLoaderProvider {})
 
-    environment.addUnless(MutableObjectContainerAttribute(partitionLoadersAttrKey))
+    environment.setUnless(MutableObjectContainerAttribute(partitionLoadersAttrKey))
     environment[partitionLoadersAttrKey].extract().registerLoaders()
 
-    environment.addUnless(MutableObjectSetAttribute(exceptionCxtSerializersAttrKey).apply {
+    environment.setUnless(MutableObjectSetAttribute(exceptionCxtSerializersAttrKey).apply {
         registerBasicSerializers()
     })
-    environment.addUnless(BasicExceptionPrinter())
+    environment.setUnless(BasicExceptionPrinter())
 
     initExtensions(environment, extensionRequests)().handleStructuredException(environment)
 }

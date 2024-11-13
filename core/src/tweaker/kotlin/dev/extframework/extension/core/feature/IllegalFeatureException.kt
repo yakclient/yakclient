@@ -1,8 +1,8 @@
 package dev.extframework.extension.core.feature
 
-import dev.extframework.internal.api.exception.ExceptionConfiguration
-import dev.extframework.internal.api.exception.InternalExceptions
-import dev.extframework.internal.api.exception.StructuredException
+import dev.extframework.tooling.api.exception.ExceptionConfiguration
+import dev.extframework.tooling.api.exception.InternalExceptions
+import dev.extframework.tooling.api.exception.StructuredException
 
 public fun IllegalFeatureException(
     message: String,

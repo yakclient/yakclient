@@ -13,8 +13,8 @@ import dev.extframework.boot.dependency.DependencyTypeContainer
 import dev.extframework.boot.loader.*
 import dev.extframework.boot.maven.MavenLikeResolver
 import dev.extframework.common.util.readInputStream
-import dev.extframework.internal.api.target.ApplicationDescriptor
-import dev.extframework.internal.api.target.ApplicationTarget
+import dev.extframework.tooling.api.target.ApplicationDescriptor
+import dev.extframework.tooling.api.target.ApplicationTarget
 import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.file.Path

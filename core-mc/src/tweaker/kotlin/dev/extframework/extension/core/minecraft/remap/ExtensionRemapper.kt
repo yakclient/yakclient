@@ -3,8 +3,8 @@ package dev.extframework.extension.core.minecraft.remap
 import dev.extframework.archive.mapper.ArchiveMapping
 import dev.extframework.archive.mapper.transform.ClassInheritanceTree
 import dev.extframework.archives.transform.TransformerConfig
-import dev.extframework.internal.api.environment.EnvironmentAttribute
-import dev.extframework.internal.api.environment.EnvironmentAttributeKey
+import dev.extframework.tooling.api.environment.EnvironmentAttribute
+import dev.extframework.tooling.api.environment.EnvironmentAttributeKey
 
 public interface ExtensionRemapper : EnvironmentAttribute {
     override val key: EnvironmentAttributeKey<*>

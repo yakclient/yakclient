@@ -1,8 +1,8 @@
 package dev.extframework.extension.core
 
 import dev.extframework.common.util.readInputStream
-import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
-import dev.extframework.internal.api.extension.partition.artifact.PartitionDescriptor
+import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionDescriptor
 
 // ---------- RUNTIME ----------
 

@@ -12,10 +12,10 @@ import dev.extframework.extension.core.annotation.AnnotationProcessor
 import dev.extframework.extension.core.environment.mixinTypesAttrKey
 import dev.extframework.extension.core.partition.TargetPartitionMetadata
 import dev.extframework.extension.core.util.*
-import dev.extframework.internal.api.environment.ExtensionEnvironment
-import dev.extframework.internal.api.environment.extract
-import dev.extframework.internal.api.extension.partition.ExtensionPartitionContainer
-import dev.extframework.internal.api.target.ApplicationTarget
+import dev.extframework.tooling.api.environment.ExtensionEnvironment
+import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.extension.partition.ExtensionPartitionContainer
+import dev.extframework.tooling.api.target.ApplicationTarget
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree.ClassNode
 

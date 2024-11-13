@@ -2,9 +2,9 @@ package com.example;
 
 import com.durganmcbroom.jobs.EmptyJobContext;
 import com.durganmcbroom.jobs.Job;
-import dev.extframework.internal.api.environment.ExtensionEnvironment;
-import dev.extframework.internal.api.extension.ExtensionNodeObserver;
-import dev.extframework.internal.api.tweaker.EnvironmentTweaker;
+import dev.extframework.tooling.api.environment.ExtensionEnvironment;
+import dev.extframework.tooling.api.extension.ExtensionNodeObserver;
+import dev.extframework.tooling.api.tweaker.EnvironmentTweaker;
 import kotlin.Unit;
 import org.jetbrains.annotations.NotNull;
 

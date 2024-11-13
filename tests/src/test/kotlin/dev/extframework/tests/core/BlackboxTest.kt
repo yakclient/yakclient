@@ -5,10 +5,10 @@ import com.durganmcbroom.jobs.launch
 import dev.extframework.common.util.resolve
 import dev.extframework.extloader.InternalExtensionEnvironment
 import dev.extframework.extloader.initExtensions
-import dev.extframework.internal.api.environment.extract
-import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
-import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
-import dev.extframework.internal.api.target.ApplicationTarget
+import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
+import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
+import dev.extframework.tooling.api.target.ApplicationTarget
 import kotlin.io.path.Path
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -133,7 +133,7 @@ class BlackboxTest {
             initExtensions(
                 mapOf(
                     ExtensionDescriptor.parseDescriptor(
-                        "org.example:portfolio-extension:1.0.2-BETA"
+                        "dev.extframework.extension:core-mc:1.0.13-BETA"
                     ) to ExtensionRepositorySettings.local()
                 ),
                 environment

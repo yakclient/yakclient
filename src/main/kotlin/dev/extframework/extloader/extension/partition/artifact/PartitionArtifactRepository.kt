@@ -12,11 +12,11 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
 import dev.extframework.extloader.extension.artifact.ExtensionArtifactRepository
-import dev.extframework.internal.api.extension.PartitionRuntimeModel
-import dev.extframework.internal.api.extension.artifact.ExtensionArtifactRequest
-import dev.extframework.internal.api.extension.artifact.ExtensionRepositorySettings
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactMetadata
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactRequest
+import dev.extframework.tooling.api.extension.PartitionRuntimeModel
+import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactRequest
+import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactMetadata
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactRequest
 
 
 public open class PartitionArtifactRepository(

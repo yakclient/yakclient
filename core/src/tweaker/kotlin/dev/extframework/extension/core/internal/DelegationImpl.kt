@@ -7,7 +7,7 @@ import dev.extframework.extension.core.delegate.Delegation
 import dev.extframework.extension.core.delegate.DelegationProvider
 import dev.extframework.extension.core.delegate.DelegationReference
 import dev.extframework.extension.core.util.instantiateAnnotation
-import dev.extframework.internal.api.environment.MutableObjectSetAttribute
+import dev.extframework.tooling.api.environment.MutableObjectSetAttribute
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree.AnnotationNode
 

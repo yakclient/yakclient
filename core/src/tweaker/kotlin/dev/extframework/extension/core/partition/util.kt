@@ -1,9 +1,9 @@
 package dev.extframework.extension.core.partition
 
-import dev.extframework.internal.api.extension.ExtensionRuntimeModel
-import dev.extframework.internal.api.extension.partition.PartitionCacheHelper
-import dev.extframework.internal.api.extension.partition.PartitionLoadException
-import dev.extframework.internal.api.extension.partition.PartitionLoaderHelper
+import dev.extframework.tooling.api.extension.ExtensionRuntimeModel
+import dev.extframework.tooling.api.extension.partition.PartitionCacheHelper
+import dev.extframework.tooling.api.extension.partition.PartitionLoadException
+import dev.extframework.tooling.api.extension.partition.PartitionLoaderHelper
 
 internal fun noMainPartition(metadata: ExtensionRuntimeModel, helper: PartitionLoaderHelper): Nothing {
     throw PartitionLoadException(

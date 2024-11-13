@@ -7,10 +7,10 @@ import dev.extframework.gradle.common.objectContainer
 
 group = "dev.extframework"
 
-version = "1.0.2-SNAPSHOT"
+version = "1.0.3-SNAPSHOT"
 
 dependencies {
-    boot()
+    boot(version = "3.4-SNAPSHOT")
     objectContainer()
     jobs()
     artifactResolver()

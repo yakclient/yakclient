@@ -16,10 +16,10 @@ import dev.extframework.extension.core.partition.FeaturePartitionLoader
 import dev.extframework.extension.core.partition.MainPartitionLoader
 import dev.extframework.extension.core.target.TargetLinker
 import dev.extframework.extension.core.target.TargetLinkerResolver
-import dev.extframework.internal.api.environment.*
-import dev.extframework.internal.api.extension.ExtensionResolver
-import dev.extframework.internal.api.target.ApplicationTarget
-import dev.extframework.internal.api.tweaker.EnvironmentTweaker
+import dev.extframework.tooling.api.environment.*
+import dev.extframework.tooling.api.extension.ExtensionResolver
+import dev.extframework.tooling.api.target.ApplicationTarget
+import dev.extframework.tooling.api.tweaker.EnvironmentTweaker
 
 public class CoreTweaker : EnvironmentTweaker {
     override fun tweak(environment: ExtensionEnvironment): Job<Unit> = job {

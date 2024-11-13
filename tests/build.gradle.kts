@@ -13,7 +13,7 @@ repositories {
 }
 
 dependencies {
-    boot()
+    boot(version = "3.4-SNAPSHOT")
     implementation(project(":tooling-api"))
     implementation(project(":"))
     artifactResolver()

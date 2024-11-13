@@ -6,11 +6,11 @@ import dev.extframework.gradle.publish.ExtensionPublishTask
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.33"
+    id("dev.extframework.common") version "1.0.34"
 }
 
 group = "dev.extframework"
-version = "2.1.8-SNAPSHOT"
+version = "2.1.9-SNAPSHOT"
 
 tasks.wrapper {
     gradleVersion = "8.3"
@@ -22,7 +22,7 @@ dependencies {
     jobs( logging = true, progressSimple = true)
     artifactResolver()
 
-    boot()
+    boot(version = "3.4-SNAPSHOT")
     archives(mixin=true)
     commonUtil()
     objectContainer()
@@ -83,6 +83,7 @@ allprojects {
             url = uri("https://maven.fabricmc.net/")
         }
         extFramework()
+        mavenLocal()
     }
 
     kotlin {

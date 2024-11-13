@@ -4,12 +4,8 @@ import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
 import dev.extframework.archives.mixin.MixinInjection
 import dev.extframework.extension.core.annotation.AnnotationProcessor
-import dev.extframework.extension.core.annotation.AnnotationTarget
-import dev.extframework.extension.core.util.instantiateAnnotation
-import dev.extframework.extension.core.util.withSlashes
-import dev.extframework.internal.api.extension.artifact.ExtensionDescriptor
+import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.`object`.MutableObjectContainer
-import org.objectweb.asm.tree.AnnotationNode
 import org.objectweb.asm.tree.ClassNode
 
 

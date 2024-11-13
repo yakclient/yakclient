@@ -1,8 +1,8 @@
 package dev.extframework.extension.core.annotation
 
 import dev.extframework.archives.ArchiveReference
-import dev.extframework.internal.api.environment.EnvironmentAttribute
-import dev.extframework.internal.api.environment.EnvironmentAttributeKey
+import dev.extframework.tooling.api.environment.EnvironmentAttribute
+import dev.extframework.tooling.api.environment.EnvironmentAttributeKey
 import org.objectweb.asm.tree.ClassNode
 
 public interface AnnotationProcessor : EnvironmentAttribute {

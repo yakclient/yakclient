@@ -11,6 +11,7 @@ import dev.extframework.archives.ArchiveHandle
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.boot.archive.ArchiveData
 import dev.extframework.boot.archive.ArchiveNodeResolver
+import dev.extframework.boot.archive.IArchive
 import dev.extframework.boot.loader.ArchiveSourceProvider
 import dev.extframework.boot.loader.SourceProvider
 import dev.extframework.boot.monad.Tagged
@@ -24,15 +25,15 @@ import dev.extframework.extension.core.feature.findDefinedFeatures
 import dev.extframework.extension.core.util.parseNode
 import dev.extframework.extension.core.util.toOrNull
 import dev.extframework.extension.core.util.withDots
-import dev.extframework.internal.api.environment.ExtensionEnvironment
-import dev.extframework.internal.api.environment.extract
-import dev.extframework.internal.api.exception.StructuredException
-import dev.extframework.internal.api.extension.ExtensionRepository
-import dev.extframework.internal.api.extension.PartitionRuntimeModel
-import dev.extframework.internal.api.extension.descriptor
-import dev.extframework.internal.api.extension.partition.*
-import dev.extframework.internal.api.extension.partition.artifact.PartitionArtifactMetadata
-import dev.extframework.internal.api.extension.partition.artifact.partitionNamed
+import dev.extframework.tooling.api.environment.ExtensionEnvironment
+import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.exception.StructuredException
+import dev.extframework.tooling.api.extension.ExtensionRepository
+import dev.extframework.tooling.api.extension.PartitionRuntimeModel
+import dev.extframework.tooling.api.extension.descriptor
+import dev.extframework.tooling.api.extension.partition.*
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactMetadata
+import dev.extframework.tooling.api.extension.partition.artifact.partitionNamed
 import kotlinx.coroutines.awaitAll
 import java.nio.ByteBuffer
 import java.util.*
@@ -76,7 +77,7 @@ public class MainPartitionLoader(
     override fun cache(
         artifact: Artifact<PartitionArtifactMetadata>,
         helper: PartitionCacheHelper
-    ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
+    ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
         val featurePartitionName = "feature-holder-${UUID.randomUUID()}"
 
         val featurePartition = PartitionRuntimeModel(

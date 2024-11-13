@@ -12,8 +12,8 @@ import dev.extframework.archives.zip.classLoaderToArchive
 import dev.extframework.boot.archive.*
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
-import dev.extframework.internal.api.environment.EnvironmentAttribute
-import dev.extframework.internal.api.environment.EnvironmentAttributeKey
+import dev.extframework.tooling.api.environment.EnvironmentAttribute
+import dev.extframework.tooling.api.environment.EnvironmentAttributeKey
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -90,7 +90,7 @@ public class TargetLinkerResolver(
     override fun cache(
         artifact: Artifact<TargetArtifactMetadata>,
         helper: CacheHelper<TargetDescriptor>
-    ): AsyncJob<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
+    ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
         helper.newData(TargetDescriptor, listOf())
     }
 }

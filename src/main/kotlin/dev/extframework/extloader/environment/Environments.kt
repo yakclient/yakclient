@@ -2,15 +2,11 @@
 
 package dev.extframework.extloader.environment
 
-import dev.extframework.archives.mixin.SourceInjectionPoint
-import dev.extframework.archives.mixin.SourceInjectors
 import dev.extframework.extloader.exception.*
 import dev.extframework.extloader.extension.partition.TweakerPartitionLoader
-import dev.extframework.internal.api.environment.*
-import dev.extframework.internal.api.exception.ExceptionContextSerializer
-import dev.extframework.internal.api.extension.ExtensionClassLoaderProvider
-import dev.extframework.internal.api.extension.partition.ExtensionPartitionLoader
-import java.nio.file.Path
+import dev.extframework.tooling.api.environment.*
+import dev.extframework.tooling.api.exception.ExceptionContextSerializer
+import dev.extframework.tooling.api.extension.partition.ExtensionPartitionLoader
 
 internal fun MutableObjectContainerAttribute<ExtensionPartitionLoader<*>>.registerLoaders() {
     TweakerPartitionLoader().also { container.register(it.type, it) }

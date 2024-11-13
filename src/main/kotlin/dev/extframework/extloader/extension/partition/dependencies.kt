@@ -7,26 +7,22 @@ import com.durganmcbroom.artifact.resolver.RepositorySettings
 import com.durganmcbroom.jobs.async.AsyncJob
 import com.durganmcbroom.jobs.async.asyncJob
 import com.durganmcbroom.jobs.async.mapAsync
-import dev.extframework.boot.archive.ArchiveData
-import dev.extframework.boot.archive.ArchiveException
-import dev.extframework.boot.archive.ArchiveNodeResolver
-import dev.extframework.boot.archive.CacheHelper
+import dev.extframework.boot.archive.*
 import dev.extframework.boot.dependency.DependencyResolver
 import dev.extframework.boot.dependency.DependencyResolverProvider
 import dev.extframework.boot.dependency.DependencyTypeContainer
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
-import dev.extframework.internal.api.extension.PartitionRuntimeModel
-import dev.extframework.internal.api.extension.partition.PartitionLoadException
+import dev.extframework.tooling.api.extension.PartitionRuntimeModel
+import dev.extframework.tooling.api.extension.partition.PartitionLoadException
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.awaitAll
 
 internal fun cachePartitionDependencies(
     partition: PartitionRuntimeModel,
     extName: String,
     dependencyProviders: DependencyTypeContainer,
     helper: CacheHelper<*>
-): AsyncJob<List<Deferred<Tree<Tagged<ArchiveData<*, *>, ArchiveNodeResolver<*, *, *, *, *>>>>>> = asyncJob {
+): AsyncJob<List<Deferred<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>>>> = asyncJob {
     partition.dependencies.mapAsync { dependency ->
         if (partition.repositories.isEmpty()) {
             throw PartitionLoadException(

@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "dev.extframework.extension"
-version = "1.0.5-BETA"
+version = "1.0.6-BETA"
 
 sourceSets {
     create("tweaker")
@@ -26,7 +26,7 @@ dependencies {
     "tweakerImplementation"("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     "tweakerImplementation"(project(":tooling-api"))
     "tweakerImplementation"(project("core-api"))
-    boot(configurationName = "tweakerImplementation")
+    boot(configurationName = "tweakerImplementation", version = "3.4-SNAPSHOT")
     jobs(configurationName = "tweakerImplementation")
     artifactResolver(configurationName = "tweakerImplementation")
     archives(configurationName = "tweakerImplementation", mixin = true)
@@ -36,7 +36,7 @@ dependencies {
     implementation(partition("tweaker"))
     implementation(project(":tooling-api"))
     implementation(project("core-api"))
-    boot()
+    boot(version = "3.4-SNAPSHOT")
     jobs()
     artifactResolver()
     archives(mixin = true)
