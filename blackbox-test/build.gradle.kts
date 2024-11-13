@@ -11,7 +11,7 @@ repositories {
 dependencies {
     implementation(project(":tooling-api"))
     implementation(project(":"))
-    boot(version = "3.4-SNAPSHOT")
+    boot()
     jobs()
 }
 

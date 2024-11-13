@@ -27,7 +27,7 @@ dependencies {
     "tweakerImplementation"(partition(":core", "tweaker"))
 
     launcherMetaHandler(configurationName = "tweakerImplementation")
-    boot(configurationName = "tweakerImplementation", version = "3.4-SNAPSHOT")
+    boot(configurationName = "tweakerImplementation", )
     jobs(configurationName = "tweakerImplementation")
     artifactResolver(configurationName = "tweakerImplementation")
     archives(configurationName = "tweakerImplementation", mixin = true)

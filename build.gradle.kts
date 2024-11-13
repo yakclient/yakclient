@@ -6,7 +6,7 @@ import dev.extframework.gradle.publish.ExtensionPublishTask
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.34"
+    id("dev.extframework.common") version "1.0.36"
 }
 
 group = "dev.extframework"
@@ -19,10 +19,10 @@ tasks.wrapper {
 dependencies {
     testImplementation(project(":"))
 
-    jobs( logging = true, progressSimple = true)
+    jobs(logging = true, progressSimple = true)
     artifactResolver()
 
-    boot(version = "3.4-SNAPSHOT")
+    boot()
     archives(mixin=true)
     commonUtil()
     objectContainer()
