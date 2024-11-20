@@ -7,7 +7,7 @@ import dev.extframework.gradle.common.objectContainer
 
 group = "dev.extframework"
 
-version = "1.0.3-SNAPSHOT"
+version = "1.0.4-SNAPSHOT"
 
 dependencies {
     boot()

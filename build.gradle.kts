@@ -6,11 +6,11 @@ import dev.extframework.gradle.publish.ExtensionPublishTask
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.36"
+    id("dev.extframework.common") version "1.0.37"
 }
 
 group = "dev.extframework"
-version = "2.1.9-SNAPSHOT"
+version = "2.1.10-SNAPSHOT"
 
 tasks.wrapper {
     gradleVersion = "8.3"
@@ -23,7 +23,7 @@ dependencies {
     artifactResolver()
 
     boot()
-    archives(mixin=true)
+    archives(mixin = true)
     commonUtil()
     objectContainer()
 
@@ -99,6 +99,8 @@ allprojects {
         implementation(kotlin("reflect"))
         testImplementation(kotlin("test"))
     }
+
+
 
     java {
         toolchain {

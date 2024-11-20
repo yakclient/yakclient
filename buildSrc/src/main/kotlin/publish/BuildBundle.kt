@@ -25,17 +25,19 @@ import java.io.FileOutputStream
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.*
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
+import kotlin.io.path.Path
 import kotlin.io.path.name
 
 abstract class BuildBundle : DefaultTask() {
     @get:OutputFile
     val bundlePath: File =
-        (project.layout.buildDirectory.asFile.get().toPath().resolve("libs").resolve("extension.bundle")).toFile()
+        (Paths.get(project.layout.buildDirectory.asFile.get().toString()).resolve("libs").resolve("extension.bundle")).toFile()
 
     @get:InputFiles
     abstract val metadata: ConfigurableFileCollection

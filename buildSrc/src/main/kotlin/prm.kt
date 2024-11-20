@@ -81,8 +81,11 @@ abstract class GeneratePrm : DefaultTask() {
         )
 
         val repositories = project.repositories
-            .mapTo(ArrayList()) {
+            .mapNotNullTo(ArrayList()) {
                 when (it) {
+                    is DefaultMavenLocalArtifactRepository -> {
+                        null
+                    }
                     is DefaultMavenArtifactRepository -> {
                         ExtensionRepository(
                             "simple-maven",

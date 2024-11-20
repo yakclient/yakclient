@@ -2,11 +2,13 @@
 
 package dev.extframework.tooling.api.environment
 
+import java.util.concurrent.ConcurrentHashMap
+
 public fun interface EnvironmentAttributeUpdater<T : EnvironmentAttribute> : (T) -> T
 
 public open class ExtensionEnvironment {
-    private val attributes: MutableMap<EnvironmentAttributeKey<*>, EnvironmentAttribute> = HashMap()
-    private val updates: MutableMap<EnvironmentAttributeKey<*>, MutableList<EnvironmentAttributeUpdater<*>>> = HashMap()
+    private val attributes: MutableMap<EnvironmentAttributeKey<*>, EnvironmentAttribute> = ConcurrentHashMap()
+    private val updates: MutableMap<EnvironmentAttributeKey<*>, MutableList<EnvironmentAttributeUpdater<*>>> = ConcurrentHashMap()
 
     public operator fun <T : EnvironmentAttribute> get(key: EnvironmentAttributeKey<T>): DeferredValue<T> {
         return defer(key.toString()) {

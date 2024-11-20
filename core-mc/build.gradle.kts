@@ -7,7 +7,7 @@ import publish.BuildBundle
 import publish.GenerateMetadata
 
 group = "dev.extframework.extension"
-version = "1.0.13-BETA"
+version = "1.0.14-BETA"
 
 sourceSets {
     create("tweaker")
@@ -30,7 +30,7 @@ dependencies {
     boot(configurationName = "tweakerImplementation", )
     jobs(configurationName = "tweakerImplementation")
     artifactResolver(configurationName = "tweakerImplementation")
-    archives(configurationName = "tweakerImplementation", mixin = true)
+    archives(version = "1.4-SNAPSHOT",configurationName = "tweakerImplementation", mixin = true)
     archiveMapper(configurationName = "tweakerImplementation", transform = true, proguard = true)
     commonUtil(configurationName = "tweakerImplementation")
     objectContainer(configurationName = "tweakerImplementation")
@@ -67,16 +67,31 @@ val generateTweakerPrm by tasks.registering(GeneratePrm::class) {
     )
 }
 
+val generateDevTweakerPrm by tasks.registering(GeneratePrm::class) {
+    sourceSetName.set("tweaker")
+    includeMavenLocal = true
+    prm.set(
+        PartitionRuntimeModel(
+            "tweaker", "tweaker",
+            options = mutableMapOf(
+                "tweaker-class" to "dev.extframework.extension.core.minecraft.MinecraftCoreTweaker"
+            )
+        )
+    )
+    ignoredModules.addAll(
+        "dev.extframework.extension:core"
+    )
+}
+
 val tweakerJar by tasks.registering(Jar::class) {
     from(sourceSets["tweaker"].output)
     archiveBaseName.set("tweaker")
 }
 
-
 val generateMetadata by tasks.registering(GenerateMetadata::class) {
     metadata {
         name.set("ExtFramework Core Minecraft")
-        developers.add("Durgan McBroom")
+        developers.add("extframework")
         description.set("The core library for doing all Minecraft related things with extensions.")
         app.set("minecraft")
     }
@@ -126,12 +141,22 @@ tasks.withType<PublishToMavenRepository>().configureEach {
     isEnabled = false
 }
 
+task("sourcesMainJar", org.gradle.jvm.tasks.Jar::class) {
+    archiveClassifier.set("sourcesMain")
+    from(project.extensions.getByType(SourceSetContainer::class.java).getByName("main").allSource)
+}
+
+task("sourcesTweakerJar", org.gradle.jvm.tasks.Jar::class) {
+    archiveClassifier.set("sourcesTweaker")
+    from(project.extensions.getByType(SourceSetContainer::class.java).getByName("tweaker").allSource)
+}
+
 common {
     publishing {
         publication {
             artifact(generateDevErm).classifier = "erm"
             artifact(generateMainPrm).classifier = "main"
-            artifact(generateTweakerPrm).classifier = "tweaker"
+            artifact(generateDevTweakerPrm).classifier = "tweaker"
             artifact(tasks.jar).classifier = "main"
             artifact(tweakerJar).classifier = "tweaker"
         }
@@ -139,7 +164,6 @@ common {
 }
 
 publishing {
-
     repositories {
         maven {
             url = uri("https://repo.extframework.dev")

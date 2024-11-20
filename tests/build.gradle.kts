@@ -31,6 +31,7 @@ tasks.compileTestKotlin {
         jvmTarget = "21"
     }
 }
+
 kotlin {
     jvmToolchain(21)
 }

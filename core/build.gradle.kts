@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "dev.extframework.extension"
-version = "1.0.6-BETA"
+version = "1.0.7-BETA"
 
 sourceSets {
     create("tweaker")
@@ -185,15 +185,6 @@ common {
 }
 
 publishing {
-//    publications {
-//        create("local", MavenPublication::class) {
-//            artifact(generateLocalErm).classifier = "erm"
-//            artifact(generateMainPrm).classifier = "main"
-//            artifact(generateTweakerPrm).classifier = "tweaker"
-//            artifact(tasks.jar).classifier = "main"
-//            artifact(tweakerJar).classifier = "tweaker"
-//        }
-//    }
     repositories {
         maven {
             url = uri("https://repo.extframework.dev")
