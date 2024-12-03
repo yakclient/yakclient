@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "dev.extframework.extension"
-version = "1.0.7-BETA"
+version = "1.0.8-BETA"
 
 sourceSets {
     create("tweaker")
@@ -26,7 +26,7 @@ dependencies {
     "tweakerImplementation"("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     "tweakerImplementation"(project(":tooling-api"))
     "tweakerImplementation"(project("core-api"))
-    boot(configurationName = "tweakerImplementation", )
+    boot(configurationName = "tweakerImplementation")
     jobs(configurationName = "tweakerImplementation")
     artifactResolver(configurationName = "tweakerImplementation")
     archives(configurationName = "tweakerImplementation", mixin = true)
@@ -148,6 +148,11 @@ val generateErm by tasks.registering(GenerateErm::class) {
     }
 }
 
+val tweakerSourcesJar by tasks.registering(Jar::class) {
+    archiveClassifier.set("tweakerSources")
+    from(project.sourceSets["tweaker"].allSource)
+}
+
 val buildBundle by tasks.registering(BuildBundle::class) {
     partition("main") {
         jar(tasks.jar)
@@ -157,6 +162,7 @@ val buildBundle by tasks.registering(BuildBundle::class) {
     partition("tweaker") {
         jar(tweakerJar)
         prm(generateTweakerPrm)
+        artifact(tweakerSourcesJar)
     }
 
     erm.from(generateErm)
@@ -178,6 +184,7 @@ common {
             artifact(generateErm).classifier = "erm"
             artifact(generateTestMainPrm).classifier = "main"
             artifact(generateTestTweakerPrm).classifier = "tweaker"
+            artifact(tweakerSourcesJar).classifier = "tweakerSources"
             artifact(tasks.jar).classifier = "main"
             artifact(tweakerJar).classifier = "tweaker"
         }

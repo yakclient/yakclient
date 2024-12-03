@@ -44,14 +44,12 @@ public class ExtensionInitRunner(
             .map { ArchiveResourceProvider(it) }))
 
         // Run init on main partitions
-
-        val mainPartition = (node.partitions.find {
-            it.metadata.name == "main"
-        } as? ExtensionPartitionContainer<MainPartitionNode, MainPartitionMetadata>)
-            ?: throw IllegalStateException("Cannot find main partition")
-
         result {
-            mainPartition.node.instance.init()
+            val mainPartition = (node.partitions.find {
+                it.metadata.name == "main"
+            } as? ExtensionPartitionContainer<MainPartitionNode, MainPartitionMetadata>)
+
+            mainPartition?.node?.instance?.init()
         }.mapException {
             StructuredException(
                 CoreExceptions.ExtensionInitializationException,

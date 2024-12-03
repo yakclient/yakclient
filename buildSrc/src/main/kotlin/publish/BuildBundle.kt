@@ -49,34 +49,31 @@ abstract class BuildBundle : DefaultTask() {
     abstract val partitions: MapProperty<String, ConfigurableFileCollection>
 
     interface PartitionConfiguration {
-        fun jar(task: Provider<out Task>)
-        fun prm(task: Provider<out Task>)
+        fun jar(task: Provider<out Task>) {
+            artifact(task)
+        }
+        fun prm(task: Provider<out Task>) {
+            artifact(task)
+        }
+        fun artifact(task: Provider<out Task>)
     }
 
     fun partition(name: String, configure: Action<PartitionConfiguration>) {
         val configValues = object : PartitionConfiguration {
-            var jar: Task? = null
-            var prm: Task? = null
+            val artifacts: MutableList<Provider<out Task>> = ArrayList()
 
-            override fun jar(task: Provider<out Task>) {
-                jar = task.get()
-            }
-
-            override fun prm(task: Provider<out Task>) {
-                prm = task.get()
+            override fun artifact(task: Provider<out Task>) {
+                artifacts.add(task)
             }
         }
 
         configure.execute(configValues)
 
-        val prm = checkNotNull(configValues.prm) { "You must specific a PRM!" }
-        val jar = checkNotNull(configValues.jar) { "You must specific a jar!" }
-
-        val collection = project.files(jar.outputs.files + prm.outputs.files)
-        collection.builtBy(jar, prm)
+        val collection = project.files(configValues.artifacts.flatMap { it.get().outputs.files })
+        collection.builtBy(configValues.artifacts)
         partitions.put(name, collection)
 
-        dependsOn(jar, prm)
+        dependsOn(configValues.artifacts)
     }
 
     @TaskAction

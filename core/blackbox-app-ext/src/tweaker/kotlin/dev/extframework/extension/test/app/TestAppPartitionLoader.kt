@@ -35,13 +35,13 @@ public class TestAppPartitionLoader(
 ) {
     override fun parseMetadata(
         partition: PartitionRuntimeModel,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         helper: PartitionMetadataHelper
     ): Job<TestAppPartitionMetadata> = job {
         val processor = environment[AnnotationProcessor].extract()
         val delegation = environment[Delegation].extract()
 
-        val implementedFeatures = reference.reader.entries()
+        val implementedFeatures = reference!!.reader.entries()
             .filter { it.name.endsWith(".class") }
             .map {
                 it.resource.openStream().parseNode()

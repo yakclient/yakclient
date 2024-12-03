@@ -30,9 +30,14 @@ public class TweakerPartitionLoader : ExtensionPartitionLoader<TweakerPartitionM
 
     override fun parseMetadata(
         partition: PartitionRuntimeModel,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         helper: PartitionMetadataHelper,
     ): Job<TweakerPartitionMetadata> = job {
+        if (reference == null) throw PartitionLoadException(
+            partition.name,
+            "The tweaker partition must have a jar."
+        )
+
         val tweakerCls = partition.options["tweaker-class"]
             ?: throw IllegalArgumentException("Tweaker partition from extension: '${partition.name}' must contain a tweaker class defined as option: 'tweaker-class'.")
 
@@ -41,10 +46,15 @@ public class TweakerPartitionLoader : ExtensionPartitionLoader<TweakerPartitionM
 
     override fun load(
         metadata: TweakerPartitionMetadata,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         accessTree: PartitionAccessTree,
         helper: PartitionLoaderHelper
     ): Job<ExtensionPartitionContainer<*, TweakerPartitionMetadata>> = job {
+        if (reference == null) throw PartitionLoadException(
+            metadata.name,
+            "The tweaker partition must have a jar."
+        )
+
         val thisDescriptor = helper.erm.descriptor.partitionNamed(metadata.name)
 
         val cl = PartitionClassLoader(

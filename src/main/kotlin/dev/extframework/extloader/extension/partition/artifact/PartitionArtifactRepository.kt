@@ -40,15 +40,19 @@ public open class PartitionArtifactRepository(
         }.merge()
         val prm = mapper.readValue<PartitionRuntimeModel>(prmOr.openStream())
 
+        val resource = layout.resourceOf(
+            group,
+            artifact,
+            version,
+            partition,
+            "jar",
+        )()
+
         PartitionArtifactMetadata(
             request.descriptor,
-            layout.resourceOf(
-                group,
-                artifact,
-                version,
-                partition,
-                "jar",
-            )().merge(),
+            resource.getOrNull() ?: if (resource.isFailure && resource.exceptionOrNull() is ResourceNotFoundException) {
+                null
+            } else throw resource.exceptionOrNull()!!,
             prm,
             extensionRepository.get(
                 ExtensionArtifactRequest(extensionDescriptor)

@@ -41,7 +41,7 @@ public typealias PartitionParentInfo = ArtifactMetadata.ParentInfo<PartitionArti
 
 public class PartitionArtifactMetadata(
     desc: PartitionDescriptor,
-    public val resource: Resource,
+    public val resource: Resource?,
     public val prm: PartitionRuntimeModel,
     public val extension: ExtensionArtifactMetadata,
 ) : ArtifactMetadata<PartitionDescriptor, PartitionParentInfo>(desc, listOf())

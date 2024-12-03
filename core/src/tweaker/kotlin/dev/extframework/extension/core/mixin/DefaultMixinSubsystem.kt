@@ -32,7 +32,7 @@ public class DefaultMixinSubsystem(
             .map(ExtensionPartitionContainer<*, *>::metadata)
             .filterIsInstance<TargetPartitionMetadata>()
             .filter(TargetPartitionMetadata::enabled)
-            .map(TargetPartitionMetadata::archive)
+            .mapNotNull(TargetPartitionMetadata::archive)
             .map(ArchiveReference::reader)
             .flatMap(ArchiveReference.Reader::entries)
             .filter { it.name.endsWith(".class") }

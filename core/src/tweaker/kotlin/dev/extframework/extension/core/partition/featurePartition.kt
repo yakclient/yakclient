@@ -88,7 +88,8 @@ public class FeatureIntrinsics {
         val implementingPartition = partitions[implPartitionName]
             ?: throw RuntimeException("Illegal environment! Failed to find partition: '$implPartitionName' while executing feature: '$qualifiedSignature'.")
 
-        val containerClass = implementingPartition.node.archive.classloader.loadClass(featureRef.container.withDots())
+        val containerClass = implementingPartition.node.archive?.classloader?.loadClass(featureRef.container.withDots())
+            ?: throw RuntimeException("Implementing partition ($implPartitionName) does not have an archive.")
 
         val featureSigMethod = Method(featureRef.reference)
         val method = containerClass.declaredMethods.find {
@@ -129,7 +130,7 @@ public class FeaturePartitionLoader(
 
     override fun parseMetadata(
         partition: PartitionRuntimeModel,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         helper: PartitionMetadataHelper,
     ): Job<FeaturePartitionMetadata> {
         return SuccessfulJob { FeaturePartitionMetadata() }
@@ -162,7 +163,7 @@ public class FeaturePartitionLoader(
 
     override fun load(
         metadata: FeaturePartitionMetadata,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         accessTree: PartitionAccessTree,
         helper: PartitionLoaderHelper
     ): Job<ExtensionPartitionContainer<*, FeaturePartitionMetadata>> = job {
@@ -195,7 +196,9 @@ public class FeaturePartitionLoader(
 
                     val featureBuiltInName = "FeatureBuiltIn-GeneratedFor-${helper.erm.name}"
 
-                    reference.writer.put(
+                    // We know that in a dynamically created partition there will always be an archive to start from.
+                    // See @DefaultPartitionResolver
+                    reference!!.writer.put(
                         ArchiveReference.Entry(
                             "$featureBuiltInName.class",
                             Resource(

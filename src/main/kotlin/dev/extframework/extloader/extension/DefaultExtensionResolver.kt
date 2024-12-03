@@ -14,9 +14,12 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
 import dev.extframework.boot.archive.*
+import dev.extframework.boot.audit.Auditor
 import dev.extframework.boot.audit.Auditors
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
+import dev.extframework.boot.monad.replace
+import dev.extframework.boot.monad.tag
 import dev.extframework.common.util.LazyMap
 import dev.extframework.extloader.environment.ExtraAuditorsAttribute
 import dev.extframework.extloader.extension.artifact.*
@@ -41,7 +44,8 @@ public open class DefaultExtensionResolver(
     private val environment: ExtensionEnvironment,
 ) : ExtensionResolver {
     private val layerLoader = ExtensionLayerClassLoader(parent)
-    protected val factory: ExtensionRepositoryFactory = ExtensionRepositoryFactory(environment[dependencyTypesAttrKey].extract().container)
+    protected val factory: ExtensionRepositoryFactory =
+        ExtensionRepositoryFactory(environment[dependencyTypesAttrKey].extract().container)
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
     protected val extensionLoaders: Map<ExtensionDescriptor, ExtensionClassLoader> = LazyMap {
         ExtensionClassLoader(
@@ -61,12 +65,35 @@ public open class DefaultExtensionResolver(
     override val auditors: Auditors
         get() = (environment[dependencyTypesAttrKey]
             .extract().container.objects().values
-            .map { it.resolver.auditors } + (environment[ExtraAuditorsAttribute].getOrNull()?.auditors ?: Auditors()))
-        .fold(Auditors()) { acc, it ->
-            it.auditors.values.fold(acc) { innerAcc, innerIt ->
-                innerAcc.chain(innerIt)
+            .map { it.resolver.auditors } +
+                (environment[ExtraAuditorsAttribute].getOrNull()?.auditors ?: Auditors())
+//                +
+//                Auditors(Auditor(ArchiveTreeAuditContext::class.java) { c ->
+//                    c.copy(
+//                        tree = c.tree.replace {
+//                            val descriptor = it.item.value.descriptor
+//
+//                            if (descriptor is ExtensionDescriptor && c.graph.nodes()
+//                                    .map { it.descriptor }
+//                                    .filterIsInstance<ExtensionDescriptor>()
+//                                    .any {
+//                                        it.group == descriptor.group && it.artifact == descriptor.artifact && it.version != descriptor.version
+//                                    }) {
+//                                Tree(
+//                                    c.graph.getNode(descriptor)!! tag it.item.tag,
+//                                    listOf()
+//                                )
+//                            } else it
+//                        }
+//                    )
+//
+//                })
+                )
+            .fold(Auditors()) { acc, it ->
+                it.auditors.values.fold(acc) { innerAcc, innerIt ->
+                    innerAcc.chain(innerIt)
+                }
             }
-        }
 
     override fun createContext(settings: SimpleMavenRepositorySettings): ResolutionContext<ExtensionRepositorySettings, ExtensionArtifactRequest, ExtensionArtifactMetadata> {
         return factory.createContext(settings)

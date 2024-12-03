@@ -13,10 +13,14 @@ import com.durganmcbroom.resources.asResourceStream
 import com.fasterxml.jackson.module.kotlin.readValue
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.Archives
+import dev.extframework.archives.zip.ZipFinder
 import dev.extframework.boot.archive.*
+import dev.extframework.boot.audit.Auditor
 import dev.extframework.boot.audit.Auditors
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
+import dev.extframework.boot.monad.replace
+import dev.extframework.boot.monad.tag
 import dev.extframework.boot.util.basicObjectMapper
 import dev.extframework.common.util.filterDuplicates
 import dev.extframework.extloader.environment.ExtraAuditorsAttribute
@@ -52,7 +56,29 @@ public open class DefaultPartitionResolver(
     override val auditors: Auditors
         get() = (environment[dependencyTypesAttrKey]
             .extract().container.objects().values
-            .map { it.resolver.auditors } + (environment[ExtraAuditorsAttribute].getOrNull()?.auditors ?: Auditors()))
+            .map { it.resolver.auditors } + (environment[ExtraAuditorsAttribute].getOrNull()?.auditors ?: Auditors())
+//                +
+//                Auditors(Auditor(ArchiveTreeAuditContext::class.java) { c ->
+//                    c.copy(
+//                        tree = c.tree.replace {
+//                            val descriptor = it.item.value.descriptor
+//                            if (descriptor is PartitionDescriptor && c.graph.nodes()
+//                                    .map { it.descriptor }
+//                                    .filterIsInstance<PartitionDescriptor>()
+//                                    .map { it.extension }
+//                                    .any {
+//                                        it.group == descriptor.extension.group && it.artifact == descriptor.extension.artifact && it.version != descriptor.extension.version
+//                                    }
+//                            ) {
+//                                Tree(
+//                                    c.graph.getNode(descriptor)!! tag it.item.tag,
+//                                    listOf()
+//                                )
+//                            } else it
+//                        }
+//                    )
+//                })
+                )
             .fold(Auditors()) { acc, it ->
                 it.auditors.values.fold(acc) { innerAcc, innerIt ->
                     innerAcc.chain(innerIt)
@@ -75,7 +101,7 @@ public open class DefaultPartitionResolver(
             basicObjectMapper.readValue<ExtensionRuntimeModel>(Files.readAllBytes(data.resources["erm.json"]!!.path))
 
         operator fun component3() =
-            Archives.find(data.resources["partition.jar"]!!.path, Archives.Finders.ZIP_FINDER)
+            data.resources["partition.jar"]?.path?.let { Archives.find(it, ZipFinder) }
 
         operator fun component4() =
             basicObjectMapper.readValue<Map<String, String>>(Files.readAllBytes(data.resources["repository.json"]!!.path))
@@ -97,7 +123,7 @@ public open class DefaultPartitionResolver(
         loader: ExtensionPartitionLoader<ExtensionPartitionMetadata>,
         prm: PartitionRuntimeModel,
         erm: ExtensionRuntimeModel,
-        archive: ArchiveReference
+        archive: ArchiveReference?
     ): Job<ExtensionPartitionMetadata> = job {
         parsedMetadata[erm.descriptor.partitionNamed(prm.name)] ?: loader.parseMetadata(
             prm,

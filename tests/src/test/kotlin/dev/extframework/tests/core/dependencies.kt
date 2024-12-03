@@ -28,14 +28,14 @@ fun setupBoot(path: Path): Pair<ArchiveGraph, DependencyTypeContainer> {
 
     val archiveGraph = DefaultArchiveGraph(
         path,
-        dependencies.associateByTo(HashMap()) {
-            BasicDependencyNode(it, null,
-                object : ArchiveAccessTree {
-                    override val descriptor: ArtifactMetadata.Descriptor = it
-                    override val targets: List<ArchiveTarget> = listOf()
-                }
-            )
-        } as MutableMap<ArtifactMetadata.Descriptor, ArchiveNode<*>>
+//        dependencies.associateByTo(HashMap()) {
+//            BasicDependencyNode(it, null,
+//                object : ArchiveAccessTree {
+//                    override val descriptor: ArtifactMetadata.Descriptor = it
+//                    override val targets: List<ArchiveTarget> = listOf()
+//                }
+//            )
+//        } as MutableMap<ArtifactMetadata.Descriptor, ArchiveNode<*>>
     )
 
     val negotiator = MavenConstraintNegotiator()

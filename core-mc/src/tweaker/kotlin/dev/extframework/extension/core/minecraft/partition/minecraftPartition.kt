@@ -47,7 +47,7 @@ import org.objectweb.asm.tree.ClassNode
 public data class MinecraftPartitionMetadata(
     override val name: String,
     override val implementedFeatures: List<Pair<FeatureReference, String>>,
-    override val archive: ArchiveReference,
+    override val archive: ArchiveReference?,
 
     override val enabled: Boolean,
     internal val supportedVersions: List<String>,
@@ -87,10 +87,9 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
         return appInheritanceTree!!
     }
 
-    //asdfasdf
     override fun parseMetadata(
         partition: PartitionRuntimeModel,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         helper: PartitionMetadataHelper
     ): Job<MinecraftPartitionMetadata> = job {
         val processor = environment[AnnotationProcessor].extract()
@@ -98,19 +97,22 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
 
         val srcNS = partition.options["mappingNS"]
             ?.let(MappingNamespace::parse)
-            ?: throw IllegalArgumentException("No mappings type (property name: 'mappingNS') specified in the partition: '${partition.name}' in ext: '${helper.erm.descriptor}}.")
+            ?: environment[mappingTargetAttrKey].extract().value
+//            ?: throw IllegalArgumentException("No mappings type (property name: 'mappingNS') specified in the partition: '${partition.name}' in ext: '${helper.erm.descriptor}}.")
         val supportedVersions = partition.options["versions"]?.split(",")
             ?: throw IllegalArgumentException("Partition: '${partition.name}' in extension: '${helper.erm.descriptor} does not support any versions!")
 
-        val implementedFeatures = reference.reader.entries()
-            .filter { it.name.endsWith(".class") }
-            .map {
-                it.resource.openStream().parseNode()
-            }.filter {
-                it.implementsFeatures(processor)
-            }.flatMap {
-                it.findImplementedFeatures(partition.name, processor, delegation)
-            }.toList()
+        val implementedFeatures = reference?.let {
+            it.reader.entries()
+                .filter { it.name.endsWith(".class") }
+                .map {
+                    it.resource.openStream().parseNode()
+                }.filter {
+                    it.implementsFeatures(processor)
+                }.flatMap {
+                    it.findImplementedFeatures(partition.name, processor, delegation)
+                }.toList()
+        } ?: listOf()
 
         val enabled = supportedVersions.contains(
             environment[ApplicationTarget].get().getOrNull()!!.node.descriptor.version
@@ -128,7 +130,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
 
     override fun load(
         metadata: MinecraftPartitionMetadata,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         accessTree: PartitionAccessTree,
         helper: PartitionLoaderHelper
     ): Job<ExtensionPartitionContainer<*, MinecraftPartitionMetadata>> = job {
@@ -145,59 +147,61 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
                     .findShortest(metadata.mappingNamespace.identifier, targetNS.identifier)
                     .forIdentifier(appTarget.node.descriptor.version)
 
-                remap(
-                    reference,
-                    mappings,
-                    environment[remappersAttrKey]
-                        .extract()
-                        .sortedBy { it.priority },
-                    metadata.mappingNamespace,
-                    targetNS,
-                    appInheritanceTree(appTarget),
-                    accessTree.targets.asSequence()
-                        .map(ArchiveTarget::relationship)
-                        .map(ArchiveRelationship::node)
-                        .filterIsInstance<ClassLoadedArchiveNode<*>>()
-                        .mapNotNullTo(ArrayList(), ClassLoadedArchiveNode<*>::handle)
-                )().merge()
-
                 val (dependencies, target) = accessTree.targets
                     .map { it.relationship.node }
                     .filterIsInstance<ClassLoadedArchiveNode<*>>()
                     .partition { it.descriptor != TargetDescriptor }
 
-                val sourceProviderDelegate = ArchiveSourceProvider(reference)
-                val cl = PartitionClassLoader(
-                    thisDescriptor,
-                    accessTree,
-                    reference,
-                    helper.parentClassLoader,
-                    sourceProvider = sourceProviderDelegate, classProvider = object : ClassProvider {
-                        val dependencyDelegate = DelegatingClassProvider(
-                            dependencies
-                                .mapNotNull { it.handle }
-                                .map(::ArchiveClassProvider)
-                        )
-                        val targetDelegate = target.first().handle!!.classloader
+                val handle = reference?.let {
+                    remap(
+                        reference,
+                        mappings,
+                        environment[remappersAttrKey]
+                            .extract()
+                            .sortedBy { it.priority },
+                        metadata.mappingNamespace,
+                        targetNS,
+                        appInheritanceTree(appTarget),
+                        accessTree.targets.asSequence()
+                            .map(ArchiveTarget::relationship)
+                            .map(ArchiveRelationship::node)
+                            .filterIsInstance<ClassLoadedArchiveNode<*>>()
+                            .mapNotNullTo(ArrayList(), ClassLoadedArchiveNode<*>::handle)
+                    )().merge()
 
-                        override val packages: Set<String> = dependencyDelegate.packages + "*target*"
+                    val sourceProviderDelegate = ArchiveSourceProvider(reference)
+                    val cl = PartitionClassLoader(
+                        thisDescriptor,
+                        accessTree,
+                        reference,
+                        helper.parentClassLoader,
+                        sourceProvider = sourceProviderDelegate, classProvider = object : ClassProvider {
+                            val dependencyDelegate = DelegatingClassProvider(
+                                dependencies
+                                    .mapNotNull { it.handle }
+                                    .map(::ArchiveClassProvider)
+                            )
+                            val targetDelegate = target.first().handle!!.classloader
 
-                        override fun findClass(name: String): Class<*>? {
-                            return dev.extframework.common.util.runCatching(ClassNotFoundException::class) {
-                                targetDelegate.loadClass(
-                                    name
-                                )
-                            } ?: dependencyDelegate.findClass(name)
+                            override val packages: Set<String> = dependencyDelegate.packages + "*target*"
+
+                            override fun findClass(name: String): Class<*>? {
+                                return dev.extframework.common.util.runCatching(ClassNotFoundException::class) {
+                                    targetDelegate.loadClass(
+                                        name
+                                    )
+                                } ?: dependencyDelegate.findClass(name)
+                            }
                         }
-                    }
-                )
+                    )
 
-                val handle = PartitionArchiveHandle(
-                    "${helper.erm.name}-${metadata.name}",
-                    cl,
-                    reference,
-                    setOf()
-                )
+                    PartitionArchiveHandle(
+                        "${helper.erm.name}-${metadata.name}",
+                        cl,
+                        reference,
+                        setOf()
+                    )
+                }
 
                 TargetPartitionNode(
                     handle,

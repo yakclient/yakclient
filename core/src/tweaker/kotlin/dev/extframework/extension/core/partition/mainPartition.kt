@@ -49,12 +49,12 @@ public class MainPartitionLoader(
 
     override fun parseMetadata(
         partition: PartitionRuntimeModel,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         helper: PartitionMetadataHelper
     ): Job<MainPartitionMetadata> = job {
         val processor = environment[AnnotationProcessor].extract()
 
-        val allFeatures = reference.reader.entries()
+        val allFeatures = reference?.let { it.reader.entries()
             .filter { it.name.endsWith(".class") }
             .map {
                 it.resource.openStream().parseNode()
@@ -62,7 +62,7 @@ public class MainPartitionLoader(
                 it.definesFeatures(processor)
             }.flatMap {
                 it.findDefinedFeatures(processor)
-            }.toList()
+            }.toList() } ?: listOf()
 
         MainPartitionMetadata(
             allFeatures,
@@ -112,7 +112,7 @@ public class MainPartitionLoader(
 
     override fun load(
         metadata: MainPartitionMetadata,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         accessTree: PartitionAccessTree,
         helper: PartitionLoaderHelper
     ): Job<ExtensionPartitionContainer<*, MainPartitionMetadata>> = job {
@@ -122,50 +122,56 @@ public class MainPartitionLoader(
             thisDescriptor,
             metadata,
             run { // The reason we use a target enabled partition for this one is because main depends on the feature partition which is target enabled. It doesnt make sense for a non target enabled partition to rely on an enabled one.
-                val sourceProviderDelegate = ArchiveSourceProvider(reference)
+                val cl = reference?.let {
+                    val sourceProviderDelegate = ArchiveSourceProvider(reference)
 
-                val cl = PartitionClassLoader(
-                    thisDescriptor,
-                    accessTree,
-                    reference,
-                    helper.parentClassLoader,
-                    sourceProvider = object : SourceProvider by sourceProviderDelegate {
-                        private val featureContainers =
-                            metadata.definedFeatures.mapTo(HashSet()) { it.container.withDots() }
+                    PartitionClassLoader(
+                        thisDescriptor,
+                        accessTree,
+                        reference,
+                        helper.parentClassLoader,
+                        sourceProvider = object : SourceProvider by sourceProviderDelegate {
+                            private val featureContainers =
+                                metadata.definedFeatures.mapTo(HashSet()) { it.container.withDots() }
 
-                        override fun findSource(name: String): ByteBuffer? {
-                            return if (featureContainers.contains(name)) null
-                            else sourceProviderDelegate.findSource(name)
+                            override fun findSource(name: String): ByteBuffer? {
+                                return if (featureContainers.contains(name)) null
+                                else sourceProviderDelegate.findSource(name)
+                            }
                         }
-                    }
-                )
+                    )
+                }
 
-                val handle = PartitionArchiveHandle(
-                    "${helper.erm.name}-main",
-                    cl,
-                    reference,
-                    setOf()
-                )
+                val handle = cl?.let {
+                    PartitionArchiveHandle(
+                        "${helper.erm.name}-main",
+                        cl,
+                        reference,
+                        setOf()
+                    )
+                }
 
                 val extensionClassName = metadata.extensionClass
 
-                val extensionClass = dev.extframework.common.util.runCatching(ClassNotFoundException::class) {
-                    handle.classloader.loadClass(
-                        extensionClassName
-                    )
-                } ?: throw StructuredException(
-                    CoreExceptions.ExtensionClassNotFound,
-                    message = "Could not init extension because the extension class couldn't be found."
-                ) {
-                    extensionClassName asContext "Extension class name"
+                val instance = handle?.let {
+                    val extensionClass = dev.extframework.common.util.runCatching(ClassNotFoundException::class) {
+                        handle.classloader.loadClass(
+                            extensionClassName
+                        )
+                    } ?: throw StructuredException(
+                        CoreExceptions.ExtensionClassNotFound,
+                        message = "Could not init extension because the extension class couldn't be found."
+                    ) {
+                        extensionClassName asContext "Extension class name"
+                    }
+
+                    val extensionConstructor =
+                        dev.extframework.common.util.runCatching(NoSuchMethodException::class) { extensionClass.getConstructor() }
+                            ?: throw Exception("Could not find no-arg constructor in class: '${extensionClassName}' in extension: '${helper.erm.name}'.")
+
+                    extensionConstructor.newInstance() as? Extension
+                        ?: throw Exception("Extension class: '$extensionClass' does not extend: '${Extension::class.java.name}'.")
                 }
-
-                val extensionConstructor =
-                    dev.extframework.common.util.runCatching(NoSuchMethodException::class) { extensionClass.getConstructor() }
-                        ?: throw Exception("Could not find no-arg constructor in class: '${extensionClassName}' in extension: '${helper.erm.name}'.")
-
-                val instance = extensionConstructor.newInstance() as? Extension
-                    ?: throw Exception("Extension class: '$extensionClass' does not extend: '${Extension::class.java.name}'.")
 
                 MainPartitionNode(
                     handle,
@@ -179,7 +185,7 @@ public class MainPartitionLoader(
 public data class MainPartitionMetadata(
     val definedFeatures: List<FeatureReference>,
     val extensionClass: String,
-    val archive: ArchiveReference,
+    val archive: ArchiveReference?,
 
     internal val repositories: List<ExtensionRepository>,
     internal val dependencies: Set<Map<String, String>>,
@@ -188,7 +194,7 @@ public data class MainPartitionMetadata(
 }
 
 public data class MainPartitionNode(
-    override val archive: ArchiveHandle,
+    override val archive: ArchiveHandle?,
     override val access: PartitionAccessTree,
-    public val instance: Extension
+    public val instance: Extension?
 ) : ExtensionPartition

@@ -14,7 +14,7 @@ import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifa
 import dev.extframework.tooling.api.extension.partition.artifact.PartitionDescriptor
 
 public interface ExtensionPartition {
-    public val archive: ArchiveHandle
+    public val archive: ArchiveHandle?
     public val access: PartitionAccessTree
 }
 
@@ -64,13 +64,13 @@ public interface ExtensionPartitionLoader<T : ExtensionPartitionMetadata> {
 
     public fun parseMetadata(
         partition: PartitionRuntimeModel,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         helper: PartitionMetadataHelper
     ): Job<T>
 
     public fun load(
         metadata: T,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         accessTree: PartitionAccessTree,
         helper: PartitionLoaderHelper
     ): Job<ExtensionPartitionContainer<*, T>>

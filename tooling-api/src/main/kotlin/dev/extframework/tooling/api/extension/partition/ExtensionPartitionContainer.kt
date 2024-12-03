@@ -9,7 +9,7 @@ public interface ExtensionPartitionContainer<out T : ExtensionPartition,  out M 
     public val metadata: M
     public val node: T
 
-    override val handle: ArchiveHandle
+    override val handle: ArchiveHandle?
         get() = node.archive
     override val access: PartitionAccessTree
         get() = node.access

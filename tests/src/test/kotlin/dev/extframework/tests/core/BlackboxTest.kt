@@ -133,7 +133,7 @@ class BlackboxTest {
             initExtensions(
                 mapOf(
                     ExtensionDescriptor.parseDescriptor(
-                        "dev.extframework.extension:core-mc:1.0.13-BETA"
+                        "dev.extframework.extension:core-mc:1.0.14-BETA"
                     ) to ExtensionRepositorySettings.local()
                 ),
                 environment

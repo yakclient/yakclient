@@ -38,11 +38,11 @@ public interface TargetPartitionMetadata : ContingentPartitionMetadata {
 
     //    public val mixins: Sequence<ClassNode>
 //    public val mixins: Sequence<MixinTransaction.Metadata<*>>
-    public val archive: ArchiveReference
+    public val archive: ArchiveReference?
 }
 
 public open class TargetPartitionNode(
-    override val archive: ArchiveHandle,
+    override val archive: ArchiveHandle?,
     override val access: PartitionAccessTree,
 ) : ExtensionPartition {
     internal constructor(descriptor: ArtifactMetadata.Descriptor) : this(
@@ -66,7 +66,7 @@ public abstract class TargetPartitionLoader<T : TargetPartitionMetadata>(
 
     abstract override fun parseMetadata(
         partition: PartitionRuntimeModel,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         helper: PartitionMetadataHelper
     ): Job<T>
 
@@ -95,7 +95,7 @@ public abstract class TargetPartitionLoader<T : TargetPartitionMetadata>(
 
     override fun load(
         metadata: T,
-        reference: ArchiveReference,
+        reference: ArchiveReference?,
         accessTree: PartitionAccessTree,
         helper: PartitionLoaderHelper
     ): Job<ExtensionPartitionContainer<*, T>> =
@@ -106,41 +106,45 @@ public abstract class TargetPartitionLoader<T : TargetPartitionMetadata>(
                 thisDescriptor,
                 metadata,
                 run {
-                    val sourceProviderDelegate = ArchiveSourceProvider(reference)
+                    val handle = reference?.let {
+                        val sourceProviderDelegate = ArchiveSourceProvider(reference)
 
-                    val (dependencies, target) = accessTree.targets
-                        .map { it.relationship.node }
-                        .filterIsInstance<ClassLoadedArchiveNode<*>>()
-                        .partition { it.descriptor != TargetDescriptor }
+                        val (dependencies, target) = accessTree.targets
+                            .map { it.relationship.node }
+                            .filterIsInstance<ClassLoadedArchiveNode<*>>()
+                            .partition { it.descriptor != TargetDescriptor }
 
-                    val cl = PartitionClassLoader(
-                        thisDescriptor,
-                        accessTree,
-                        reference,
-                        helper.parentClassLoader,
-                        sourceProvider = sourceProviderDelegate,
-                        classProvider = object : ClassProvider {
-                            val dependencyDelegate = DelegatingClassProvider(
-                                dependencies
-                                    .mapNotNull { it.handle }
-                                    .map(::ArchiveClassProvider)
-                            )
-                            val targetDelegate = target.first().handle!!.classloader
+                        val cl = PartitionClassLoader(
+                            thisDescriptor,
+                            accessTree,
+                            reference,
+                            helper.parentClassLoader,
+                            sourceProvider = sourceProviderDelegate,
+                            classProvider = object : ClassProvider {
+                                val dependencyDelegate = DelegatingClassProvider(
+                                    dependencies
+                                        .mapNotNull { it.handle }
+                                        .map(::ArchiveClassProvider)
+                                )
+                                val targetDelegate = target.first().handle!!.classloader
 
-                            override val packages: Set<String> = dependencyDelegate.packages + "*target*"
+                                override val packages: Set<String> = dependencyDelegate.packages + "*target*"
 
-                            override fun findClass(name: String): Class<*>? {
-                                return runCatching(ClassNotFoundException::class) { targetDelegate.loadClass(name) } ?: dependencyDelegate.findClass(name)
+                                override fun findClass(name: String): Class<*>? {
+                                    return runCatching(ClassNotFoundException::class) { targetDelegate.loadClass(name) }
+                                        ?: dependencyDelegate.findClass(name)
+                                }
                             }
-                        }
-                    )
+                        )
 
-                    val handle = PartitionArchiveHandle(
-                        "${helper.erm.name}-${metadata.name}",
-                        cl,
-                        reference,
-                        setOf()
-                    )
+                        PartitionArchiveHandle(
+                            "${helper.erm.name}-${metadata.name}",
+                            cl,
+                            reference,
+                            setOf()
+                        )
+                    }
+
 
                     TargetPartitionNode(
                         handle,
