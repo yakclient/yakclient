@@ -162,7 +162,7 @@ val buildBundle by tasks.registering(BuildBundle::class) {
     partition("tweaker") {
         jar(tweakerJar)
         prm(generateTweakerPrm)
-        artifact(tweakerSourcesJar)
+        // TODO    artifact(tweakerSourcesJar)
     }
 
     erm.from(generateErm)
