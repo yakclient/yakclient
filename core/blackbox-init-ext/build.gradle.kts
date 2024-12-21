@@ -33,6 +33,7 @@ val generateMainPrm by tasks.registering(GeneratePrm::class) {
     )
     ignoredModules.addAll(setOf(
     ))
+    includeMavenLocal = true
 }
 
 val generateTweakerPrm by tasks.registering(GeneratePrm::class) {
@@ -47,6 +48,7 @@ val generateTweakerPrm by tasks.registering(GeneratePrm::class) {
     )
     ignoredModules.addAll(setOf(
     ))
+    includeMavenLocal = true
 }
 
 val tweakerJar by tasks.registering(Jar::class) {
@@ -58,25 +60,25 @@ common {
     defaultJavaSettings()
 }
 
-fun setupErm(): Any {
-    val text = project.file("src/main/resources/erm.json").readText()
-    val replacedText = text.replace("<MAVEN_LOCAL>", repositories.mavenLocal().url.path)
-
-    val temp = Files.createTempFile("core-blackbox-erm", ".json")
-    temp.writeText(replacedText)
-
-    return temp
-}
 tasks.withType<PublishToMavenRepository>() {
     enabled = false
 }
 
-
+val generateErm by tasks.registering(GenerateErm::class) {
+    partitions {
+        add(generateTweakerPrm)
+        add(generateMainPrm)
+    }
+    includeMavenLocal = true
+    parents {
+        add(project(":core"))
+    }
+}
 
 publishing {
     publications {
         create<MavenPublication>("test") {
-            artifact(setupErm()).classifier = "erm"
+            artifact(generateErm).classifier = "erm"
             artifact(generateMainPrm).classifier = "main"
             artifact(tasks.jar).classifier = "main"
             artifact(generateTweakerPrm).classifier = "tweaker"
@@ -85,9 +87,7 @@ publishing {
     }
 }
 
-
 afterEvaluate {
-//    tasks.named("publishCore-blackbox-init-ext-releasePublicationToMavenLocal").get().dependsOn(tweakerJar)
     tasks.named("dokkaJavadoc").get().dependsOn(project(":core").tasks.named("tweakerJar"))
 }
 

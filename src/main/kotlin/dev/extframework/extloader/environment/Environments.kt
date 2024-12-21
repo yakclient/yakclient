@@ -8,7 +8,7 @@ import dev.extframework.tooling.api.environment.*
 import dev.extframework.tooling.api.exception.ExceptionContextSerializer
 import dev.extframework.tooling.api.extension.partition.ExtensionPartitionLoader
 
-internal fun MutableObjectContainerAttribute<ExtensionPartitionLoader<*>>.registerLoaders() {
+public fun MutableObjectContainerAttribute<ExtensionPartitionLoader<*>>.registerLoaders() {
     TweakerPartitionLoader().also { container.register(it.type, it) }
 }
 

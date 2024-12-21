@@ -68,6 +68,12 @@ public interface ExtensionPartitionLoader<T : ExtensionPartitionMetadata> {
         helper: PartitionMetadataHelper
     ): Job<T>
 
+    // TODO decide if reference should remain as a parameter here or should be forced to be included
+    //   as a property in T. Reasoning behind this is that in both Main and Target partitions this reference
+    //   value is discarded and instead the reference in metadata is consumed. This only (actually) matters
+    //   for the target partition where then if remapping occurs under Minecraft, mixins dont properly apply
+    //   because the used reference is the one provided here, NOT the one provided in parse metadata. Another
+    //   option is to cache loaded references in the PartitionResolver as have the same object passed to each method.
     public fun load(
         metadata: T,
         reference: ArchiveReference?,

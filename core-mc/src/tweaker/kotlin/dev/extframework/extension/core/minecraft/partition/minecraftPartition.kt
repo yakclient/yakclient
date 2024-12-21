@@ -130,11 +130,14 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
 
     override fun load(
         metadata: MinecraftPartitionMetadata,
-        reference: ArchiveReference?,
+        //  /-- Want to instead use the archive defined in metadata for consistency
+        unused: ArchiveReference?,
+        // --\
         accessTree: PartitionAccessTree,
         helper: PartitionLoaderHelper
     ): Job<ExtensionPartitionContainer<*, MinecraftPartitionMetadata>> = job {
         val thisDescriptor = helper.erm.descriptor.partitionNamed(metadata.name)
+        val reference = metadata.archive
 
         ExtensionPartitionContainer(
             thisDescriptor,

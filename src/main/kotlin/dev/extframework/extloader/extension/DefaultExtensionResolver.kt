@@ -1,8 +1,10 @@
 package dev.extframework.extloader.extension
 
 import com.durganmcbroom.artifact.resolver.*
+import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
 import com.durganmcbroom.jobs.Job
+import com.durganmcbroom.jobs.JobScope
 import com.durganmcbroom.jobs.async.AsyncJob
 import com.durganmcbroom.jobs.async.asyncJob
 import com.durganmcbroom.jobs.async.mapAsync
@@ -16,6 +18,10 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import dev.extframework.boot.archive.*
 import dev.extframework.boot.audit.Auditor
 import dev.extframework.boot.audit.Auditors
+import dev.extframework.boot.constraint.Constrained
+import dev.extframework.boot.constraint.ConstraintArchiveAuditor
+import dev.extframework.boot.constraint.ConstraintNegotiator
+import dev.extframework.boot.maven.MavenConstraintNegotiator
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
 import dev.extframework.boot.monad.replace
@@ -63,37 +69,60 @@ public open class DefaultExtensionResolver(
     }
 
     override val auditors: Auditors
-        get() = (environment[dependencyTypesAttrKey]
-            .extract().container.objects().values
-            .map { it.resolver.auditors } +
-                (environment[ExtraAuditorsAttribute].getOrNull()?.auditors ?: Auditors())
-//                +
-//                Auditors(Auditor(ArchiveTreeAuditContext::class.java) { c ->
-//                    c.copy(
-//                        tree = c.tree.replace {
-//                            val descriptor = it.item.value.descriptor
-//
-//                            if (descriptor is ExtensionDescriptor && c.graph.nodes()
-//                                    .map { it.descriptor }
-//                                    .filterIsInstance<ExtensionDescriptor>()
-//                                    .any {
-//                                        it.group == descriptor.group && it.artifact == descriptor.artifact && it.version != descriptor.version
-//                                    }) {
-//                                Tree(
-//                                    c.graph.getNode(descriptor)!! tag it.item.tag,
-//                                    listOf()
-//                                )
-//                            } else it
-//                        }
-//                    )
-//
-//                })
+        get() {
+            val doAudit: JobScope.(ArchiveTreeAuditContext) -> ArchiveTreeAuditContext = { c ->
+                c.copy(
+                    tree = c.tree.replace {
+                        val descriptor = it.item.value.descriptor
+
+                        if (descriptor is ExtensionDescriptor) {
+                            val matching = c.graph.nodes()
+                                .map { it.descriptor }
+                                .filterIsInstance<ExtensionDescriptor>()
+                                .find {
+                                    it.group == descriptor.group && it.artifact == descriptor.artifact && it.version != descriptor.version
+                                }
+
+                            if (matching != null) {
+                                Tree(
+                                    c.graph.getNode(matching)!! tag it.item.tag,
+                                    listOf()
+                                )
+                            } else it
+                        } else it
+                    }
                 )
-            .fold(Auditors()) { acc, it ->
-                it.auditors.values.fold(acc) { innerAcc, innerIt ->
-                    innerAcc.chain(innerIt)
-                }
             }
+
+            return (environment[dependencyTypesAttrKey]
+                .extract().container.objects().values
+                .map { it.resolver.auditors }
+                    + (environment[ExtraAuditorsAttribute].getOrNull()?.auditors ?: Auditors())
+                    + Auditors(
+                Auditor(ArchiveTreeAuditContext::class.java, doAudit),
+                ConstraintArchiveAuditor(
+                    listOf(
+                        ExtensionConstraintNegotiator(
+                            ExtensionDescriptor::class.java, {
+                                "${it.group}:${it.artifact}"
+                            }
+                        ) {
+                            SimpleMavenDescriptor(it.group, it.artifact, it.version, null)
+                        }, ExtensionConstraintNegotiator(
+                            PartitionDescriptor::class.java, {
+                                "${it.extension.group}:${it.extension.artifact}:${it.partition}"
+                            }
+                        ) {
+                            SimpleMavenDescriptor(it.extension.group, it.extension.artifact, it.extension.version, null)
+                        })
+                )
+            ))
+                .fold(Auditors()) { acc, it ->
+                    it.auditors.values.fold(acc) { innerAcc, innerIt ->
+                        innerAcc.chain(innerIt)
+                    }
+                }
+        }
 
     override fun createContext(settings: SimpleMavenRepositorySettings): ResolutionContext<ExtensionRepositorySettings, ExtensionArtifactRequest, ExtensionArtifactMetadata> {
         return factory.createContext(settings)

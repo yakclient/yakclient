@@ -62,21 +62,17 @@ val tweakerJar by tasks.registering(Jar::class) {
     archiveBaseName.set("tweaker")
 }
 
-
-fun setupErm(): Any {
-    val text = project.file("src/main/resources/erm.json").readText()
-    val replacedText = text.replace("<MAVEN_LOCAL>", repositories.mavenLocal().url.path)
-
-    val temp = Files.createTempFile("stdlib-blackbox-erm", ".json")
-    temp.writeText(replacedText)
-
-    return temp
+val generateErm by tasks.registering(GenerateErm::class) {
+    partitions {
+        add(generateTweakerPrm)
+    }
+    includeMavenLocal = true
 }
 
 common {
     publishing {
         publication {
-            artifact(setupErm()).classifier = "erm"
+            artifact(generateErm).classifier = "erm"
             artifact(generateMainPrm).classifier = "main"
             artifact(generateTweakerPrm).classifier = "tweaker"
             artifact(tasks.jar).classifier = "main"

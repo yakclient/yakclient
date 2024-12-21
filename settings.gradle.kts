@@ -39,5 +39,5 @@ include("tests")
 
 include("core:api")
 findProject(":core:api")?.name = "core-api"
-
-
+include("tests:double-load")
+findProject(":tests:double-load")?.name = "double-load"

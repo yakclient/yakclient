@@ -7,7 +7,7 @@ import publish.BuildBundle
 import publish.GenerateMetadata
 
 group = "dev.extframework.extension"
-version = "1.0.15-BETA"
+version = "1.0.16-BETA"
 
 sourceSets {
     create("tweaker")

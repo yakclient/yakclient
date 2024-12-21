@@ -73,7 +73,6 @@ public fun MinecraftApp(
 
             toRemove.forEach(archive.writer::remove)
 
-            remappedPath.make()
             archive.write(remappedPath)
         }
     }

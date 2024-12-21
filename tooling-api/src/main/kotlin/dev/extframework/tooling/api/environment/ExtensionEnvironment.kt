@@ -3,12 +3,14 @@
 package dev.extframework.tooling.api.environment
 
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 
 public fun interface EnvironmentAttributeUpdater<T : EnvironmentAttribute> : (T) -> T
 
 public open class ExtensionEnvironment {
     private val attributes: MutableMap<EnvironmentAttributeKey<*>, EnvironmentAttribute> = ConcurrentHashMap()
-    private val updates: MutableMap<EnvironmentAttributeKey<*>, MutableList<EnvironmentAttributeUpdater<*>>> = ConcurrentHashMap()
+    private val updates: MutableMap<EnvironmentAttributeKey<*>, ConcurrentLinkedQueue<EnvironmentAttributeUpdater<*>>> =
+        ConcurrentHashMap()
 
     public operator fun <T : EnvironmentAttribute> get(key: EnvironmentAttributeKey<T>): DeferredValue<T> {
         return defer(key.toString()) {
@@ -29,9 +31,9 @@ public open class ExtensionEnvironment {
         key: EnvironmentAttributeKey<T>,
         updater: EnvironmentAttributeUpdater<T>
     ) {
-        updates[key]?.apply {
+        (updates[key] ?: ConcurrentLinkedQueue<EnvironmentAttributeUpdater<*>>().also { updates.put(key, it) }).apply {
             add(updater)
-        } ?: updates.put(key, mutableListOf(updater))
+        }
     }
 
     public fun <T : EnvironmentAttribute> set(attribute: T) {

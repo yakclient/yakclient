@@ -1,6 +1,7 @@
 package dev.extframework.extloader
 
 import com.durganmcbroom.artifact.resolver.Artifact
+import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenDefaultLayout
 import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.JobName
 import com.durganmcbroom.jobs.async.AsyncJob
@@ -8,9 +9,12 @@ import com.durganmcbroom.jobs.async.asyncJob
 import com.durganmcbroom.jobs.async.mapAsync
 import com.durganmcbroom.jobs.job
 import com.durganmcbroom.jobs.mapException
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import dev.extframework.boot.archive.ArchiveException
 import dev.extframework.boot.archive.ArchiveGraph
 import dev.extframework.boot.dependency.DependencyTypeContainer
+import dev.extframework.common.util.filterDuplicatesBy
+import dev.extframework.common.util.make
 import dev.extframework.extloader.environment.registerBasicSerializers
 import dev.extframework.extloader.environment.registerLoaders
 import dev.extframework.extloader.exception.BasicExceptionPrinter
@@ -19,6 +23,7 @@ import dev.extframework.extloader.extension.DefaultExtensionResolver
 import dev.extframework.extloader.extension.ExtensionLoadException
 import dev.extframework.extloader.extension.partition.TweakerPartitionLoader
 import dev.extframework.extloader.extension.partition.TweakerPartitionNode
+import dev.extframework.tooling.api.TOOLING_API_VERSION
 import dev.extframework.tooling.api.environment.*
 import dev.extframework.tooling.api.exception.StackTracePrinter
 import dev.extframework.tooling.api.exception.StructuredException
@@ -34,14 +39,17 @@ import dev.extframework.tooling.api.target.ApplicationTarget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
+import java.nio.file.Files
 import java.nio.file.Path
+import java.util.UUID
+import kotlin.io.path.writeBytes
 import kotlin.system.exitProcess
 
 public class InternalExtensionEnvironment private constructor() : ExtensionEnvironment() {
     public val workingDir: Path
         get() = get(wrkDirAttrKey).extract().value
     public val archiveGraph: ArchiveGraph
-         get() = get(ArchiveGraphAttribute).extract().graph
+        get() = get(ArchiveGraphAttribute).extract().graph
     public val dependencyTypes: DependencyTypeContainer
         get() = get(dependencyTypesAttrKey).extract().container
     public val application: ApplicationTarget by get(ApplicationTarget)
@@ -95,12 +103,55 @@ public fun initExtensions(
     })
     environment.setUnless(BasicExceptionPrinter())
 
-    initExtensions(environment, extensionRequests)().handleStructuredException(environment)
+    val uberExtension = generateUberExtension(extensionRequests)
+
+    initExtension(environment, uberExtension.first, uberExtension.second)().handleStructuredException(environment)
 }
 
-private fun initExtensions(
-    environment: InternalExtensionEnvironment,
+private fun generateUberExtension(
     extensionRequests: Map<ExtensionDescriptor, ExtensionRepositorySettings>,
+): Pair<ExtensionDescriptor, ExtensionRepositorySettings> {
+    val erm = ExtensionRuntimeModel(
+        TOOLING_API_VERSION,
+        "dev.extframework.extension",
+        "uber",
+        UUID.randomUUID().toString(),
+        extensionRequests.map { (_, repo) ->
+            mapOf(
+                "location" to repo.layout.location,
+                "type" to if (repo.layout is SimpleMavenDefaultLayout) "default" else "local",
+            )
+        },
+        extensionRequests.mapTo(HashSet()) { (desc) ->
+            ExtensionParent(
+                desc.group,
+                desc.artifact,
+                desc.version,
+            )
+        }, setOf()
+    )
+
+    val dir = Files.createTempDirectory("uber-extension")
+    val ermPath = dir
+        .resolve("dev")
+        .resolve("extframework")
+        .resolve("extension")
+        .resolve(erm.name)
+        .resolve(erm.version)
+        .resolve("${erm.name}-${erm.version}-erm.json")
+
+    ermPath.make()
+    ermPath.writeBytes(jacksonObjectMapper().writeValueAsBytes(erm))
+
+    return erm.descriptor to ExtensionRepositorySettings.local(
+        path = dir.toString()
+    )
+}
+
+private fun initExtension(
+    environment: InternalExtensionEnvironment,
+    descriptor: ExtensionDescriptor,
+    repository: ExtensionRepositorySettings,
 ) = job {
     fun allExtensions(node: ExtensionNode): Set<ExtensionNode> {
         return node.access.targets.map { it.relationship.node }
@@ -112,16 +163,18 @@ private fun initExtensions(
 
     fun loadTweakers(
         artifact: Artifact<ExtensionArtifactMetadata>
-    ): AsyncJob<List<ExtensionPartitionContainer<TweakerPartitionNode, *>>> = asyncJob {
-        val parents =
-            artifact.parents.mapAsync {
-                loadTweakers(it)().merge()
-            }
-
-        val tweakerContainer: ExtensionPartitionContainer<TweakerPartitionNode, *>? = run {
+    ): Job<List<ExtensionPartitionContainer<TweakerPartitionNode, *>>> = job {
+        val tweakerContainer: ExtensionPartitionContainer<TweakerPartitionNode, *>? = environment.archiveGraph
+            .nodes()
+            .filterIsInstance<ExtensionPartitionContainer<*, *>>()
+            .find {
+                it.descriptor.extension.group == artifact.metadata.descriptor.group
+                        && it.descriptor.extension.artifact == artifact.metadata.descriptor.artifact
+                        && it.descriptor.partition == TweakerPartitionLoader.TYPE
+            } as? ExtensionPartitionContainer<TweakerPartitionNode, *> ?: run {
             val descriptor = PartitionDescriptor(artifact.metadata.descriptor, TweakerPartitionLoader.TYPE)
 
-            val cacheResult = environment.archiveGraph.cacheAsync(
+            val cacheResult = environment.archiveGraph.cache(
                 PartitionArtifactRequest(descriptor),
                 artifact.metadata.repository,
                 extensionResolver.partitionResolver,
@@ -135,64 +188,61 @@ private fun initExtensions(
             )().merge()
         } as? ExtensionPartitionContainer<TweakerPartitionNode, *>
 
-        parents.awaitAll().flatten() + listOfNotNull(tweakerContainer)
+        val parents =
+            artifact.parents.map {
+                loadTweakers(it)().merge()
+            }
+
+        parents.flatten() + listOfNotNull(tweakerContainer)
     }
 
     val tweakers = job(JobName("Load tweakers")) {
-        runBlocking(Dispatchers.IO) {
-            extensionRequests.flatMap { (ext, repo) ->
-                asyncJob {
-                    val artifact = extensionResolver.createContext(repo)
-                        .getAndResolveAsync(
-                            ExtensionArtifactRequest(ext)
-                        )().merge()
+        val artifact = extensionResolver.createContext(repository)
+            .getAndResolve(
+                ExtensionArtifactRequest(descriptor),
+            )().merge()
 
-                    loadTweakers(artifact)().merge()
-                }().mapException {
-                    ExtensionLoadException(ext, it) {
-                        ext asContext "Extension"
-                    }
-                }.merge()
-            }
+        loadTweakers(artifact)().merge()
+    }.mapException {
+        ExtensionLoadException(descriptor, it) {
+            descriptor asContext "Extension"
         }
-    }().merge()
+    }().merge().filterDuplicatesBy { it.descriptor }
 
     tweakers.map { it.node }.forEach {
         it.tweaker.tweak(environment)().merge()
     }
 
     val extensionNodes = job(JobName("Load extensions")) {
-        extensionRequests.map { (ext, repo) ->
-            job {
-                environment.archiveGraph.cache(
-                    ExtensionArtifactRequest(
-                        ext,
-                    ),
-                    repo,
-                    extensionResolver
-                )().merge()
+        environment.archiveGraph.cache(
+            ExtensionArtifactRequest(
+                descriptor,
+            ),
+            repository,
+            extensionResolver
+        )().merge()
 
-                environment.archiveGraph.get(
-                    ext,
-                    extensionResolver
-                )().merge()
-            }().mapException {
-                ExtensionLoadException(ext, it) {
-                    ext asContext "Extension"
-                }
-            }.merge()
+        environment.archiveGraph.get(
+            descriptor,
+            extensionResolver
+        )().merge()
+    }.mapException {
+        ExtensionLoadException(descriptor, it) {
+            descriptor asContext "Extension"
         }
     }().merge()
 
     // Get all extension nodes in order
-    val extensions = extensionNodes.flatMap(::allExtensions)
+    val extensions = extensionNodes
+        .let(::allExtensions)
+        .filterDuplicatesBy { it.descriptor }
 
     // Get extension observer (if there is one after tweaker application) and observer each node
     environment[ExtensionNodeObserver].getOrNull()?.let { extensions.forEach(it::observe) }
 
     // Call init on all extensions, this is ordered correctly
     extensions.forEach {
-        environment[ExtensionRunner].extract().init(it)().merge()
+        environment[ExtensionRunner].getOrNull()?.init(it)?.invoke()?.merge()
     }
 }
 

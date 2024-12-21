@@ -1,8 +1,10 @@
 package dev.extframework.extloader.extension.partition
 
 import com.durganmcbroom.artifact.resolver.*
+import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
 import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenDefaultLayout
 import com.durganmcbroom.jobs.Job
+import com.durganmcbroom.jobs.JobScope
 import com.durganmcbroom.jobs.async.AsyncJob
 import com.durganmcbroom.jobs.async.asyncJob
 import com.durganmcbroom.jobs.job
@@ -17,6 +19,7 @@ import dev.extframework.archives.zip.ZipFinder
 import dev.extframework.boot.archive.*
 import dev.extframework.boot.audit.Auditor
 import dev.extframework.boot.audit.Auditors
+import dev.extframework.boot.constraint.ConstraintArchiveAuditor
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
 import dev.extframework.boot.monad.replace
@@ -24,6 +27,7 @@ import dev.extframework.boot.monad.tag
 import dev.extframework.boot.util.basicObjectMapper
 import dev.extframework.common.util.filterDuplicates
 import dev.extframework.extloader.environment.ExtraAuditorsAttribute
+import dev.extframework.extloader.extension.ExtensionConstraintNegotiator
 import dev.extframework.extloader.extension.ExtensionLoadException
 import dev.extframework.extloader.extension.artifact.ExtensionRepositoryFactory
 import dev.extframework.extloader.extension.partition.artifact.PartitionRepositoryFactory
@@ -54,36 +58,55 @@ public open class DefaultPartitionResolver(
         get() = environment[partitionLoadersAttrKey].extract().container
 
     override val auditors: Auditors
-        get() = (environment[dependencyTypesAttrKey]
-            .extract().container.objects().values
-            .map { it.resolver.auditors } + (environment[ExtraAuditorsAttribute].getOrNull()?.auditors ?: Auditors())
-//                +
-//                Auditors(Auditor(ArchiveTreeAuditContext::class.java) { c ->
-//                    c.copy(
-//                        tree = c.tree.replace {
-//                            val descriptor = it.item.value.descriptor
-//                            if (descriptor is PartitionDescriptor && c.graph.nodes()
-//                                    .map { it.descriptor }
-//                                    .filterIsInstance<PartitionDescriptor>()
-//                                    .map { it.extension }
-//                                    .any {
-//                                        it.group == descriptor.extension.group && it.artifact == descriptor.extension.artifact && it.version != descriptor.extension.version
-//                                    }
-//                            ) {
-//                                Tree(
-//                                    c.graph.getNode(descriptor)!! tag it.item.tag,
-//                                    listOf()
-//                                )
-//                            } else it
-//                        }
-//                    )
-//                })
+        get() {
+            val doAudit: JobScope.(ArchiveTreeAuditContext) -> ArchiveTreeAuditContext = { c ->
+                c.copy(
+                    tree = c.tree.replace {
+                        val descriptor = it.item.value.descriptor
+
+                        if (descriptor is PartitionDescriptor
+                        ) {
+                            val matching = c.graph.nodes()
+                                .map { it.descriptor }
+                                .filterIsInstance<PartitionDescriptor>()
+                                .map { it.extension }
+                                .find {
+                                    it.group == descriptor.extension.group && it.artifact == descriptor.extension.artifact && it.version != descriptor.extension.version
+                                }
+
+                            if (matching != null) {
+                                Tree(
+                                    c.graph.getNode(descriptor)!! tag it.item.tag,
+                                    listOf()
+                                )
+                            } else it
+                        } else it
+                    }
                 )
-            .fold(Auditors()) { acc, it ->
-                it.auditors.values.fold(acc) { innerAcc, innerIt ->
-                    innerAcc.chain(innerIt)
-                }
             }
+            return (environment[dependencyTypesAttrKey]
+                .extract().container.objects().values
+                .map { it.resolver.auditors } + (environment[ExtraAuditorsAttribute].getOrNull()?.auditors
+                ?: Auditors())
+                    +
+                    Auditors(
+                        Auditor(ArchiveTreeAuditContext::class.java, doAudit), ConstraintArchiveAuditor(
+                            listOf(
+                                ExtensionConstraintNegotiator(
+                                    PartitionDescriptor::class.java, {
+                                        "${it.extension.group}:${it.extension.artifact}:${it.partition}"
+                                    }
+                                ) {
+                                    SimpleMavenDescriptor(it.extension.group, it.extension.artifact, it.extension.version, null)
+                                })
+                        )
+                    ))
+                .fold(Auditors()) { acc, it ->
+                    it.auditors.values.fold(acc) { innerAcc, innerIt ->
+                        innerAcc.chain(innerIt)
+                    }
+                }
+        }
 
     override fun createContext(
         settings: ExtensionRepositorySettings

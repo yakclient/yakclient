@@ -11,6 +11,7 @@ import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
 import org.gradle.api.provider.SetProperty
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.TaskProvider
@@ -20,6 +21,10 @@ import java.nio.file.Paths
 import kotlin.io.path.Path
 
 abstract class GenerateErm : DefaultTask() {
+    @get:Input
+    @get:Optional
+    abstract val version: Property<String>
+
     @get:Input
     abstract val parents: ListProperty<ExtensionParent>
 
@@ -84,7 +89,7 @@ abstract class GenerateErm : DefaultTask() {
             1,
             project.group as String,
             project.name,
-            project.version as String,
+            version.orNull ?: project.version as String,
             repositories,
             parents.get().toSet(),
             partitions.get().toSet()

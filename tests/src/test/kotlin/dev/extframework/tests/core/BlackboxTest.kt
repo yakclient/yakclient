@@ -1,11 +1,15 @@
 package dev.extframework.tests.core
 
 import BootLoggerFactory
+import com.durganmcbroom.jobs.Job
+import com.durganmcbroom.jobs.job
 import com.durganmcbroom.jobs.launch
 import dev.extframework.common.util.resolve
 import dev.extframework.extloader.InternalExtensionEnvironment
 import dev.extframework.extloader.initExtensions
 import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.extension.ExtensionNode
+import dev.extframework.tooling.api.extension.ExtensionRunner
 import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
 import dev.extframework.tooling.api.target.ApplicationTarget

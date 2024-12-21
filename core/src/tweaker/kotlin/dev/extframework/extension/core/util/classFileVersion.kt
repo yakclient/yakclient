@@ -5,7 +5,7 @@ import org.objectweb.asm.Opcodes
 internal fun currentCFVersion(): Int {
     val specV = System.getProperty("java.specification.version")
     return when (specV) {
-        "8" -> Opcodes.V1_8
+        "1.8" -> Opcodes.V1_8
         "9" -> Opcodes.V9
         "10" -> Opcodes.V10
         "11" -> Opcodes.V11

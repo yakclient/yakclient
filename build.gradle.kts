@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "dev.extframework"
-version = "2.1.11-SNAPSHOT"
+version = "2.1.12-SNAPSHOT"
 
 tasks.wrapper {
     gradleVersion = "8.3"
