@@ -94,13 +94,17 @@ internal fun cachePartitionDependencies(
         } ?: throw PartitionLoadException(
             partition.name,
             "An unrecoverable error occurred when caching dependencies",
-            IterableException(
-                "Dependencies could not be cached",
-                cacheResult.map { it.exceptionOrNull()!! }
-            )
+            cacheResult
+                .mapNotNull { it.exceptionOrNull() }
+                .first { it !is ArchiveException.ArchiveNotFound }
+//            IterableException(
+//                "Dependencies could not be cached",
+//                cacheResult.map { it.exceptionOrNull()!! }
+//            )
         ) {
             dependency asContext "Raw dependency request" // We want the raw dependency request because there was an issue with every single dependency provider (and we correctly assume that all may have different dependency descriptor types)
             requests.map { it.second } asContext "Attempted repositories"
+            extName asContext "Extension name"
         }
 
         successfulJob.merge()

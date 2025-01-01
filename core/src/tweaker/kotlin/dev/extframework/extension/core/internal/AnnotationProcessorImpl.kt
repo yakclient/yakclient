@@ -1,6 +1,5 @@
 package dev.extframework.extension.core.internal
 
-import com.durganmcbroom.resources.openStream
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.extension.core.annotation.AnnotationProcessor
 import dev.extframework.extension.core.annotation.AnnotationTarget
@@ -24,7 +23,7 @@ public class AnnotationProcessorImpl(
     ): List<AnnotationProcessor.AnnotationElement<T>> {
         return archive.reader.entries()
             .filter { it.name.endsWith(".class") }
-            .flatMap { process(it.resource.openStream().parseNode(), annotation) }
+            .flatMap { process(it.open().parseNode(), annotation) }
             .toList()
     }
 

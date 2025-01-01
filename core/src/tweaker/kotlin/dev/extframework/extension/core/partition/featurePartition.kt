@@ -6,7 +6,6 @@ import com.durganmcbroom.jobs.SuccessfulJob
 import com.durganmcbroom.jobs.async.AsyncJob
 import com.durganmcbroom.jobs.async.asyncJob
 import com.durganmcbroom.jobs.job
-import com.durganmcbroom.resources.DelegatingResource
 import com.durganmcbroom.resources.Resource
 import com.durganmcbroom.resources.asResourceStream
 import dev.extframework.archives.ArchiveHandle
@@ -16,7 +15,6 @@ import dev.extframework.archives.extension.InsnList
 import dev.extframework.archives.extension.Method
 import dev.extframework.archives.extension.overloads
 import dev.extframework.archives.transform.Sources
-import dev.extframework.boot.archive.ArchiveData
 import dev.extframework.boot.archive.ArchiveNodeResolver
 import dev.extframework.boot.archive.IArchive
 import dev.extframework.boot.monad.Tagged
@@ -201,15 +199,11 @@ public class FeaturePartitionLoader(
                     reference!!.writer.put(
                         ArchiveReference.Entry(
                             "$featureBuiltInName.class",
-                            Resource(
-                                (FeatureBuiltIn::class.java.classLoader.getResource(extLoaderDefinedBuiltIn)
-                                    ?: cantFindBuiltin()).toURI()
-                            ) {
-                                buildFeatureBuiltIn(featureBuiltInName)
-                            },
                             false,
                             reference
-                        )
+                        ) {
+                            buildFeatureBuiltIn(featureBuiltInName)
+                        }
                     )
 
                     definedFeatures.forEach { (container, theseDefinedFeatures) ->
@@ -253,15 +247,14 @@ public class FeaturePartitionLoader(
                         reference.writer.put(
                             ArchiveReference.Entry(
                                 containerLocation,
-                                DelegatingResource("<synthesized feature class>") {
-                                    val writer = ClassWriter(Archives.WRITER_FLAGS)
-                                    synthesizedFeatureClass.accept(writer)
-
-                                    ByteArrayInputStream(writer.toByteArray()).asResourceStream()
-                                },
                                 false,
                                 reference
-                            )
+                            ) {
+                                val writer = ClassWriter(Archives.WRITER_FLAGS)
+                                synthesizedFeatureClass.accept(writer)
+
+                                ByteArrayInputStream(writer.toByteArray())
+                            }
                         )
                     }
 
@@ -359,8 +352,7 @@ public class FeaturePartitionLoader(
             ClassReader(
                 FeatureBuiltIn::class.java.classLoader.getResourceAsStream(
                     FeatureBuiltIn::class.java.name.withSlashes() + ".class"
-                )
-                    ?: cantFindBuiltin()
+                ) ?: cantFindBuiltin()
             )
         val node = ClassNode()
         reader.accept(node, 0)
@@ -524,6 +516,7 @@ public class FeaturePartitionLoader(
                 baseSource.insert(returnNode, InsnNode(Opcodes.IRETURN))
                 baseSource.remove(returnNode)
             }
+
             Type.FLOAT -> {
                 val list = InsnList(
                     listOf(
@@ -537,6 +530,7 @@ public class FeaturePartitionLoader(
                 baseSource.insert(returnNode, InsnNode(Opcodes.FRETURN))
                 baseSource.remove(returnNode)
             }
+
             Type.LONG -> {
                 val list = InsnList(
                     listOf(
@@ -550,6 +544,7 @@ public class FeaturePartitionLoader(
                 baseSource.insert(returnNode, InsnNode(Opcodes.LRETURN))
                 baseSource.remove(returnNode)
             }
+
             Type.DOUBLE -> {
                 val list = InsnList(
                     listOf(

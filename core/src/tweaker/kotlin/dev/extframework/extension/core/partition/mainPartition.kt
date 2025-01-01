@@ -6,10 +6,8 @@ import com.durganmcbroom.jobs.async.AsyncJob
 import com.durganmcbroom.jobs.async.asyncJob
 import com.durganmcbroom.jobs.async.mapAsync
 import com.durganmcbroom.jobs.job
-import com.durganmcbroom.resources.openStream
 import dev.extframework.archives.ArchiveHandle
 import dev.extframework.archives.ArchiveReference
-import dev.extframework.boot.archive.ArchiveData
 import dev.extframework.boot.archive.ArchiveNodeResolver
 import dev.extframework.boot.archive.IArchive
 import dev.extframework.boot.loader.ArchiveSourceProvider
@@ -57,7 +55,7 @@ public class MainPartitionLoader(
         val allFeatures = reference?.let { it.reader.entries()
             .filter { it.name.endsWith(".class") }
             .map {
-                it.resource.openStream().parseNode()
+                it.open().parseNode()
             }.filter {
                 it.definesFeatures(processor)
             }.flatMap {

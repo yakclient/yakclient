@@ -13,6 +13,8 @@ import dev.extframework.boot.dependency.DependencyTypeContainer
 import dev.extframework.boot.loader.*
 import dev.extframework.boot.maven.MavenLikeResolver
 import dev.extframework.common.util.readInputStream
+import dev.extframework.core.minecraft.api.MinecraftAppApi
+import dev.extframework.minecraft.bootstrapper.MinecraftProviderFinder
 import dev.extframework.tooling.api.target.ApplicationDescriptor
 import dev.extframework.tooling.api.target.ApplicationTarget
 import java.net.URL
@@ -20,6 +22,7 @@ import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.Path
+import kotlin.io.path.toPath
 
 fun createEmptyApp(): ApplicationTarget {
     return object : ApplicationTarget {
@@ -71,7 +74,10 @@ fun createMinecraftApp(
         private val delegate: ClassLoader,
         version: String, override val path: Path,
         access: ArchiveAccessTree,
-    ) : ApplicationTarget {
+        classpath: List<Path>,
+        override val gameDir: Path,
+        override val gameJar: Path,
+    ) : MinecraftAppApi(classpath) {
         override val node: ClassLoadedArchiveNode<ApplicationDescriptor> =
             object : ClassLoadedArchiveNode<ApplicationDescriptor> {
                 private val appDesc = ApplicationDescriptor(
@@ -85,26 +91,28 @@ fun createMinecraftApp(
                 override val handle: ArchiveHandle = classLoaderToArchive(
                     MutableClassLoader(
                         name = "minecraft-loader",
-                        resources = MutableResourceProvider(mutableListOf(
-                            object : ResourceProvider {
-                                override fun findResources(name: String): Sequence<URL> {
-                                    return delegate.getResources(name).asSequence()
+                        resources = MutableResourceProvider(
+                            mutableListOf(
+                                object : ResourceProvider {
+                                    override fun findResources(name: String): Sequence<URL> {
+                                        return delegate.getResources(name).asSequence()
+                                    }
                                 }
-                            }
-                        )),
-                        sources = object : MutableSourceProvider(mutableListOf(
-                            object : SourceProvider {
-                                override val packages: Set<String> = setOf("*")
+                            )),
+                        sources = object : MutableSourceProvider(
+                            mutableListOf(
+                                object : SourceProvider {
+                                    override val packages: Set<String> = setOf("*")
 
-                                override fun findSource(name: String): ByteBuffer? {
-                                    val stream = delegate.getResourceAsStream(name.replace(".", "/") + ".class")
-                                        ?: return null
+                                    override fun findSource(name: String): ByteBuffer? {
+                                        val stream = delegate.getResourceAsStream(name.replace(".", "/") + ".class")
+                                            ?: return null
 
-                                    val bytes = stream.readInputStream()
-                                    return ByteBuffer.wrap(bytes)
+                                        val bytes = stream.readInputStream()
+                                        return ByteBuffer.wrap(bytes)
+                                    }
                                 }
-                            }
-                        )) {
+                            )) {
                             override fun findSource(name: String): ByteBuffer? =
                                 ((packageMap[name.substring(0, name.lastIndexOf('.').let { if (it == -1) 0 else it })]
                                     ?: listOf()) +
@@ -118,10 +126,15 @@ fun createMinecraftApp(
 
     val node = dev.extframework.minecraft.bootstrapper.loadMinecraft(
         version,
-        SimpleMavenRepositorySettings.default(url = "https://maven.extframework.dev/snapshots"),
+        SimpleMavenRepositorySettings.local(), // SimpleMavenRepositorySettings.default(url = "https://maven.extframework.dev/snapshots"),
         path,
         archiveGraph,
         dependencyTypes.get("simple-maven")!!.resolver as MavenLikeResolver<ClassLoadedArchiveNode<SimpleMavenDescriptor>, *>,
+        object : MinecraftProviderFinder {
+            override fun find(version: String): SimpleMavenDescriptor {
+                return SimpleMavenDescriptor.parseDescription("dev.extframework.minecraft:minecraft-provider-def:2.0.14-SNAPSHOT")!!
+            }
+        }
     )().merge()
 
     val loader = IntegratedLoader(
@@ -137,5 +150,13 @@ fun createMinecraftApp(
         parent = ClassLoader.getSystemClassLoader(),
     )
 
-    AppTarget(loader, version, Paths.get(node.archive.location), node.access)
+    AppTarget(
+        loader,
+        version,
+        Paths.get(node.archive.location),
+        node.access,
+        listOf(node.archive.location.toPath()) + node.libraries.map { it.archive.location.toPath() },
+        path,
+        node.archive.location.toPath()
+    )
 }

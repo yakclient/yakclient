@@ -2,11 +2,12 @@ package dev.extframework.extension.core.minecraft.partition
 
 import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
-import com.durganmcbroom.resources.openStream
 import dev.extframework.archive.mapper.ArchiveMapping
 import dev.extframework.archive.mapper.findShortest
 import dev.extframework.archive.mapper.newMappingsGraph
-import dev.extframework.archive.mapper.transform.*
+import dev.extframework.archive.mapper.transform.ClassInheritancePath
+import dev.extframework.archive.mapper.transform.ClassInheritanceTree
+import dev.extframework.archive.mapper.transform.mapClassName
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.ArchiveTree
 import dev.extframework.archives.transform.TransformerConfig
@@ -106,7 +107,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
             it.reader.entries()
                 .filter { it.name.endsWith(".class") }
                 .map {
-                    it.resource.openStream().parseNode()
+                    it.open().parseNode()
                 }.filter {
                     it.implementsFeatures(processor)
                 }.flatMap {
@@ -252,7 +253,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
 
                 val treeFromRef = reference.reader["$name.class"]?.let { e ->
                     inheritancePathFor(
-                        e.resource.openStream().parseNode()
+                        e.open().parseNode()
                     )().merge()
                 }
 
@@ -274,7 +275,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
             .filterNot(ArchiveReference.Entry::isDirectory)
             .filter { it.name.endsWith(".class") }
             .associate { e ->
-                val path = inheritancePathFor(e.resource.openStream().parseNode())().merge()
+                val path = inheritancePathFor(e.open().parseNode())().merge()
                 path.name to path
             }
 

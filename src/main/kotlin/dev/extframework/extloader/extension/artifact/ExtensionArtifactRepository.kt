@@ -5,8 +5,10 @@ import com.durganmcbroom.artifact.resolver.MetadataRequestException
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenRepositorySettings
 import com.durganmcbroom.artifact.resolver.simple.maven.layout.ResourceRetrievalException
 import com.durganmcbroom.jobs.*
+import com.durganmcbroom.jobs.async.AsyncJob
+import com.durganmcbroom.jobs.async.asyncJob
 import com.durganmcbroom.resources.ResourceNotFoundException
-import com.durganmcbroom.resources.openStream
+import com.durganmcbroom.resources.toByteArray
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -33,26 +35,34 @@ public open class ExtensionArtifactRepository(
 
     override fun get(
         request: ExtensionArtifactRequest
-    ): Job<ExtensionArtifactMetadata> = job(JobName("Load extension metadata for: '${request.descriptor}'")) {
+    ): AsyncJob<ExtensionArtifactMetadata> = asyncJob(JobName("Load extension metadata for: '${request.descriptor}'")) {
         val simpleMaven = providers.get("simple-maven")
             ?: throw IllegalStateException("SimpleMaven not found in dependency providers!")
 
         val (group, artifact, version) = request.descriptor
 
-        val ermOr = layout.resourceOf(group, artifact, version, "erm", "json")().mapException {
-            if (it is ResourceNotFoundException) MetadataRequestException.MetadataNotFound(request.descriptor, "erm.json", it)
-            else MetadataRequestException("Failed to request resource for erm: '${request.descriptor}'", it)
-        }.merge()
-        val erm = result {
-            mapper.readValue<ExtensionRuntimeModel>(ermOr.openStream())
-        }.mapException {
-            StructuredException(
+        val ermOr = try {
+            layout.resourceOf(group, artifact, version, "erm", "json")
+        } catch (e: ResourceNotFoundException) {
+            throw MetadataRequestException.MetadataNotFound(request.descriptor, "erm.json", e)
+        } catch (e: Exception) {
+            throw MetadataRequestException("Failed to request resource for erm: '${request.descriptor}'", e)
+        }
+
+        val erm = try {
+            mapper.readValue<ExtensionRuntimeModel>(ermOr.open().toByteArray())
+        } catch (e: ResourceNotFoundException) {
+            throw MetadataRequestException.MetadataNotFound(request.descriptor, "erm.json", e)
+        } catch (e: Exception) {
+            throw StructuredException(
                 ExtLoaderExceptions.InvalidErm,
-                message = "Invalid Extension runtime model built for extension: '${request.descriptor}'"
+                message = "Invalid Extension runtime model built for extension: '${request.descriptor}'",
+                cause = e
             ) {
                 TOOLING_API_VERSION asContext "Current API version:"
             }
-        }.merge()
+        }
+
         validateErm(request.descriptor, erm)
 
         val children = erm.parents

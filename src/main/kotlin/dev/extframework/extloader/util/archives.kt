@@ -1,7 +1,5 @@
 package dev.extframework.extloader.util
 
-import com.durganmcbroom.resources.openStream
-import dev.extframework.archives.ArchiveHandle
 import dev.extframework.archives.ArchiveReference
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -152,7 +150,7 @@ public fun ArchiveReference.toInputStream(): InputStream {
 
             target.putNextEntry(entry)
 
-            val eIn = e.resource.openStream()
+            val eIn = e.open()
 
             val buffer = ByteArray(1024)
 

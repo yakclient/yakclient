@@ -9,9 +9,7 @@ import com.durganmcbroom.jobs.async.AsyncJob
 import com.durganmcbroom.jobs.async.asyncJob
 import com.durganmcbroom.jobs.job
 import com.durganmcbroom.jobs.mapException
-import com.durganmcbroom.resources.DelegatingResource
 import com.durganmcbroom.resources.Resource
-import com.durganmcbroom.resources.asResourceStream
 import com.fasterxml.jackson.module.kotlin.readValue
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.Archives
@@ -97,7 +95,12 @@ public open class DefaultPartitionResolver(
                                         "${it.extension.group}:${it.extension.artifact}:${it.partition}"
                                     }
                                 ) {
-                                    SimpleMavenDescriptor(it.extension.group, it.extension.artifact, it.extension.version, null)
+                                    SimpleMavenDescriptor(
+                                        it.extension.group,
+                                        it.extension.artifact,
+                                        it.extension.version,
+                                        null
+                                    )
                                 })
                         )
                     ))
@@ -240,9 +243,9 @@ public open class DefaultPartitionResolver(
 
         helper.withResource(
             "prm.json",
-            DelegatingResource("<heap>") {
+            Resource("<heap>") {
                 runCatching {
-                    ByteArrayInputStream(basicObjectMapper.writeValueAsBytes(artifact.metadata.prm)).asResourceStream()
+                    ByteArrayInputStream(basicObjectMapper.writeValueAsBytes(artifact.metadata.prm))
                 }.mapException {
                     ExtensionLoadException(artifact.metadata.descriptor.extension, it) {
                         artifact.metadata.descriptor.partition asContext "Partition name"
@@ -252,9 +255,9 @@ public open class DefaultPartitionResolver(
         )
         helper.withResource(
             "erm.json",
-            DelegatingResource("<heap>") {
+            Resource("<heap>") {
                 runCatching {
-                    ByteArrayInputStream(basicObjectMapper.writeValueAsBytes(artifact.metadata.extension.erm)).asResourceStream()
+                    ByteArrayInputStream(basicObjectMapper.writeValueAsBytes(artifact.metadata.extension.erm))
                 }.mapException {
                     ExtensionLoadException(artifact.metadata.descriptor.extension, it) {
                         artifact.metadata.descriptor.partition asContext "Partition name"
@@ -264,7 +267,7 @@ public open class DefaultPartitionResolver(
         )
         helper.withResource(
             "repository.json",
-            DelegatingResource("<heap>") {
+            Resource("<heap>") {
                 val repository = artifact.metadata.extension.repository
 
                 val (releases, snapshots) = (repository.layout as? SimpleMavenDefaultLayout)?.let {
@@ -281,7 +284,7 @@ public open class DefaultPartitionResolver(
                                 "type" to if (repository.layout is SimpleMavenDefaultLayout) "default" else "local"
                             )
                         )
-                    ).asResourceStream()
+                    )
                 }.mapException {
                     ExtensionLoadException(artifact.metadata.descriptor.extension, it) {
                         artifact.metadata.descriptor.partition asContext "Partition name"
@@ -300,46 +303,43 @@ public open class DefaultPartitionResolver(
             helper
         )().merge()
 
+        val resolvedParents = artifact.metadata.extension.parents.map resolveJob@{ parentInfo ->
+            val exceptions = parentInfo.candidates.map { candidate ->
+                val result = extensionRepositoryFactory
+                    .createNew(candidate)
+                    .get(parentInfo.request)()
+
+                if (result.isSuccess) return@resolveJob result.merge()
+
+                result
+            }.map { it.exceptionOrNull()!! }
+
+            if (exceptions.all { it is ArchiveException.ArchiveNotFound }) {
+                throw ArchiveException.ArchiveNotFound(
+                    helper.trace,
+                    parentInfo.request.descriptor,
+                    parentInfo.candidates
+                )
+            } else {
+                throw IterableException(
+                    "Failed to resolve extension parent: '${parentInfo.request.descriptor}'",
+                    exceptions
+                )
+            }
+        }
+
         loader.cache(
             artifact,
             object : PartitionCacheHelper {
-                override val parents: Map<ExtensionParent, ExtensionArtifactMetadata>
-                override val erm: ExtensionRuntimeModel = artifact.metadata.extension.erm
-
-                init {
-                    val resolvedParents = artifact.metadata.extension.parents.map resolveJob@{ parentInfo ->
-                        val exceptions = parentInfo.candidates.map { candidate ->
-                            val result = extensionRepositoryFactory
-                                .createNew(candidate)
-                                .get(parentInfo.request)()
-
-                            if (result.isSuccess) return@resolveJob result.merge()
-
-                            result
-                        }.map { it.exceptionOrNull()!! }
-
-                        if (exceptions.all { it is ArchiveException.ArchiveNotFound }) {
-                            throw ArchiveException.ArchiveNotFound(
-                                helper.trace,
-                                parentInfo.request.descriptor,
-                                parentInfo.candidates
-                            )
-                        } else {
-                            throw IterableException(
-                                "Failed to resolve extension parent: '${parentInfo.request.descriptor}'",
-                                exceptions
-                            )
-                        }
-                    }
-
-                    parents = resolvedParents.associateBy { metadata: ExtensionArtifactMetadata ->
+                override val parents: Map<ExtensionParent, ExtensionArtifactMetadata> =
+                    resolvedParents.associateBy { metadata: ExtensionArtifactMetadata ->
                         ExtensionParent(
                             metadata.descriptor.group,
                             metadata.descriptor.artifact,
                             metadata.descriptor.version,
                         )
                     }
-                }
+                override val erm: ExtensionRuntimeModel = artifact.metadata.extension.erm
 
                 override fun newPartition(
                     partition: PartitionRuntimeModel
@@ -356,12 +356,11 @@ public open class DefaultPartitionResolver(
                                     ref.writer.put(
                                         ArchiveReference.Entry(
                                             "partition-tag.txt",
-                                            Resource("<heap>") {
-                                                ByteArrayInputStream(partition.name.toByteArray())
-                                            },
                                             false,
                                             ref
-                                        )
+                                        ) {
+                                            ByteArrayInputStream(partition.name.toByteArray())
+                                        }
                                     )
                                     ref.toInputStream()
                                 },

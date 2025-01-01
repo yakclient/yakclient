@@ -10,7 +10,7 @@ import com.durganmcbroom.jobs.async.asyncJob
 import com.durganmcbroom.jobs.async.mapAsync
 import com.durganmcbroom.jobs.job
 import com.durganmcbroom.jobs.mapException
-import com.durganmcbroom.resources.DelegatingResource
+import com.durganmcbroom.resources.Resource
 import com.durganmcbroom.resources.asResourceStream
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -18,10 +18,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import dev.extframework.boot.archive.*
 import dev.extframework.boot.audit.Auditor
 import dev.extframework.boot.audit.Auditors
-import dev.extframework.boot.constraint.Constrained
 import dev.extframework.boot.constraint.ConstraintArchiveAuditor
-import dev.extframework.boot.constraint.ConstraintNegotiator
-import dev.extframework.boot.maven.MavenConstraintNegotiator
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
 import dev.extframework.boot.monad.replace
@@ -30,7 +27,6 @@ import dev.extframework.common.util.LazyMap
 import dev.extframework.extloader.environment.ExtraAuditorsAttribute
 import dev.extframework.extloader.extension.artifact.*
 import dev.extframework.extloader.extension.partition.DefaultPartitionResolver
-import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactRequest
 import dev.extframework.tooling.api.environment.*
 import dev.extframework.tooling.api.extension.ExtensionClassLoader
 import dev.extframework.tooling.api.extension.ExtensionNode
@@ -40,6 +36,7 @@ import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactMetadata
 import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactRequest
 import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
+import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactRequest
 import dev.extframework.tooling.api.extension.partition.artifact.PartitionDescriptor
 import kotlinx.coroutines.awaitAll
 import java.io.ByteArrayInputStream
@@ -160,12 +157,12 @@ public open class DefaultExtensionResolver(
     ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
         helper.withResource(
             "erm.json",
-            DelegatingResource("<heap>") {
+            Resource("<heap>") {
                 runCatching {
-                    ByteArrayInputStream(mapper.writeValueAsBytes(artifact.metadata.erm)).asResourceStream()
+                    ByteArrayInputStream(mapper.writeValueAsBytes(artifact.metadata.erm))
                 }.mapException {
                     ExtensionLoadException(artifact.metadata.descriptor, it) {}
-                }.merge()
+                }.getOrThrow()
             }
         )
 

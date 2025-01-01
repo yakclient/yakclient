@@ -19,6 +19,7 @@ dependencies {
     artifactResolver()
     objectContainer()
     minecraftBootstrapper()
+    implementation(project(":core-mc:core-mc-api"))
 
     testImplementation(kotlin("test"))
 }

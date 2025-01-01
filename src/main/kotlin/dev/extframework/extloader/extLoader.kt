@@ -204,9 +204,7 @@ private fun initExtension(
 
         loadTweakers(artifact)().merge()
     }.mapException {
-        ExtensionLoadException(descriptor, it) {
-            descriptor asContext "Extension"
-        }
+        ExtensionLoadException(descriptor, it)
     }().merge().filterDuplicatesBy { it.descriptor }
 
     tweakers.map { it.node }.forEach {
@@ -227,9 +225,7 @@ private fun initExtension(
             extensionResolver
         )().merge()
     }.mapException {
-        ExtensionLoadException(descriptor, it) {
-            descriptor asContext "Extension"
-        }
+        ExtensionLoadException(descriptor, it)
     }().merge()
 
     // Get all extension nodes in order

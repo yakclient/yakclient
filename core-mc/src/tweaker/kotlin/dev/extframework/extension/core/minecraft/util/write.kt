@@ -1,6 +1,5 @@
 package dev.extframework.extension.core.minecraft.util
 
-import com.durganmcbroom.resources.openStream
 import dev.extframework.archives.ArchiveReference
 import java.io.FileOutputStream
 import java.nio.file.Files
@@ -19,7 +18,7 @@ internal fun ArchiveReference.write(path: Path) {
 
             target.putNextEntry(entry)
 
-            val eIn = e.resource.openStream()
+            val eIn = e.open()
 
             //Stolen from https://stackoverflow.com/questions/1281229/how-to-use-jaroutputstream-to-create-a-jar-file
             val buffer = ByteArray(1024)

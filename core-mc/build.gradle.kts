@@ -7,7 +7,7 @@ import publish.BuildBundle
 import publish.GenerateMetadata
 
 group = "dev.extframework.extension"
-version = "1.0.16-BETA"
+version = "1.0.17-BETA"
 
 sourceSets {
     create("tweaker")
@@ -25,6 +25,7 @@ dependencies {
     "tweakerImplementation"(project(":core:core-api"))
     "tweakerImplementation"(project(":core"))
     "tweakerImplementation"(partition(":core", "tweaker"))
+    "tweakerImplementation"(project("core-mc-api"))
 
     launcherMetaHandler(configurationName = "tweakerImplementation")
     boot(configurationName = "tweakerImplementation", )

@@ -2,7 +2,6 @@ package dev.extframework.extension.test.app
 
 import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
-import com.durganmcbroom.resources.openStream
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.extension.core.annotation.AnnotationProcessor
 import dev.extframework.extension.core.delegate.Delegation
@@ -44,7 +43,7 @@ public class TestAppPartitionLoader(
         val implementedFeatures = reference!!.reader.entries()
             .filter { it.name.endsWith(".class") }
             .map {
-                it.resource.openStream().parseNode()
+                it.open().parseNode()
             }.filter {
                 it.implementsFeatures(processor)
             }.flatMap {

@@ -2,7 +2,6 @@ package dev.extframework.extension.core.mixin
 
 import com.durganmcbroom.jobs.Job
 import com.durganmcbroom.jobs.job
-import com.durganmcbroom.resources.openStream
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.mixin.MixinInjection
 import dev.extframework.archives.transform.TransformerConfig
@@ -37,7 +36,7 @@ public class DefaultMixinSubsystem(
             .flatMap(ArchiveReference.Reader::entries)
             .filter { it.name.endsWith(".class") }
             .mapNotNull { entry ->
-                val mixinNode = entry.resource.openStream()
+                val mixinNode = entry.open()
                     .parseNode()
 
                 val mixinAnno =

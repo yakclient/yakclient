@@ -78,10 +78,8 @@ public class TargetLinkerResolver(
                 override val name: String = "target"
                 override val settings: TargetRepositorySettings = settings
 
-                override fun get(request: TargetArtifactRequest): Job<TargetArtifactMetadata> {
-                    return SuccessfulJob {
-                        TargetArtifactMetadata
-                    } as Job<Nothing>
+                override fun get(request: TargetArtifactRequest): AsyncJob<TargetArtifactMetadata> = asyncJob {
+                    TargetArtifactMetadata
                 }
             }
         )
