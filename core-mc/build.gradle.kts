@@ -167,8 +167,7 @@ common {
 publishing {
     repositories {
         maven {
-//            url = uri("https://repo.extframework.dev")
-            url = uri("http://127.0.0.1:6969")
+            url = uri("https://repo.extframework.dev")
             credentials {
                 password = project.properties["creds.ext.key"] as? String
             }
