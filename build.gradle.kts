@@ -6,7 +6,7 @@ import dev.extframework.gradle.publish.ExtensionPublishTask
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.44"
+    id("dev.extframework.common") version "1.0.45"
 }
 
 group = "dev.extframework"
