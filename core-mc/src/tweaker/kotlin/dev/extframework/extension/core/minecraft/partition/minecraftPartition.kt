@@ -143,7 +143,7 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
         ExtensionPartitionContainer(
             thisDescriptor,
             metadata,
-            run {
+            if (metadata.enabled) {
                 val appTarget = environment[ApplicationTarget].extract()
 
                 val targetNS = environment[mappingTargetAttrKey].extract().value
@@ -209,6 +209,11 @@ public class MinecraftPartitionLoader(environment: ExtensionEnvironment) :
 
                 TargetPartitionNode(
                     handle,
+                    accessTree,
+                )
+            } else {
+                TargetPartitionNode(
+                    null,
                     accessTree,
                 )
             }

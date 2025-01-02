@@ -7,7 +7,7 @@ import publish.BuildBundle
 import publish.GenerateMetadata
 
 group = "dev.extframework.extension"
-version = "1.0.17-BETA"
+version = "1.0.18-BETA"
 
 sourceSets {
     create("tweaker")
@@ -167,7 +167,8 @@ common {
 publishing {
     repositories {
         maven {
-            url = uri("https://repo.extframework.dev")
+//            url = uri("https://repo.extframework.dev")
+            url = uri("http://127.0.0.1:6969")
             credentials {
                 password = project.properties["creds.ext.key"] as? String
             }

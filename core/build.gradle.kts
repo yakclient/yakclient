@@ -195,6 +195,7 @@ publishing {
     repositories {
         maven {
             url = uri("https://repo.extframework.dev")
+
             credentials {
                 password = project.properties["creds.ext.key"] as? String
             }

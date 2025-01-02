@@ -91,25 +91,29 @@ public fun MinecraftApp(
                     destination.value.identifier,
                 )
 
-                val manifest = Manifest(archive.getResource("META-INF/MANIFEST.MF"))
+                val manifest = archive.getResource("META-INF/MANIFEST.MF")
 
-                // Stripping checksums
-                stripManifestChecksums(
-                    manifest,
-                )
-                val bytes = ByteArrayOutputStream().use {
-                    manifest.write(it)
-                    it
-                }.toByteArray()
+                if (manifest != null) {
+                    val manifest = Manifest()
 
-                archive.writer.put(
-                    ArchiveReference.Entry(
-                        "META-INF/MANIFEST.MF",
-                        false,
-                        archive
-                    ) {
-                        ByteArrayInputStream(bytes)
-                    })
+                    // Stripping checksums
+                    stripManifestChecksums(
+                        manifest,
+                    )
+                    val bytes = ByteArrayOutputStream().use {
+                        manifest.write(it)
+                        it
+                    }.toByteArray()
+
+                    archive.writer.put(
+                        ArchiveReference.Entry(
+                            "META-INF/MANIFEST.MF",
+                            false,
+                            archive
+                        ) {
+                            ByteArrayInputStream(bytes)
+                        })
+                }
 
                 archive.reader
                     .entries()
