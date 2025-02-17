@@ -3,6 +3,9 @@ pluginManagement {
         maven {
             url = uri("https://maven.extframework.dev/releases")
         }
+        maven {
+            url = uri("https://maven.extframework.dev/snapshots")
+        }
         gradlePluginPortal()
     }
 }
@@ -28,9 +31,6 @@ findProject(":core:blackbox-app")?.name = "core-blackbox-app"
 
 include("core:blackbox-app-ext")
 findProject(":core:blackbox-app-ext")?.name = "core-blackbox-app-ext"
-
-include("core:blackbox-feature-delegation-ext")
-findProject(":core:blackbox-feature-delegation-ext")?.name = "core-blackbox-feature-delegation-ext"
 
 include("core:blackbox-link-ext")
 findProject(":core:blackbox-link-ext")?.name = "core-blackbox-link-ext"

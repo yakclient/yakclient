@@ -1,5 +1,6 @@
 package dev.extframework.extloader.extension.partition
 
+import com.durganmcbroom.artifact.resolver.ArtifactException
 import com.durganmcbroom.artifact.resolver.ArtifactMetadata
 import com.durganmcbroom.artifact.resolver.ArtifactRequest
 import com.durganmcbroom.artifact.resolver.IterableException
@@ -77,17 +78,23 @@ internal fun cachePartitionDependencies(
             )()
         }
 
-        if (cacheResult.all { it.exceptionOrNull() is ArchiveException.ArchiveNotFound })
+        if (cacheResult.all { it.exceptionOrNull() is ArchiveException.ArchiveNotFound }) {
+            val cause = cacheResult
+                .mapNotNull { it.exceptionOrNull() }
+                .filterIsInstance<ArchiveException.ArchiveNotFound>()
+                .first()
             throw PartitionLoadException(
                 partition.name,
-                "a dependency couldn't be located."
+                "a dependency couldn't be located.",
+                cause = cause
             ) {
                 extName asContext "Extension name"
-                dependency asContext "Raw dependency request" // We want the raw dependency request because there was an issue with every single dependency provider (and we correctly assume that all may have different dependency descriptor types)
-                requests.map { it.second } asContext "Attempted repositories"
+                cause.archive asContext "Raw dependency request" // We want the raw dependency request because there was an issue with every single dependency provider (and we correctly assume that all may have different dependency descriptor types)
+                cause.lookedIn asContext "Attempted repositories"
 
                 solution("Make sure all repositories are defined correctly and contain the requested artifact.")
             }
+        }
 
         val successfulJob = cacheResult.find { cacheResult ->
             cacheResult.isSuccess

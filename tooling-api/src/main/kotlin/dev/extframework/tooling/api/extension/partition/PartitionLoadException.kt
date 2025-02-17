@@ -12,7 +12,7 @@ public fun PartitionLoadException(
 ): StructuredException = StructuredException(
     InternalExceptions.PartitionLoadException,
     cause,
-    "Error loading partition '$partition' because $message"
+    "Error loading partition '$partition' because ${message.replaceFirstChar(Char::lowercase)}",
 ) {
     partition asContext "Partition name"
     configure()

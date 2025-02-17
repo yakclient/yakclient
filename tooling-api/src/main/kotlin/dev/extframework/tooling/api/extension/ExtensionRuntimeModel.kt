@@ -14,13 +14,16 @@ public data class ExtensionRuntimeModel(
     val repositories: List<Map<String, String>> = ArrayList(),
     val parents: Set<ExtensionParent> = HashSet(),
 
-    public val partitions: Set<PartitionModelReference>
-)
+    public val partitions: Set<PartitionRuntimeModel>
+) {
+    public val namedPartitions: Map<String, PartitionRuntimeModel> = partitions.associateBy { it.name }
+}
 
-public data class PartitionModelReference(
-    val type: String,
-    val name: String
-)
+//public data class PartitionModelReference(
+//    val type: String,
+//    val name: String,
+//    val options: Map<String, String>
+//)
 
 public data class ExtensionParent(
     val group: String,
@@ -43,13 +46,14 @@ public data class ExtensionRepository(
 )
 
 public data class PartitionRuntimeModel(
-    public val type: String,
+//    val apiVersion: Int,
 
-    public val name: String,
-//    public val path: String,
+    val type: String,
 
-    public val repositories: List<ExtensionRepository>,
-    public val dependencies: Set<Map<String, String>>,
+    val name: String,
 
-    public val options: Map<String, String>
+    val repositories: List<ExtensionRepository>,
+    val dependencies: Set<Map<String, String>>,
+
+    val options: Map<String, String>
 )

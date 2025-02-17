@@ -1,3 +1,3 @@
 package dev.extframework.tooling.api
 
-public const val TOOLING_API_VERSION: Int = 1
+public const val TOOLING_API_VERSION: Int = 2

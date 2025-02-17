@@ -35,6 +35,8 @@ public interface ExtensionResolver : ArchiveNodeResolver<
 
     public companion object : EnvironmentAttributeKey<ExtensionResolver>
 
+    public val accessBridge: AccessBridge
+
     override fun deserializeDescriptor(
         descriptor: Map<String, String>,
         trace: ArchiveTrace
@@ -57,5 +59,23 @@ public interface ExtensionResolver : ArchiveNodeResolver<
             descriptor.version,
             "${descriptor.artifact}-${descriptor.version}-$classifier.$type"
         )
+    }
+
+    public interface AccessBridge {
+        public fun classLoaderFor(
+            descriptor: ExtensionDescriptor,
+        ): ExtensionClassLoader
+
+        public fun ermFor(
+            descriptor: ExtensionDescriptor,
+        ): ExtensionRuntimeModel
+
+        // Once an extension is loaded, it should never have any part of it loaded
+        // from another repository (Both for code security and to maximize capability
+        // if for whatever reason different repositories have different code). Because
+        // of this it is safe to always associate 1 repository with a whole extension.
+        public fun repositoryFor(
+            descriptor: ExtensionDescriptor,
+        ): ExtensionRepositorySettings
     }
 }

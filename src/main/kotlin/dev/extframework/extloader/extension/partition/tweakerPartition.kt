@@ -8,11 +8,12 @@ import com.durganmcbroom.jobs.async.mapAsync
 import com.durganmcbroom.jobs.job
 import dev.extframework.archives.ArchiveHandle
 import dev.extframework.archives.ArchiveReference
-import dev.extframework.boot.archive.*
+import dev.extframework.boot.archive.ArchiveException
+import dev.extframework.boot.archive.ArchiveNodeResolver
+import dev.extframework.boot.archive.IArchive
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
 import dev.extframework.common.util.runCatching
-import dev.extframework.extloader.util.toOrNull
 import dev.extframework.tooling.api.extension.PartitionRuntimeModel
 import dev.extframework.tooling.api.extension.descriptor
 import dev.extframework.tooling.api.extension.partition.*
@@ -57,6 +58,26 @@ public class TweakerPartitionLoader : ExtensionPartitionLoader<TweakerPartitionM
 
         val thisDescriptor = helper.erm.descriptor.partitionNamed(metadata.name)
 
+        //val result = environment.archiveGraph.cacheAsync(
+        //                            PartitionArtifactRequest(erm.descriptor.partitionNamed(reference.name)),
+        //                            repository,
+        //                            this@DefaultPartitionResolver
+        //                        )().merge()
+        //
+        //                        val resultValue = result.item.value
+        //
+        //                        if (resultValue is ArchiveData<*, *>) {
+        //                            val (prm2, erm2, archive2) = readData(resultValue as ArchiveData<*, CachedArchiveResource>)
+        //
+        //                            val loader2 = getLoader(prm2)
+        //
+        //                            parseMetadata(loader2, prm2, erm2, archive2)().merge()
+        //                        } else {
+        //                            resultValue as ExtensionPartitionContainer<*, *>
+        //
+        //                            resultValue.metadata
+        //                        }
+
         val cl = PartitionClassLoader(
             thisDescriptor,
             accessTree,
@@ -97,16 +118,24 @@ public class TweakerPartitionLoader : ExtensionPartitionLoader<TweakerPartitionM
         artifact: Artifact<PartitionArtifactMetadata>,
         helper: PartitionCacheHelper
     ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
-        val parents = helper.parents
-            .mapNotNull {
-                it.key toOrNull it.value.erm.partitions.find { p -> p.type == TYPE }
-            }.mapAsync {
-                helper.cache(it.first, it.second)().merge()
+        val parents = helper.erm.parents
+            .mapAsync {
+                val result = helper.cache("tweaker", it)()
+
+                val exception = result.exceptionOrNull()
+
+                if (exception != null && exception !is ArchiveException.ArchiveNotFound) {
+                    throw exception
+                }
+
+                result.getOrNull()
             }
+            .awaitAll()
+            .filterNotNull()
 
         helper.newData(
             artifact.metadata.descriptor,
-            parents.awaitAll()
+            parents
         )
     }
 }

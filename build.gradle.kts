@@ -1,16 +1,15 @@
 import dev.extframework.gradle.common.*
 import dev.extframework.gradle.common.dm.artifactResolver
 import dev.extframework.gradle.common.dm.jobs
-import dev.extframework.gradle.publish.ExtensionPublishTask
 
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.45"
+    id("dev.extframework.common") version "1.0.49"
 }
 
 group = "dev.extframework"
-version = "2.1.13-SNAPSHOT"
+version = "2.1.14-SNAPSHOT"
 
 tasks.wrapper {
     gradleVersion = "8.3"
@@ -68,20 +67,12 @@ common {
     }
 }
 
-val publishExtensions by tasks.registering {
-    dependsOn(project(":core").tasks.withType(ExtensionPublishTask::class))
-    dependsOn(project(":core-mc").tasks.withType(ExtensionPublishTask::class))
-}
-
 allprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "dev.extframework.common")
 
     repositories {
         mavenCentral()
-        maven {
-            url = uri("https://maven.fabricmc.net/")
-        }
         extFramework()
     }
 
@@ -98,8 +89,6 @@ allprojects {
         implementation(kotlin("reflect"))
         testImplementation(kotlin("test"))
     }
-
-
 
     java {
         toolchain {

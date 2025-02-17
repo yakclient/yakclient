@@ -27,8 +27,8 @@ public interface PartitionLoaderHelper {
     public val erm: ExtensionRuntimeModel
 
     public fun metadataFor(
-        reference: PartitionModelReference
-    ) : AsyncJob<ExtensionPartitionMetadata>
+        partition: String
+    ) : Job<ExtensionPartitionMetadata>
 
     public operator fun get(name: String): CachedArchiveResource?
 }
@@ -42,20 +42,21 @@ public interface ExtensionPartitionMetadata {
 }
 
 public interface PartitionCacheHelper : CacheHelper<PartitionDescriptor> {
-    public val parents: Map<ExtensionParent, ExtensionArtifactMetadata>
+//    public val parents: Map<ExtensionParent, ExtensionArtifactMetadata>
     public val erm: ExtensionRuntimeModel
+    public val prm: PartitionRuntimeModel
 
-    public fun newPartition(
-        partition: PartitionRuntimeModel,
-    ) : AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>>
+//    public fun newPartition(
+//        partition: PartitionRuntimeModel,
+//    ) : AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>>
 
     public fun cache(
-        reference: PartitionModelReference
+        partition: String
     ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>>
 
     public fun cache(
+        partition: String,
         parent: ExtensionParent,
-        partition: PartitionModelReference,
     ) : AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>>
 }
 

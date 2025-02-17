@@ -2,39 +2,33 @@ package dev.extframework.extloader.extension.partition
 
 import com.durganmcbroom.artifact.resolver.*
 import com.durganmcbroom.artifact.resolver.simple.maven.SimpleMavenDescriptor
-import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenDefaultLayout
 import com.durganmcbroom.jobs.Job
-import com.durganmcbroom.jobs.JobScope
 import com.durganmcbroom.jobs.async.AsyncJob
 import com.durganmcbroom.jobs.async.asyncJob
 import com.durganmcbroom.jobs.job
 import com.durganmcbroom.jobs.mapException
 import com.durganmcbroom.resources.Resource
-import com.fasterxml.jackson.module.kotlin.readValue
 import dev.extframework.archives.ArchiveReference
 import dev.extframework.archives.Archives
 import dev.extframework.archives.zip.ZipFinder
 import dev.extframework.boot.archive.*
-import dev.extframework.boot.audit.Auditor
 import dev.extframework.boot.audit.Auditors
-import dev.extframework.boot.constraint.ConstraintArchiveAuditor
+import dev.extframework.boot.constraint.registerConstraintNegotiator
 import dev.extframework.boot.monad.Tagged
 import dev.extframework.boot.monad.Tree
-import dev.extframework.boot.monad.replace
-import dev.extframework.boot.monad.tag
 import dev.extframework.boot.util.basicObjectMapper
 import dev.extframework.common.util.filterDuplicates
-import dev.extframework.extloader.environment.ExtraAuditorsAttribute
 import dev.extframework.extloader.extension.ExtensionConstraintNegotiator
 import dev.extframework.extloader.extension.ExtensionLoadException
-import dev.extframework.extloader.extension.artifact.ExtensionRepositoryFactory
 import dev.extframework.extloader.extension.partition.artifact.PartitionRepositoryFactory
 import dev.extframework.extloader.util.emptyArchiveReference
 import dev.extframework.extloader.util.toInputStream
-import dev.extframework.tooling.api.environment.*
+import dev.extframework.tooling.api.TOOLING_API_VERSION
+import dev.extframework.tooling.api.environment.ExtensionEnvironment
+import dev.extframework.tooling.api.environment.dependencyTypesAttrKey
+import dev.extframework.tooling.api.environment.extract
+import dev.extframework.tooling.api.environment.partitionLoadersAttrKey
 import dev.extframework.tooling.api.extension.*
-import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactMetadata
-import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
 import dev.extframework.tooling.api.extension.partition.*
 import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactMetadata
@@ -44,93 +38,38 @@ import dev.extframework.tooling.api.extension.partition.artifact.partitionNamed
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayInputStream
-import java.nio.file.Files
 
 public open class DefaultPartitionResolver(
-    private val extensionRepositoryFactory: ExtensionRepositoryFactory,
     protected val environment: ExtensionEnvironment,
-    private val parentClassLoaderProvider: (ExtensionDescriptor) -> ExtensionClassLoader
-) : PartitionResolver {
-    private val factory = PartitionRepositoryFactory(extensionRepositoryFactory)
-    private val partitionLoaders
-        get() = environment[partitionLoadersAttrKey].extract().container
-
-    override val auditors: Auditors
-        get() {
-            val doAudit: JobScope.(ArchiveTreeAuditContext) -> ArchiveTreeAuditContext = { c ->
-                c.copy(
-                    tree = c.tree.replace {
-                        val descriptor = it.item.value.descriptor
-
-                        if (descriptor is PartitionDescriptor
-                        ) {
-                            val matching = c.graph.nodes()
-                                .map { it.descriptor }
-                                .filterIsInstance<PartitionDescriptor>()
-                                .map { it.extension }
-                                .find {
-                                    it.group == descriptor.extension.group && it.artifact == descriptor.extension.artifact && it.version != descriptor.extension.version
-                                }
-
-                            if (matching != null) {
-                                Tree(
-                                    c.graph.getNode(descriptor)!! tag it.item.tag,
-                                    listOf()
-                                )
-                            } else it
-                        } else it
-                    }
-                )
-            }
-            return (environment[dependencyTypesAttrKey]
-                .extract().container.objects().values
-                .map { it.resolver.auditors } + (environment[ExtraAuditorsAttribute].getOrNull()?.auditors
-                ?: Auditors())
-                    +
-                    Auditors(
-                        Auditor(ArchiveTreeAuditContext::class.java, doAudit), ConstraintArchiveAuditor(
-                            listOf(
-                                ExtensionConstraintNegotiator(
-                                    PartitionDescriptor::class.java, {
-                                        "${it.extension.group}:${it.extension.artifact}:${it.partition}"
-                                    }
-                                ) {
-                                    SimpleMavenDescriptor(
-                                        it.extension.group,
-                                        it.extension.artifact,
-                                        it.extension.version,
-                                        null
-                                    )
-                                })
-                        )
-                    ))
-                .fold(Auditors()) { acc, it ->
-                    it.auditors.values.fold(acc) { innerAcc, innerIt ->
-                        innerAcc.chain(innerIt)
-                    }
-                }
-        }
-
-    override fun createContext(
-        settings: ExtensionRepositorySettings
-    ): ResolutionContext<ExtensionRepositorySettings, PartitionArtifactRequest, PartitionArtifactMetadata> {
-        return factory.createContext(settings)
+    private val bridge: ExtensionResolver.AccessBridge
+) : PartitionResolver, RegisterAuditor {
+    private val factory = PartitionRepositoryFactory { p, settings ->
+        bridge.ermFor(p.extension).partitions.find() {
+            it.name == p.partition
+        }?.takeIf { bridge.repositoryFor(p.extension) == settings }
     }
 
-    private fun readData(
-        data: ArchiveData<*, CachedArchiveResource>
-    ) = object {
-        operator fun component1() =
-            basicObjectMapper.readValue<PartitionRuntimeModel>(Files.readAllBytes(data.resources["prm.json"]!!.path))
+    private val partitionLoaders
+        get() = environment[partitionLoadersAttrKey].extract().container
+    override val apiVersion: Int = TOOLING_API_VERSION
+    override val context: ResolutionContext<ExtensionRepositorySettings, PartitionArtifactRequest, PartitionArtifactMetadata>
+        get() = factory.createContext()
 
-        operator fun component2() =
-            basicObjectMapper.readValue<ExtensionRuntimeModel>(Files.readAllBytes(data.resources["erm.json"]!!.path))
-
-        operator fun component3() =
-            data.resources["partition.jar"]?.path?.let { Archives.find(it, ZipFinder) }
-
-        operator fun component4() =
-            basicObjectMapper.readValue<Map<String, String>>(Files.readAllBytes(data.resources["repository.json"]!!.path))
+    override fun register(auditors: Auditors): Auditors {
+        return auditors.registerConstraintNegotiator(
+            ExtensionConstraintNegotiator(
+                PartitionDescriptor::class.java, {
+                    "${it.extension.group}:${it.extension.artifact}:${it.partition}"
+                }
+            ) {
+                SimpleMavenDescriptor(
+                    it.extension.group,
+                    it.extension.artifact,
+                    it.extension.version,
+                    null
+                )
+            }
+        )
     }
 
     protected fun getLoader(prm: PartitionRuntimeModel): ExtensionPartitionLoader<ExtensionPartitionMetadata> =
@@ -167,18 +106,19 @@ public open class DefaultPartitionResolver(
         accessTree: ArchiveAccessTree,
         helper: ResolutionHelper
     ): Job<ExtensionPartitionContainer<*, *>> = job {
-        val (prm, erm, archive, rawRepository) = readData(data)
-
-        val repository = environment[dependencyTypesAttrKey]
-            .extract()
-            .container
-            .get("simple-maven")!!
-            .parseSettings(rawRepository) as ExtensionRepositorySettings
+        val archive = data.resources["partition.jar"]?.path?.let { Archives.find(it, ZipFinder) }
+        val erm = bridge.ermFor(data.descriptor.extension)
+        // Should never be null if getting to this stage.
+        val prm = erm.partitions.find { it.name == data.descriptor.partition }!!
 
         val loader = getLoader(prm)
-        val metadata = parseMetadata(loader, prm, erm, archive)().merge()
+        val metadata = parseMetadata(loader, erm.partitions.find {
+            it.name == prm.name
+        } ?: throw PartitionLoadException(prm.name, "Partition not defined in the erm!") {
+            erm.descriptor asContext "Extension"
+        }, erm, archive)().merge()
 
-        val parentLoader = parentClassLoaderProvider(data.descriptor.extension)
+        val parentLoader = bridge.classLoaderFor(data.descriptor.extension)
 
         loader.load(
             metadata,
@@ -195,30 +135,20 @@ public open class DefaultPartitionResolver(
                 override val parentClassLoader: ClassLoader = parentLoader
                 override val erm: ExtensionRuntimeModel = erm
 
-                override fun metadataFor(reference: PartitionModelReference): AsyncJob<ExtensionPartitionMetadata> =
-                    asyncJob {
-                        parsedMetadata[erm.descriptor.partitionNamed(reference.name)] ?: run {
-                            val result = environment.archiveGraph.cacheAsync(
-                                PartitionArtifactRequest(erm.descriptor.partitionNamed(reference.name)),
-                                repository,
-                                this@DefaultPartitionResolver
-                            )().merge()
+                override fun metadataFor(
+                    partition: String
+                ): Job<ExtensionPartitionMetadata> = job() {
+                    parsedMetadata[erm.descriptor.partitionNamed(partition)]
+                        ?: throw ExtensionLoadException(
+                            data.descriptor.extension,
+                            message = "Partition loader attempting to retrieve metadata for an extension partition that has not yet been cached."
+                        ) {
+                            solution("Cache the requested partition in the cache method of your partition loader.")
 
-                            val resultValue = result.item.value
-
-                            if (resultValue is ArchiveData<*, *>) {
-                                val (prm2, erm2, archive2) = readData(resultValue as ArchiveData<*, CachedArchiveResource>)
-
-                                val loader2 = getLoader(prm2)
-
-                                parseMetadata(loader2, prm2, erm2, archive2)().merge()
-                            } else {
-                                resultValue as ExtensionPartitionContainer<*, *>
-
-                                resultValue.metadata
-                            }
+                            prm.name asContext "Partition name"
+                            partition asContext "Requested partition name"
                         }
-                    }
+                }
 
                 override fun get(name: String): CachedArchiveResource? {
                     return data.resources[name]
@@ -233,8 +163,17 @@ public open class DefaultPartitionResolver(
         artifact: Artifact<PartitionArtifactMetadata>,
         helper: CacheHelper<PartitionDescriptor>
     ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob {
-        val loader = partitionLoaders.get(artifact.metadata.prm.type) ?: throw IllegalArgumentException(
-            "Illegal partition type: '${artifact.metadata.prm.type}', only accepted ones are: '${
+        val descriptor = artifact.metadata.descriptor
+        val erm = bridge.ermFor(descriptor.extension)
+        val prm by artifact.metadata::prm
+
+//   TODO         erm.namedPartitions[descriptor.partition]
+//            ?: throw PartitionLoadException(descriptor.partition, "Unknown partition: '${descriptor.partition}'. It was not defined by this extensions runtime model.") {
+//                erm.descriptor asContext "Extension name"
+//            }
+
+        val loader = partitionLoaders.get(prm.type) ?: throw IllegalArgumentException(
+            "Illegal partition type: '${prm.type}', only accepted ones are: '${
                 partitionLoaders.objects().map(
                     Map.Entry<String, ExtensionPartitionLoader<*>>::key
                 )
@@ -245,189 +184,162 @@ public open class DefaultPartitionResolver(
             "prm.json",
             Resource("<heap>") {
                 runCatching {
-                    ByteArrayInputStream(basicObjectMapper.writeValueAsBytes(artifact.metadata.prm))
+                    ByteArrayInputStream(basicObjectMapper.writeValueAsBytes(prm))
                 }.mapException {
-                    ExtensionLoadException(artifact.metadata.descriptor.extension, it) {
-                        artifact.metadata.descriptor.partition asContext "Partition name"
+                    ExtensionLoadException(descriptor.extension, it) {
+                        descriptor.partition asContext "Partition name"
                     }
                 }.merge()
             }
         )
-        helper.withResource(
-            "erm.json",
-            Resource("<heap>") {
-                runCatching {
-                    ByteArrayInputStream(basicObjectMapper.writeValueAsBytes(artifact.metadata.extension.erm))
-                }.mapException {
-                    ExtensionLoadException(artifact.metadata.descriptor.extension, it) {
-                        artifact.metadata.descriptor.partition asContext "Partition name"
-                    }
-                }.merge()
-            }
-        )
-        helper.withResource(
-            "repository.json",
-            Resource("<heap>") {
-                val repository = artifact.metadata.extension.repository
 
-                val (releases, snapshots) = (repository.layout as? SimpleMavenDefaultLayout)?.let {
-                    it.releasesEnabled to it.snapshotsEnabled
-                } ?: (true to true)
-                runCatching {
-                    ByteArrayInputStream(
-                        basicObjectMapper.writeValueAsBytes(
-                            mapOf(
-                                "releasesEnabled" to releases,
-                                "releasesEnabled" to snapshots,
-                                "location" to repository.layout.location,
-                                "preferredHash" to repository.preferredHash.name,
-                                "type" to if (repository.layout is SimpleMavenDefaultLayout) "default" else "local"
-                            )
-                        )
-                    )
-                }.mapException {
-                    ExtensionLoadException(artifact.metadata.descriptor.extension, it) {
-                        artifact.metadata.descriptor.partition asContext "Partition name"
-                    }
-                }.merge()
-            }
-        )
         helper.withResource("partition.jar", artifact.metadata.resource)
 
         val dependencyTypes = environment[dependencyTypesAttrKey].extract().container
 
         val dependencies = cachePartitionDependencies(
-            artifact.metadata.prm,
-            artifact.metadata.extension.erm.name,
+            prm,
+            descriptor.extension.artifact,
             dependencyTypes,
             helper
         )().merge()
 
-        val resolvedParents = artifact.metadata.extension.parents.map resolveJob@{ parentInfo ->
-            val exceptions = parentInfo.candidates.map { candidate ->
-                val result = extensionRepositoryFactory
-                    .createNew(candidate)
-                    .get(parentInfo.request)()
-
-                if (result.isSuccess) return@resolveJob result.merge()
-
-                result
-            }.map { it.exceptionOrNull()!! }
-
-            if (exceptions.all { it is ArchiveException.ArchiveNotFound }) {
-                throw ArchiveException.ArchiveNotFound(
-                    helper.trace,
-                    parentInfo.request.descriptor,
-                    parentInfo.candidates
-                )
-            } else {
-                throw IterableException(
-                    "Failed to resolve extension parent: '${parentInfo.request.descriptor}'",
-                    exceptions
-                )
-            }
-        }
+//        val resolvedParents = ermMetadata.parents.map resolveJob@ { parentInfo ->
+//            val exceptions = parentInfo.candidates.map { candidate ->
+//                val result = extensionRepositoryFactory
+//                    .createNew(candidate)
+//                    .get(parentInfo.request)()
+//
+//                if (result.isSuccess) return@resolveJob result.merge()
+//
+//                result
+//            }.map { it.exceptionOrNull()!! }
+//
+//            if (exceptions.all { it is ArchiveException.ArchiveNotFound }) {
+//                throw ArchiveException.ArchiveNotFound(
+//                    helper.trace,
+//                    parentInfo.request.descriptor,
+//                    parentInfo.candidates
+//                )
+//            } else {
+//                throw IterableException(
+//                    "Failed to resolve extension parentInfo: '${parentInfo.request.descriptor}'",
+//                    exceptions
+//                )
+//            }
+//        }
 
         loader.cache(
             artifact,
             object : PartitionCacheHelper {
-                override val parents: Map<ExtensionParent, ExtensionArtifactMetadata> =
-                    resolvedParents.associateBy { metadata: ExtensionArtifactMetadata ->
-                        ExtensionParent(
-                            metadata.descriptor.group,
-                            metadata.descriptor.artifact,
-                            metadata.descriptor.version,
-                        )
-                    }
-                override val erm: ExtensionRuntimeModel = artifact.metadata.extension.erm
+                //                override val parents: Map<ExtensionParent, ExtensionArtifactMetadata> =
+//                    resolvedParents.associateBy { metadata: ExtensionArtifactMetadata ->
+//                        ExtensionParent(
+//                            metadata.descriptor.group,
+//                            metadata.descriptor.artifact,
+//                            metadata.descriptor.version,
+//                        )
+//                    }
+                override val erm: ExtensionRuntimeModel = erm
+                override val prm: PartitionRuntimeModel = prm
 
-                override fun newPartition(
-                    partition: PartitionRuntimeModel
-                ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> {
-                    return cache(
-                        Artifact(
-                            PartitionArtifactMetadata(
-                                PartitionDescriptor(
-                                    artifact.metadata.descriptor.extension,
-                                    partition.name,
-                                ),
-                                Resource("<heap:archive>") {
-                                    val ref = emptyArchiveReference()
-                                    ref.writer.put(
-                                        ArchiveReference.Entry(
-                                            "partition-tag.txt",
-                                            false,
-                                            ref
-                                        ) {
-                                            ByteArrayInputStream(partition.name.toByteArray())
-                                        }
-                                    )
-                                    ref.toInputStream()
-                                },
-                                partition,
-                                artifact.metadata.extension,
-                            ),
-                            listOf()
-                        ),
-                        this@DefaultPartitionResolver,
-                    )
-                }
+//                override fun newPartition(
+//                    partition: PartitionRuntimeModel
+//                ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> {
+//                    return cache(
+//                        Artifact(
+//                            PartitionArtifactMetadata(
+//                                PartitionDescriptor(
+//                                    descriptor.extension,
+//                                    partition.name,
+//                                ),
+//                                Resource("<heap:archive>") {
+//                                    val ref = emptyArchiveReference()
+//                                    ref.writer.put(
+//                                        ArchiveReference.Entry(
+//                                            "partition-tag.txt",
+//                                            false,
+//                                            ref
+//                                        ) {
+//                                            ByteArrayInputStream(partition.name.toByteArray())
+//                                        }
+//                                    )
+//                                    ref.toInputStream()
+//                                },
+//                                partition
+//                            ),
+//                            listOf()
+//                        ),
+//                        this@DefaultPartitionResolver,
+//                    )
+//                }
 
                 override fun cache(
-                    reference: PartitionModelReference
+                    reference: String
                 ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> {
                     return cache(
                         PartitionArtifactRequest(
                             PartitionDescriptor(
-                                artifact.metadata.descriptor.extension,
-                                reference.name
+                                descriptor.extension,
+                                reference
                             )
                         ),
-                        artifact.metadata.extension.repository,
+                        bridge.repositoryFor(artifact.metadata.descriptor.extension),
                         this@DefaultPartitionResolver,
                     )
                 }
 
                 override fun cache(
+                    partition: String,
                     parent: ExtensionParent,
-                    partition: PartitionModelReference
                 ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> = asyncJob cacheJob@{
-                    val parentInfo = artifact.metadata.extension.parents.find {
-                        it.request.descriptor == parent.toDescriptor()
-                    }
-                        ?: throw IllegalArgumentException("Extension: '${artifact.metadata.extension.descriptor}' does not define: '$parent' as an actual parent.")
+//                    val parentInfo = artifact.metadata.parents.find {
+//                        it.request.descriptor == parent.toDescriptor()
+//                    }
+//                        ?: throw IllegalArgumentException("Extension: '${artifact.metadata.extension.descriptor}' does not define: '$parent' as an actual parent.")
 
-                    val exceptions = parentInfo.candidates.map { candidate ->
-                        val result = cache(
-                            PartitionArtifactRequest(parentInfo.request, partition.name),
-                            candidate,
-                            this@DefaultPartitionResolver
-                        )()
+                    cache(
+                        PartitionArtifactRequest(PartitionDescriptor(parent.toDescriptor(), partition)),
+                        bridge.repositoryFor(parent.toDescriptor()),
+                        this@DefaultPartitionResolver
+                    )().merge()
 
-                        if (result.isSuccess) return@cacheJob result.merge()
+//                    cacheResult.exceptionOrNull()?.let { throwable ->
+//                        if (throwable is ArchiveException.ArchiveNotFound) {
+//                            throw throwable
+//                        } else throw throwable
+//                    }
 
-                        result
-                    }.map { it.exceptionOrNull()!! }
-
-                    if (exceptions.all { it is ArchiveException.ArchiveNotFound }) {
-                        throw ArchiveException.ArchiveNotFound(
-                            helper.trace,
-                            parent.toDescriptor(),
-                            parentInfo.candidates
-                        )
-                    } else {
-                        throw IterableException("Failed to resolve extension parent: '$parent'", exceptions)
-                    }
+//                    val exceptions = parentInfo.candidates.map { candidate ->
+//                        val result = cache(
+//                            PartitionArtifactRequest(parentInfo.request, partition),
+//                            candidate,
+//                            this@DefaultPartitionResolver
+//                        )()
+//
+//                        if (result.isSuccess) return@cacheJob result.merge()
+//
+//                        result
+//                    }.map { it.exceptionOrNull()!! }
+//
+//                    if (exceptions.all { it is ArchiveException.ArchiveNotFound }) {
+//                        throw ArchiveException.ArchiveNotFound(
+//                            helper.trace,
+//                            parent.toDescriptor(),
+//                            parentInfo.candidates
+//                        )
+//                    } else {
+//                        throw IterableException("Failed to resolve extension parent: '$parent'", exceptions)
+//                    }
                 }
 
                 // Delegation
-
                 override val trace: ArchiveTrace by helper::trace
 
-                override fun <D : ArtifactMetadata.Descriptor, T : ArtifactRequest<D>, R : RepositorySettings, M : ArtifactMetadata<D, ArtifactMetadata.ParentInfo<T, R>>> cache(
+                override fun <D : ArtifactMetadata.Descriptor, T : ArtifactRequest<D>, R : RepositorySettings> cache(
                     request: T,
                     repository: R,
-                    resolver: ArchiveNodeResolver<D, T, *, R, M>
+                    resolver: ArchiveNodeResolver<D, T, *, R, *>
                 ): AsyncJob<Tree<Tagged<IArchive<*>, ArchiveNodeResolver<*, *, *, *, *>>>> {
                     return helper.cache(request, repository, resolver)
                 }

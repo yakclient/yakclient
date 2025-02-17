@@ -1,44 +1,43 @@
 package dev.extframework.extloader
 
-import com.durganmcbroom.artifact.resolver.Artifact
+import com.durganmcbroom.artifact.resolver.ArtifactMetadata
+import com.durganmcbroom.artifact.resolver.ArtifactRequest
+import com.durganmcbroom.artifact.resolver.RepositorySettings
 import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenDefaultLayout
-import com.durganmcbroom.jobs.Job
-import com.durganmcbroom.jobs.JobName
 import com.durganmcbroom.jobs.async.AsyncJob
 import com.durganmcbroom.jobs.async.asyncJob
-import com.durganmcbroom.jobs.async.mapAsync
-import com.durganmcbroom.jobs.job
-import com.durganmcbroom.jobs.mapException
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import dev.extframework.boot.archive.ArchiveException
+import dev.extframework.boot.archive.ArchiveData
 import dev.extframework.boot.archive.ArchiveGraph
+import dev.extframework.boot.archive.ArchiveNodeResolver
+import dev.extframework.boot.archive.IArchive
 import dev.extframework.boot.dependency.DependencyTypeContainer
-import dev.extframework.common.util.filterDuplicatesBy
+import dev.extframework.boot.monad.Tree
+import dev.extframework.boot.monad.map
+import dev.extframework.boot.monad.toList
+import dev.extframework.common.util.filterDuplicates
 import dev.extframework.common.util.make
 import dev.extframework.extloader.environment.registerBasicSerializers
 import dev.extframework.extloader.environment.registerLoaders
 import dev.extframework.extloader.exception.BasicExceptionPrinter
 import dev.extframework.extloader.exception.handleException
 import dev.extframework.extloader.extension.DefaultExtensionResolver
-import dev.extframework.extloader.extension.ExtensionLoadException
-import dev.extframework.extloader.extension.partition.TweakerPartitionLoader
 import dev.extframework.extloader.extension.partition.TweakerPartitionNode
+import dev.extframework.extloader.uber.UberArtifactRequest
+import dev.extframework.extloader.uber.UberDescriptor
+import dev.extframework.extloader.uber.UberParentRequest
+import dev.extframework.extloader.uber.UberRepositorySettings
+import dev.extframework.extloader.uber.UberResolver
 import dev.extframework.tooling.api.TOOLING_API_VERSION
 import dev.extframework.tooling.api.environment.*
 import dev.extframework.tooling.api.exception.StackTracePrinter
 import dev.extframework.tooling.api.exception.StructuredException
 import dev.extframework.tooling.api.extension.*
-import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactMetadata
 import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactRequest
 import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
 import dev.extframework.tooling.api.extension.partition.ExtensionPartitionContainer
 import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactRequest
-import dev.extframework.tooling.api.extension.partition.artifact.PartitionDescriptor
-import dev.extframework.tooling.api.target.ApplicationTarget
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
@@ -52,20 +51,21 @@ public class InternalExtensionEnvironment private constructor() : ExtensionEnvir
         get() = get(ArchiveGraphAttribute).extract().graph
     public val dependencyTypes: DependencyTypeContainer
         get() = get(dependencyTypesAttrKey).extract().container
-    public val application: ApplicationTarget by get(ApplicationTarget)
+
+    //    public val application: ApplicationTarget by get(ApplicationTarget)
     public val extensionResolver: ExtensionResolver by get(ExtensionResolver)
 
     public constructor(
         workingDir: Path,
         archiveGraph: ArchiveGraph,
         dependencyTypes: DependencyTypeContainer,
-        applicationTarget: ApplicationTarget,
+//        applicationTarget: ApplicationTarget,
         extensionResolver: ExtensionResolver,
     ) : this() {
         set(ValueAttribute(workingDir, wrkDirAttrKey))
         set(ArchiveGraphAttribute(archiveGraph))
         set(DependencyTypeContainerAttribute(dependencyTypes))
-        set(applicationTarget)
+//        set(applicationTarget)
         set(extensionResolver)
     }
 
@@ -73,12 +73,12 @@ public class InternalExtensionEnvironment private constructor() : ExtensionEnvir
         workingDir: Path,
         archiveGraph: ArchiveGraph,
         dependencyTypes: DependencyTypeContainer,
-        applicationTarget: ApplicationTarget,
+//        applicationTarget: ApplicationTarget,
     ) : this() {
         set(ValueAttribute(workingDir, wrkDirAttrKey))
         set(ArchiveGraphAttribute(archiveGraph))
         set(DependencyTypeContainerAttribute(dependencyTypes))
-        set(applicationTarget)
+//        set(applicationTarget)
         set(DefaultExtensionResolver(ClassLoader.getSystemClassLoader(), this))
     }
 }
@@ -87,7 +87,7 @@ public fun initExtensions(
     extensionRequests: Map<ExtensionDescriptor, ExtensionRepositorySettings>,
 
     environment: InternalExtensionEnvironment,
-): Job<Unit> = job {
+): AsyncJob<Unit> = asyncJob() {
     environment += ValueAttribute(
         ClassLoader.getSystemClassLoader(),
         parentCLAttrKey
@@ -103,142 +103,204 @@ public fun initExtensions(
     })
     environment.setUnless(BasicExceptionPrinter())
 
-    val uberExtension = generateUberExtension(extensionRequests)
-
-    initExtension(environment, uberExtension.first, uberExtension.second)().handleStructuredException(environment)
+    tweakEnvironment(
+        environment,
+        extensionRequests.entries.map { it.key to it.value },
+    )().handleStructuredException(environment)
 }
 
-private fun generateUberExtension(
-    extensionRequests: Map<ExtensionDescriptor, ExtensionRepositorySettings>,
-): Pair<ExtensionDescriptor, ExtensionRepositorySettings> {
-    val erm = ExtensionRuntimeModel(
-        TOOLING_API_VERSION,
-        "dev.extframework.extension",
-        "uber",
-        UUID.randomUUID().toString(),
-        extensionRequests.map { (_, repo) ->
-            mapOf(
-                "location" to repo.layout.location,
-                "type" to if (repo.layout is SimpleMavenDefaultLayout) "default" else "local",
-            )
-        },
-        extensionRequests.mapTo(HashSet()) { (desc) ->
-            ExtensionParent(
-                desc.group,
-                desc.artifact,
-                desc.version,
-            )
-        }, setOf()
-    )
+//private fun generateUberExtension(
+//    extensionRequests: Map<ExtensionDescriptor, ExtensionRepositorySettings>,
+//): Pair<ExtensionDescriptor, ExtensionRepositorySettings> {
+//    val erm = ExtensionRuntimeModel(
+//        TOOLING_API_VERSION,
+//        "dev.extframework.extension",
+//        "uber",
+//        UUID.randomUUID().toString(),
+//        extensionRequests.map { (_, repo) ->
+//            mapOf(
+//                "location" to repo.layout.location,
+//                "type" to if (repo.layout is SimpleMavenDefaultLayout) "default" else "local",
+//            )
+//        },
+//        extensionRequests.mapTo(HashSet()) { (desc) ->
+//            ExtensionParent(
+//                desc.group,
+//                desc.artifact,
+//                desc.version,
+//            )
+//        }, setOf()
+//    )
+//
+//    val dir = Files.createTempDirectory("uber-extension")
+//    val ermPath = dir
+//        .resolve("dev")
+//        .resolve("extframework")
+//        .resolve("extension")
+//        .resolve(erm.name)
+//        .resolve(erm.version)
+//        .resolve("${erm.name}-${erm.version}-erm.json")
+//
+//    ermPath.make()
+//    ermPath.writeBytes(jacksonObjectMapper().writeValueAsBytes(erm))
+//
+//    return erm.descriptor to ExtensionRepositorySettings.local(
+//        path = dir.toString()
+//    )
+//}
 
-    val dir = Files.createTempDirectory("uber-extension")
-    val ermPath = dir
-        .resolve("dev")
-        .resolve("extframework")
-        .resolve("extension")
-        .resolve(erm.name)
-        .resolve(erm.version)
-        .resolve("${erm.name}-${erm.version}-erm.json")
 
-    ermPath.make()
-    ermPath.writeBytes(jacksonObjectMapper().writeValueAsBytes(erm))
-
-    return erm.descriptor to ExtensionRepositorySettings.local(
-        path = dir.toString()
-    )
-}
-
-private fun initExtension(
+private fun tweakEnvironment(
     environment: InternalExtensionEnvironment,
-    descriptor: ExtensionDescriptor,
-    repository: ExtensionRepositorySettings,
-) = job {
-    fun allExtensions(node: ExtensionNode): Set<ExtensionNode> {
-        return node.access.targets.map { it.relationship.node }
-            .filterIsInstance<ExtensionNode>()
-            .flatMapTo(HashSet(), ::allExtensions) + node
-    }
-
+    requests: List<Pair<ExtensionDescriptor, ExtensionRepositorySettings>>
+//    descriptor: ExtensionDescriptor,
+//    repository: ExtensionRepositorySettings,
+) = asyncJob {
     val extensionResolver = environment.extensionResolver
 
-    fun loadTweakers(
-        artifact: Artifact<ExtensionArtifactMetadata>
-    ): Job<List<ExtensionPartitionContainer<TweakerPartitionNode, *>>> = job {
-        val tweakerContainer: ExtensionPartitionContainer<TweakerPartitionNode, *>? = environment.archiveGraph
-            .nodes()
-            .filterIsInstance<ExtensionPartitionContainer<*, *>>()
-            .find {
-                it.descriptor.extension.group == artifact.metadata.descriptor.group
-                        && it.descriptor.extension.artifact == artifact.metadata.descriptor.artifact
-                        && it.descriptor.partition == TweakerPartitionLoader.TYPE
-            } as? ExtensionPartitionContainer<TweakerPartitionNode, *> ?: run {
-            val descriptor = PartitionDescriptor(artifact.metadata.descriptor, TweakerPartitionLoader.TYPE)
+    val uberExtensionDescriptor = UberDescriptor("Extension tree")
+    val uberExtensionRequest = UberArtifactRequest(
+        uberExtensionDescriptor,
+        requests.map {
+            UberParentRequest(
+                ExtensionArtifactRequest(it.first), it.second, extensionResolver
+            )
+        }
+    )
 
-            val cacheResult = environment.archiveGraph.cache(
-                PartitionArtifactRequest(descriptor),
-                artifact.metadata.repository,
-                extensionResolver.partitionResolver,
-            )()
-            if (cacheResult.isFailure && cacheResult.exceptionOrNull() is ArchiveException.ArchiveNotFound) return@run null
-            else cacheResult.merge()
+    val extensionTree = environment.archiveGraph.cacheAsync(
+        uberExtensionRequest,
+        UberRepositorySettings,
+        UberResolver
+    )().merge().map { tagged ->
+        tagged.value
+    }.toList().filter { archive -> archive.descriptor is ExtensionDescriptor }
 
-            environment.archiveGraph.get(
-                descriptor,
-                extensionResolver.partitionResolver,
+    //as Tree<IArchive<ExtensionDescriptor>>
+
+//    val extensionTree = environment.archiveGraph.cache(
+//        ExtensionArtifactRequest(
+//            descriptor,
+//        ),
+//        repository,
+//        extensionResolver
+//    )().merge().map { tagged ->
+//        tagged.value
+//        // Unsafe cast but this is the case.
+//    } as Tree<IArchive<ExtensionDescriptor>>
+
+    environment.archiveGraph.get(
+        uberExtensionDescriptor,
+        UberResolver
+    )().merge()
+
+    val uberTweakerParents = extensionTree
+        .filterIsInstance<ArchiveData<ExtensionDescriptor, *>>()
+        .filter { archive ->
+            val erm = extensionResolver.accessBridge.ermFor(archive.descriptor)
+            erm.partitions.any { model -> model.name == "tweaker" }
+        }
+        // TODO reason for this? They will just get cached by the uber resolver later.
+        .onEach { archive ->
+            environment.archiveGraph.cacheAsync(
+                PartitionArtifactRequest(
+                    archive.descriptor,
+                    "tweaker",
+                ),
+                extensionResolver.accessBridge.repositoryFor(archive.descriptor),
+                extensionResolver.partitionResolver
             )().merge()
-        } as? ExtensionPartitionContainer<TweakerPartitionNode, *>
+        }
+        .map { archive ->
+            UberParentRequest(
+                PartitionArtifactRequest(
+                    archive.descriptor,
+                    "tweaker",
+                ),
+                extensionResolver.accessBridge.repositoryFor(archive.descriptor),
+                extensionResolver.partitionResolver
+            )
+        }
 
-        val parents =
-            artifact.parents.map {
-                loadTweakers(it)().merge()
-            }
+    val uberDescriptor = UberDescriptor("All Tweakers")
+    val uberTweakerRequest = UberArtifactRequest(
+        uberDescriptor,
+        uberTweakerParents,
+    )
 
-        parents.flatten() + listOfNotNull(tweakerContainer)
-    }
+    environment.archiveGraph.cacheAsync(
+        uberTweakerRequest,
+        UberRepositorySettings,
+        UberResolver
+    )().merge()
 
-    val tweakers = job(JobName("Load tweakers")) {
-        val artifact = extensionResolver.createContext(repository)
-            .getAndResolve(
-                ExtensionArtifactRequest(descriptor),
-            )().merge()
+    val uberTweakers = environment.archiveGraph.get(
+        uberDescriptor,
+        UberResolver
+    )().merge()
 
-        loadTweakers(artifact)().merge()
-    }.mapException {
-        ExtensionLoadException(descriptor, it)
-    }().merge().filterDuplicatesBy { it.descriptor }
+    val tweakers = extensionTree
+        .mapNotNull { archive ->
+            uberTweakers.access
+                .targets
+                .map { target -> target.relationship.node }
+                .filterIsInstance<ExtensionPartitionContainer<TweakerPartitionNode, *>>()
+                .find { container -> container.descriptor.extension == archive.descriptor }
+        }
+        .reversed()
+        .filterDuplicates()
 
     tweakers.map { it.node }.forEach {
         it.tweaker.tweak(environment)().merge()
     }
 
-    val extensionNodes = job(JobName("Load extensions")) {
-        environment.archiveGraph.cache(
-            ExtensionArtifactRequest(
-                descriptor,
-            ),
-            repository,
-            extensionResolver
-        )().merge()
-
-        environment.archiveGraph.get(
-            descriptor,
-            extensionResolver
-        )().merge()
-    }.mapException {
-        ExtensionLoadException(descriptor, it)
-    }().merge()
-
     // Get all extension nodes in order
-    val extensions = extensionNodes
-        .let(::allExtensions)
-        .filterDuplicatesBy { it.descriptor }
+    val extensions = extensionTree
+        .toSet()
+        .filter { archive -> archive.descriptor is ExtensionDescriptor }
+        .map { environment.archiveGraph.getNode(it.descriptor)!! as ExtensionNode }
+        .reversed()
 
-    // Get extension observer (if there is one after tweaker application) and observer each node
-    environment[ExtensionNodeObserver].getOrNull()?.let { extensions.forEach(it::observe) }
+    // Both of these are just hooks that given end developers more control over how the extension
+    // loading process works. If the end goal is just creating a tweaked environment they should
+    // not be used
 
-    // Call init on all extensions, this is ordered correctly
+    // Provides predefined actions for pre init do to
+    val preInitActions = object : ExtensionPreInitializer.Actions {
+        val parents = ArrayList<UberParentRequest<*, *, *>>()
+
+        override fun <D : ArtifactMetadata.Descriptor, T : ArtifactRequest<D>, S : RepositorySettings> addRequest(
+            request: T,
+            repository: S,
+            resolver: ArchiveNodeResolver<D, T, *, S, *>
+        ) {
+            parents.add(UberParentRequest(request, repository, resolver))
+        }
+    }
+
+    // Call pre init, should do things like load additional partitions
     extensions.forEach {
-        environment[ExtensionRunner].getOrNull()?.init(it)?.invoke()?.merge()
+        environment[ExtensionPreInitializer].getOrNull()?.preInit(it, preInitActions)?.invoke()?.merge()
+    }
+
+    if (preInitActions.parents.isNotEmpty()) {
+        val req = UberArtifactRequest("Extension Pre-init", preInitActions.parents)
+
+        environment.archiveGraph.cacheAsync(
+            req,
+            UberRepositorySettings,
+            UberResolver
+        )().merge()
+
+        environment.archiveGraph.getAsync(
+            req.descriptor,
+            UberResolver
+        )().merge()
+    }
+
+    // Call init this does the actual initialization
+    extensions.forEach {
+        environment[ExtensionInitializer].getOrNull()?.init(it)?.invoke()?.merge()
     }
 }
 

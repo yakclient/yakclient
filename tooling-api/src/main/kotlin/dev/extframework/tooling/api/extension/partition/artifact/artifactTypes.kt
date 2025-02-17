@@ -4,7 +4,6 @@ import com.durganmcbroom.artifact.resolver.ArtifactMetadata
 import com.durganmcbroom.artifact.resolver.ArtifactRequest
 import com.durganmcbroom.resources.Resource
 import dev.extframework.tooling.api.extension.PartitionRuntimeModel
-import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactMetadata
 import dev.extframework.tooling.api.extension.artifact.ExtensionArtifactRequest
 import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
@@ -35,6 +34,7 @@ public data class PartitionArtifactRequest(
     override val descriptor: PartitionDescriptor
 ) : ArtifactRequest<PartitionDescriptor> {
     public constructor(extensionReq: ExtensionArtifactRequest, partition: String) : this(PartitionDescriptor(extensionReq.descriptor, partition))
+    public constructor(extensionDescriptor: ExtensionDescriptor, partition: String) : this(PartitionDescriptor(extensionDescriptor, partition))
 }
 
 public typealias PartitionParentInfo = ArtifactMetadata.ParentInfo<PartitionArtifactRequest, ExtensionRepositorySettings>
@@ -42,8 +42,7 @@ public typealias PartitionParentInfo = ArtifactMetadata.ParentInfo<PartitionArti
 public class PartitionArtifactMetadata(
     desc: PartitionDescriptor,
     public val resource: Resource?,
-    public val prm: PartitionRuntimeModel,
-    public val extension: ExtensionArtifactMetadata,
+    public val prm: PartitionRuntimeModel
 ) : ArtifactMetadata<PartitionDescriptor, PartitionParentInfo>(desc, listOf())
 
 public fun ExtensionDescriptor.partitionNamed(name: String): PartitionDescriptor {
