@@ -3,32 +3,23 @@ package dev.extframework.extloader
 import com.durganmcbroom.artifact.resolver.ArtifactMetadata
 import com.durganmcbroom.artifact.resolver.ArtifactRequest
 import com.durganmcbroom.artifact.resolver.RepositorySettings
-import com.durganmcbroom.artifact.resolver.simple.maven.layout.SimpleMavenDefaultLayout
 import com.durganmcbroom.jobs.async.AsyncJob
 import com.durganmcbroom.jobs.async.asyncJob
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import dev.extframework.boot.archive.ArchiveData
 import dev.extframework.boot.archive.ArchiveGraph
+import dev.extframework.boot.archive.ArchiveNode
 import dev.extframework.boot.archive.ArchiveNodeResolver
-import dev.extframework.boot.archive.IArchive
+import dev.extframework.boot.archive.ArchiveRelationship
 import dev.extframework.boot.dependency.DependencyTypeContainer
 import dev.extframework.boot.monad.Tree
-import dev.extframework.boot.monad.map
 import dev.extframework.boot.monad.toList
 import dev.extframework.common.util.filterDuplicates
-import dev.extframework.common.util.make
 import dev.extframework.extloader.environment.registerBasicSerializers
 import dev.extframework.extloader.environment.registerLoaders
 import dev.extframework.extloader.exception.BasicExceptionPrinter
 import dev.extframework.extloader.exception.handleException
 import dev.extframework.extloader.extension.DefaultExtensionResolver
 import dev.extframework.extloader.extension.partition.TweakerPartitionNode
-import dev.extframework.extloader.uber.UberArtifactRequest
-import dev.extframework.extloader.uber.UberDescriptor
-import dev.extframework.extloader.uber.UberParentRequest
-import dev.extframework.extloader.uber.UberRepositorySettings
-import dev.extframework.extloader.uber.UberResolver
-import dev.extframework.tooling.api.TOOLING_API_VERSION
+import dev.extframework.extloader.uber.*
 import dev.extframework.tooling.api.environment.*
 import dev.extframework.tooling.api.exception.StackTracePrinter
 import dev.extframework.tooling.api.exception.StructuredException
@@ -38,10 +29,7 @@ import dev.extframework.tooling.api.extension.artifact.ExtensionDescriptor
 import dev.extframework.tooling.api.extension.artifact.ExtensionRepositorySettings
 import dev.extframework.tooling.api.extension.partition.ExtensionPartitionContainer
 import dev.extframework.tooling.api.extension.partition.artifact.PartitionArtifactRequest
-import java.nio.file.Files
 import java.nio.file.Path
-import java.util.UUID
-import kotlin.io.path.writeBytes
 import kotlin.system.exitProcess
 
 public class InternalExtensionEnvironment private constructor() : ExtensionEnvironment() {
@@ -165,37 +153,27 @@ private fun tweakEnvironment(
             UberParentRequest(
                 ExtensionArtifactRequest(it.first), it.second, extensionResolver
             )
-        }
+        }.filterDuplicates()
     )
 
-    val extensionTree = environment.archiveGraph.cacheAsync(
+    environment.archiveGraph.cacheAsync(
         uberExtensionRequest,
         UberRepositorySettings,
         UberResolver
-    )().merge().map { tagged ->
-        tagged.value
-    }.toList().filter { archive -> archive.descriptor is ExtensionDescriptor }
-
-    //as Tree<IArchive<ExtensionDescriptor>>
-
-//    val extensionTree = environment.archiveGraph.cache(
-//        ExtensionArtifactRequest(
-//            descriptor,
-//        ),
-//        repository,
-//        extensionResolver
-//    )().merge().map { tagged ->
+    )().merge()
+    //.map { tagged ->
 //        tagged.value
-//        // Unsafe cast but this is the case.
-//    } as Tree<IArchive<ExtensionDescriptor>>
+//    }//.toList().filter { archive -> archive.descriptor is ExtensionDescriptor }
 
-    environment.archiveGraph.get(
+    val extensionTree = environment.archiveGraph.get(
         uberExtensionDescriptor,
         UberResolver
     )().merge()
+        .buildTree()
+        .toList()//.filter { archive -> archive.descriptor is ExtensionDescriptor }
+        .filterIsInstance<ExtensionNode>()
 
     val uberTweakerParents = extensionTree
-        .filterIsInstance<ArchiveData<ExtensionDescriptor, *>>()
         .filter { archive ->
             val erm = extensionResolver.accessBridge.ermFor(archive.descriptor)
             erm.partitions.any { model -> model.name == "tweaker" }
@@ -257,7 +235,6 @@ private fun tweakEnvironment(
     // Get all extension nodes in order
     val extensions = extensionTree
         .toSet()
-        .filter { archive -> archive.descriptor is ExtensionDescriptor }
         .map { environment.archiveGraph.getNode(it.descriptor)!! as ExtensionNode }
         .reversed()
 
@@ -315,4 +292,17 @@ private fun <T> Result<T>.handleStructuredException(
             exitProcess(-1)
         }
     }
+}
+
+private fun ArchiveNode<*>.buildTree(): Tree<ArchiveNode<*>> {
+    val parents = access.targets
+        .filter { it.relationship is ArchiveRelationship.Direct }
+        .map { it.relationship.node }
+
+    return Tree(
+        this,
+        parents.map {
+            it.buildTree()
+        }
+    )
 }

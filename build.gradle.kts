@@ -5,11 +5,11 @@ import dev.extframework.gradle.common.dm.jobs
 plugins {
     kotlin("jvm") version "1.9.21"
 
-    id("dev.extframework.common") version "1.0.49"
+    id("dev.extframework.common") version "1.0.50"
 }
 
 group = "dev.extframework"
-version = "2.1.14-SNAPSHOT"
+version = "2.1.15-SNAPSHOT"
 
 tasks.wrapper {
     gradleVersion = "8.3"
