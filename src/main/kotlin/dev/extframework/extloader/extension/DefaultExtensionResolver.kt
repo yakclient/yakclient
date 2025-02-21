@@ -52,10 +52,18 @@ public open class DefaultExtensionResolver(
     private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 
     internal data class ExtensionLoadMetadata(
-        val erm: ExtensionRuntimeModel,
-        val repository: ExtensionRepositorySettings,
+//        val erm: ExtensionRuntimeModel,
+//        val repository: ExtensionRepositorySettings,
         val classloader: ExtensionClassLoader
     )
+
+    internal data class ExtensionCacheMetadata(
+        val erm: ExtensionRuntimeModel,
+        val repository: ExtensionRepositorySettings,
+    )
+
+
+    internal val cachedExtensions : MutableMap<ExtensionDescriptor, ExtensionCacheMetadata> = HashMap()
 
     internal val loadedExtensions: MutableMap<ExtensionDescriptor, ExtensionLoadMetadata> = HashMap()
 
@@ -78,11 +86,11 @@ public open class DefaultExtensionResolver(
         }
 
         override fun ermFor(descriptor: ExtensionDescriptor): ExtensionRuntimeModel {
-            return loadedExtensions[descriptor]?.erm ?: extensionNotPresent(descriptor)
+            return cachedExtensions[descriptor]?.erm ?: extensionNotPresent(descriptor)
         }
 
         override fun repositoryFor(descriptor: ExtensionDescriptor): ExtensionRepositorySettings {
-            return loadedExtensions[descriptor]?.repository ?: extensionNotPresent(descriptor)
+            return cachedExtensions[descriptor]?.repository ?: extensionNotPresent(descriptor)
         }
     }
 
@@ -126,11 +134,16 @@ public open class DefaultExtensionResolver(
             .parseSettings(rawRepository) as ExtensionRepositorySettings
 
         loadedExtensions[data.descriptor] = ExtensionLoadMetadata(
-            erm, repository, ExtensionClassLoader(
+            ExtensionClassLoader(
                 data.descriptor.name,
                 ArrayList(),
                 layerLoader,
             )
+        )
+
+        cachedExtensions[data.descriptor] = ExtensionCacheMetadata(
+            erm,
+            repository,
         )
 
         val parents = accessTree.targets
@@ -184,6 +197,11 @@ public open class DefaultExtensionResolver(
                     }
                 }.merge()
             }
+        )
+
+        cachedExtensions[artifact.metadata.descriptor] = ExtensionCacheMetadata(
+            artifact.metadata.erm,
+            artifact.metadata.repository,
         )
 
         val parents = artifact.parents.mapAsync {

@@ -178,17 +178,6 @@ private fun tweakEnvironment(
             val erm = extensionResolver.accessBridge.ermFor(archive.descriptor)
             erm.partitions.any { model -> model.name == "tweaker" }
         }
-        // TODO reason for this? They will just get cached by the uber resolver later.
-        .onEach { archive ->
-            environment.archiveGraph.cacheAsync(
-                PartitionArtifactRequest(
-                    archive.descriptor,
-                    "tweaker",
-                ),
-                extensionResolver.accessBridge.repositoryFor(archive.descriptor),
-                extensionResolver.partitionResolver
-            )().merge()
-        }
         .map { archive ->
             UberParentRequest(
                 PartitionArtifactRequest(
